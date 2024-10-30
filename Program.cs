@@ -3,6 +3,7 @@ using System.Security.Cryptography.X509Certificates;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using WebPeli.GameEngine.Managers;
 using WebPeli.GameEngine;
+using WebPeli.Transport;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,6 +13,7 @@ builder.WebHost.ConfigureKestrel((context, options) =>
     options.ListenAnyIP(5000, listenOptions =>
     {
         listenOptions.UseHttps(GenerateManualCertificate());
+        listenOptions.UseConnectionLogging();
         listenOptions.Protocols = HttpProtocols.Http1AndHttp2AndHttp3;
     });
 });
@@ -29,11 +31,30 @@ var Aurinport = builder.Build();
 
 Aurinport.MapGet("/", () => "Hello World!");
 
+Aurinport.UseWebSockets(new WebSocketOptions
+{
+    KeepAliveInterval = TimeSpan.FromSeconds(30)
+});
+
+Aurinport.Map("/ws", async context =>
+{
+    var viewportManager = context.RequestServices.GetRequiredService<ViewportManager>();
+    var logger = context.RequestServices.GetRequiredService<ILogger<WebSocketTransport>>();
+    
+    await WebSocketTransport.HandleWebSocketRequest(context, viewportManager, logger);
+});
+
+Aurinport.Map("/transport", async context =>
+{
+    // WebTransport implementation will go here
+});
+
+
 Aurinport.Run();
 
 static X509Certificate2 GenerateManualCertificate()
 {
-    X509Certificate2 cert = null;
+    X509Certificate2? cert = null;
     var store = new X509Store("KestrelWebTransportCertificates", StoreLocation.CurrentUser);
     store.Open(OpenFlags.ReadWrite);
     if (store.Certificates.Count > 0)

@@ -1,0 +1,139 @@
+using System.Buffers.Binary;
+using System.Net.WebSockets;
+using Microsoft.AspNetCore.Http;
+using WebPeli.GameEngine.Managers;
+
+namespace WebPeli.Transport;
+
+public class WebSocketTransport(
+    WebSocket webSocket,
+    ViewportManager viewportManager,
+    ILogger<WebSocketTransport> logger) : GameTransportBase(viewportManager, logger), IGameTransport
+{
+    private readonly WebSocket _webSocket = webSocket;
+    private readonly CancellationTokenSource _cts = new CancellationTokenSource();
+    private readonly SemaphoreSlim _sendLock = new SemaphoreSlim(1, 1);
+
+    public async Task StartAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            var buffer = new byte[MaxMessageSize];
+            var receiveResult = await _webSocket.ReceiveAsync(
+                new ArraySegment<byte>(buffer), ct);
+
+            while (!receiveResult.CloseStatus.HasValue)
+            {
+                if (receiveResult.MessageType == WebSocketMessageType.Binary)
+                {
+                    var messageData = new Memory<byte>(buffer, 0, receiveResult.Count);
+                    await HandleMessageAsync(messageData);
+                }
+
+                receiveResult = await _webSocket.ReceiveAsync(
+                    new ArraySegment<byte>(buffer), ct);
+            }
+
+            await _webSocket.CloseAsync(
+                receiveResult.CloseStatus.Value,
+                receiveResult.CloseStatusDescription,
+                ct);
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or WebSocketException)
+        {
+            // Normal shutdown
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in WebSocket transport");
+            throw;
+        }
+    }
+
+    private async Task HandleMessageAsync(Memory<byte> messageData)
+    {
+        if (messageData.Length < 3)
+        {
+            await SendErrorAsync(SendMessageWrapper, 0x04, "Invalid message format");
+            return;
+        }
+
+        var messageType = (MessageType)messageData.Span[0];
+        var length = BinaryPrimitives.ReadUInt16LittleEndian(messageData.Span[1..]);
+
+        if (length > MaxMessageSize - 3)
+        {
+            await SendErrorAsync(SendMessageWrapper, 0x04, "Message too large");
+            return;
+        }
+
+        var payload = messageData.Slice(3, length);
+
+        switch (messageType)
+        {
+            case MessageType.ViewportRequest:
+                await HandleViewportRequestAsync(payload, SendMessageWrapper);
+                break;
+            default:
+                await SendErrorAsync(SendMessageWrapper, 0x04, "Unknown message type");
+                break;
+        }
+    }
+
+    // Wrapper to match delegate pattern
+    private Task SendMessageWrapper(MessageType type, ReadOnlyMemory<byte> payload)
+    {
+        return SendMessageAsync(type, payload, CancellationToken.None);
+    }
+
+    public async Task SendMessageAsync(MessageType type, ReadOnlyMemory<byte> payload, CancellationToken ct = default)
+    {
+        var message = EncodeMessage(type, payload);
+
+        // Ensure only one send at a time
+        await _sendLock.WaitAsync(ct);
+        try
+        {
+            await _webSocket.SendAsync(message, WebSocketMessageType.Binary, true, ct);
+        }
+        finally
+        {
+            _sendLock.Release();
+        }
+    }
+
+    public async Task StopAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            _cts.Cancel();
+            if (_webSocket.State == WebSocketState.Open)
+            {
+                await _webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure,
+                    "Server shutting down", ct);
+            }
+        }
+        finally
+        {
+            _cts.Dispose();
+            _sendLock.Dispose();
+        }
+    }
+
+    // Helper method to map WebSocket to our transport
+    public static async Task HandleWebSocketRequest(HttpContext context,
+        ViewportManager viewportManager,
+        ILogger<WebSocketTransport> logger)
+    {
+        if (!context.WebSockets.IsWebSocketRequest)
+        {
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            return;
+        }
+
+        using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+        var transport = new WebSocketTransport(webSocket, viewportManager, logger);
+
+        await transport.StartAsync(context.RequestAborted);
+    }
+}

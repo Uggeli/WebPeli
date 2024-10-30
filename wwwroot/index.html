@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebPeli</title>
+    <style>
+        canvas { 
+            border: 1px solid #000;
+            image-rendering: pixelated;
+        }
+        #debug {
+            font-family: monospace;
+            white-space: pre;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div id="debug"></div>
+
+    <script>
+        const debug = document.getElementById('debug');
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        async function initWebTransport() {
+            try {
+                const url = `https://localhost:5000/game`;
+                const transport = new WebTransport(url);
+                
+                transport.closed.then(() => {
+                    debug.textContent += "\nConnection closed normally";
+                }).catch((error) => {
+                    debug.textContent += "\nConnection closed due to: " + error;
+                });
+
+                await transport.ready;
+                debug.textContent += "\nConnected!";
+                
+                // Create bidirectional stream
+                const stream = await transport.createBidirectionalStream();
+                const writer = stream.writable.getWriter();
+                const reader = stream.readable.getReader();
+
+                // Test write
+                const testData = new Uint8Array([1, 2, 3, 4]);
+                await writer.write(testData);
+                debug.textContent += "\nSent test data";
+
+                // Test read
+                const {value, done} = await reader.read();
+                if (value) {
+                    debug.textContent += "\nReceived: " + new Uint8Array(value);
+                }
+
+            } catch (error) {
+                debug.textContent += "\nFailed to connect: " + error;
+            }
+        }
+
+        window.onload = initWebTransport;
+    </script>
+</body>
+</html>
