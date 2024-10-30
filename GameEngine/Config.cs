@@ -4,7 +4,7 @@ static class Config
 {
     public const int SCREENWIDTH = 800;
     public const int SCREENHEIGHT = 600;
-    public const byte CHUNK_SIZE = 8;
+    public const byte CHUNK_SIZE = 128;
     public const byte WORLD_SIZE = 3;
 
     // Mutable static fields

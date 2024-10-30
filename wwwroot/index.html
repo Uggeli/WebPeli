@@ -1,63 +1,287 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>WebPeli</title>
     <style>
-        canvas { 
-            border: 1px solid #000;
-            image-rendering: pixelated;
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #333;
         }
+
+        canvas {
+            image-rendering: pixelated;
+            display: block;
+            margin: auto;
+        }
+
         #debug {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            color: white;
             font-family: monospace;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
             white-space: pre;
         }
     </style>
 </head>
+
 <body>
-    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <canvas id="gameCanvas"></canvas>
     <div id="debug"></div>
 
     <script>
+        const TILE_SIZE = 32; // pixels
         const debug = document.getElementById('debug');
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        
-        async function initWebTransport() {
-            try {
-                const url = `https://localhost:5000/game`;
-                const transport = new WebTransport(url);
-                
-                transport.closed.then(() => {
-                    debug.textContent += "\nConnection closed normally";
-                }).catch((error) => {
-                    debug.textContent += "\nConnection closed due to: " + error;
+
+        // Message types from protocol spec
+        const MessageType = {
+            ViewportRequest: 0x01,
+            ViewportData: 0x02,
+            Error: 0x03
+        };
+
+        // Colors for each tile type (water, grass, hills, mountains)
+        const TILE_COLORS = [
+            '#4287f5', // Water - blue
+            '#3ba13b', // Grass - green
+            '#8b6914', // Hills - brown
+            '#737373'  // Mountains - grey
+        ];
+
+        class GameClient {
+            constructor() {
+                this.ws = null;
+                this.connected = false;
+                this.pendingViewportRequest = false;
+
+                // Viewport state
+                this.viewportX = 0;
+                this.viewportY = 0;
+                this.lastTiles = null;
+
+                // Input state
+                this.keys = new Set();
+
+                this.setupCanvas();
+                this.setupInput();
+            }
+
+            setupCanvas() {
+                // Make canvas fill window
+                const resize = () => {
+                    canvas.width = window.innerWidth;
+                    canvas.height = window.innerHeight;
+                    // Request new viewport data when size changes
+                    if (this.connected) this.requestViewport();
+                };
+
+                window.addEventListener('resize', resize);
+                resize();
+            }
+
+            setupInput() {
+                window.addEventListener('keydown', e => {
+                    this.keys.add(e.key);
                 });
 
-                await transport.ready;
-                debug.textContent += "\nConnected!";
-                
-                // Create bidirectional stream
-                const stream = await transport.createBidirectionalStream();
-                const writer = stream.writable.getWriter();
-                const reader = stream.readable.getReader();
+                window.addEventListener('keyup', e => {
+                    this.keys.delete(e.key);
+                });
+            }
 
-                // Test write
-                const testData = new Uint8Array([1, 2, 3, 4]);
-                await writer.write(testData);
-                debug.textContent += "\nSent test data";
+            async connect() {
+                try {
+                    // this.ws = new WebSocket('ws://localhost:5000/ws');
+                    this.ws = new WebSocket(`ws://${document.location.host}/ws`);
 
-                // Test read
-                const {value, done} = await reader.read();
-                if (value) {
-                    debug.textContent += "\nReceived: " + new Uint8Array(value);
+                    this.ws.binaryType = 'arraybuffer';  // Important for binary messages
+
+                    this.ws.onopen = () => {
+                        console.log('Connected!');
+                        debug.textContent = 'Connected!';
+                        this.connected = true;
+                        this.requestViewport();
+                    };
+
+                    this.ws.onmessage = (event) => this.handleMessage(event.data);
+
+                    this.ws.onclose = () => {
+                        debug.textContent += '\nConnection closed';
+                        this.connected = false;
+                    };
+
+                    this.ws.onerror = (error) => {
+                        debug.textContent += '\nWebSocket error: ' + error;
+                    };
+                } catch (error) {
+                    console.error('Connection failed:', error);
+                    debug.textContent += '\nConnection failed: ' + error;
+                }
+            }
+
+            // Protocol message handling
+            handleMessage(data) {
+                const view = new DataView(data);
+                const messageType = view.getUint8(0);
+                const length = view.getUint16(1, true); // true for little-endian
+
+                switch (messageType) {
+                    case MessageType.ViewportData:
+                        this.handleViewportData(data, 3); // Skip header
+                        break;
+                    case MessageType.Error:
+                        this.handleError(data, 3, length);
+                        break;
+                    default:
+                        debug.textContent += `\nUnknown message type: ${messageType}`;
                 }
 
-            } catch (error) {
-                debug.textContent += "\nFailed to connect: " + error;
+                this.pendingViewportRequest = false;
+            }
+
+            handleViewportData(data, offset) {
+                const view = new DataView(data, offset);
+                const width = view.getUint16(0, true);
+                const height = view.getUint16(2, true);
+
+                // Get tile data as Uint8Array
+                const tiles = new Uint8Array(data, offset + 4, width * height);
+
+                this.lastTiles = { width, height, tiles };
+                this.render();
+            }
+
+            handleError(data, offset, length) {
+                const view = new DataView(data, offset);
+                const errorCode = view.getUint8(0);
+                const messageLength = view.getUint16(1, true);
+
+                // Convert error message bytes to string
+                const encoder = new TextDecoder();
+                const message = encoder.decode(new Uint8Array(data, offset + 3, messageLength));
+
+                debug.textContent += `\nServer error ${errorCode}: ${message}`;
+            }
+
+            requestViewport() {
+                if (!this.connected || this.pendingViewportRequest) return;
+
+                // Prepare viewport request payload
+                const payload = new ArrayBuffer(16); // 4 x float32
+                const view = new DataView(payload);
+
+                view.setFloat32(0, this.viewportX, true);
+                view.setFloat32(4, this.viewportY, true);
+                view.setFloat32(8, canvas.width, true);
+                view.setFloat32(12, canvas.height, true);
+
+                // Add message header
+                const message = new ArrayBuffer(payload.byteLength + 3);
+                const messageView = new DataView(message);
+
+                messageView.setUint8(0, MessageType.ViewportRequest);
+                messageView.setUint16(1, payload.byteLength, true);
+
+                // Copy payload after header
+                new Uint8Array(message, 3).set(new Uint8Array(payload));
+
+                this.ws.send(message);
+                this.pendingViewportRequest = true;
+            }
+
+            update() {
+                let moved = false;
+                const speed = 5;
+
+                if (this.keys.has('ArrowLeft')) {
+                    this.viewportX -= speed;
+                    moved = true;
+                }
+                if (this.keys.has('ArrowRight')) {
+                    this.viewportX += speed;
+                    moved = true;
+                }
+                if (this.keys.has('ArrowUp')) {
+                    this.viewportY += speed;
+                    moved = true;
+                }
+                if (this.keys.has('ArrowDown')) {
+                    this.viewportY -= speed;
+                    moved = true;
+                }
+
+                if (moved) {
+                    this.requestViewport();
+                }
+            }
+
+            render() {
+                if (!this.lastTiles) return;
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                const { width, height, tiles } = this.lastTiles;
+
+                // Update debug info
+                debug.textContent = `Viewport: ${this.viewportX.toFixed(1)}, ${this.viewportY.toFixed(1)}
+Tiles: ${width}x${height}`;
+
+                // Draw tiles
+                for (let y = 0; y < height; y++) {
+                    for (let x = 0; x < width; x++) {
+                        const tile = tiles[y * width + x];
+
+                        // Extract tile type from bits 0-1
+                        const tileType = tile & 0b11;
+                        // Extract flags from bits 6-7
+                        const isTransparent = (tile & 0b01000000) !== 0;
+                        const isTraversable = (tile & 0b10000000) !== 0;
+
+                        ctx.fillStyle = TILE_COLORS[tileType];
+                        ctx.fillRect(
+                            x * TILE_SIZE,
+                            y * TILE_SIZE,
+                            TILE_SIZE - 1,
+                            TILE_SIZE - 1
+                        );
+
+                        // Visual indicator for traversable tiles
+                        if (isTraversable) {
+                            ctx.fillStyle = 'rgba(255,255,255,0.2)';
+                            ctx.fillRect(
+                                x * TILE_SIZE + 2,
+                                y * TILE_SIZE + 2,
+                                TILE_SIZE - 5,
+                                TILE_SIZE - 5
+                            );
+                        }
+                    }
+                }
+            }
+
+            gameLoop() {
+                this.update();
+                requestAnimationFrame(() => this.gameLoop());
+            }
+
+            start() {
+                this.connect();
+                this.gameLoop();
             }
         }
 
-        window.onload = initWebTransport;
+        // Start the game when page loads
+        window.onload = () => {
+            const game = new GameClient();
+            game.start();
+        };
     </script>
 </body>
+
 </html>

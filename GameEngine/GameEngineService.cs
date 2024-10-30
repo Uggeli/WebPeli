@@ -30,7 +30,7 @@ public class GameEngineService : BackgroundService
         {
             // _logger.LogInformation("GameEngineService running at: {time}", DateTimeOffset.Now);
             Update();
-            await Task.Delay(1000, stoppingToken);  // Later: reduce delay to 16ms for 60 FPS
+            await Task.Delay(16, stoppingToken);  // Later: reduce delay to 16ms for 60 FPS
         }
     }
 

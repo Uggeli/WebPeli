@@ -1,21 +1,20 @@
 using System.Buffers.Binary;
 using System.Net.WebSockets;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Http;
 using WebPeli.GameEngine.Managers;
 
 namespace WebPeli.Transport;
 
-public class WebSocketTransport(
-    WebSocket webSocket,
-    ViewportManager viewportManager,
-    ILogger<WebSocketTransport> logger) : GameTransportBase(viewportManager, logger), IGameTransport
+public class WebSocketTransport(WebSocket webSocket, ViewportManager viewportManager, ILogger<WebSocketTransport> logger) : GameTransportBase(viewportManager, logger), IGameTransport
 {
     private readonly WebSocket _webSocket = webSocket;
-    private readonly CancellationTokenSource _cts = new CancellationTokenSource();
-    private readonly SemaphoreSlim _sendLock = new SemaphoreSlim(1, 1);
+    private readonly CancellationTokenSource _cts = new();
+    private readonly SemaphoreSlim _sendLock = new(1, 1);
 
     public async Task StartAsync(CancellationToken ct = default)
     {
+        _logger.LogInformation("WebSocket transport started");
         try
         {
             var buffer = new byte[MaxMessageSize];
@@ -41,6 +40,7 @@ public class WebSocketTransport(
         }
         catch (Exception ex) when (ex is OperationCanceledException or WebSocketException)
         {
+            _logger.LogInformation("WebSocket transport stopped");
             // Normal shutdown
         }
         catch (Exception ex)
@@ -132,6 +132,7 @@ public class WebSocketTransport(
         }
 
         using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+        logger.LogInformation("WebSocket connection established");
         var transport = new WebSocketTransport(webSocket, viewportManager, logger);
 
         await transport.StartAsync(context.RequestAborted);

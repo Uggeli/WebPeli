@@ -9,10 +9,10 @@ namespace WebPeli.Transport;
 public abstract class GameTransportBase
 {
     protected readonly ViewportManager _viewportManager;
-    protected readonly ILogger _logger;
+    protected readonly ILogger<GameTransportBase> _logger;
     protected const int MaxMessageSize = 1024 * 64; // 64KB max message size
 
-    protected GameTransportBase(ViewportManager viewportManager, ILogger logger)
+    protected GameTransportBase(ViewportManager viewportManager, ILogger<GameTransportBase> logger)
     {
         _viewportManager = viewportManager;
         _logger = logger;
