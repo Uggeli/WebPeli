@@ -229,8 +229,7 @@
                 const { width, height, tiles } = this.lastTiles;
 
                 // Update debug info
-                debug.textContent = `Viewport: ${this.viewportX.toFixed(1)}, ${this.viewportY.toFixed(1)}
-Tiles: ${width}x${height}`;
+                debug.textContent = `Viewport: ${this.viewportX.toFixed(1)}, ${this.viewportY.toFixed(1)}\nTiles: ${width}x${height}`;
 
                 // Draw tiles
                 for (let y = 0; y < height; y++) {
