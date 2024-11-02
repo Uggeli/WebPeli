@@ -147,11 +147,16 @@ public class EntityChunk
 
 public class EntityManager : BaseManager
 {
+    private static EntityManager? _instance;
+    public static EntityManager Instance => _instance ??= new EntityManager();
     private EntityChunk[,] _chunks = new EntityChunk[Config.WORLD_SIZE, Config.WORLD_SIZE];
+    private readonly Dictionary<Guid, (byte chunkX, byte chunkY)> _entities = [];  // for quick lookup
 
+    
     public override void Destroy()
     {
-        throw new NotImplementedException();
+        EventManager.UnregisterListener<ChunkCreated>(this);
+        EventManager.UnregisterListener<MoveEntityRequest>(this);
     }
 
     public override void HandleMessage(IEvent evt)

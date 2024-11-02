@@ -3,12 +3,6 @@ namespace WebPeli.GameEngine.Managers;
 public class MapManager : BaseManager
 {
     public Chunk[,] Chunks = new Chunk[Config.WORLD_SIZE, Config.WORLD_SIZE];
-    public MapManager()
-    {
-        // EventManager.RegisterListener<ChunkEvent>(this);
-        // EventManager.RegisterListener<PathRequest>(this);
-        // EventManager.RegisterListener<MoveRequest>(this);
-    }
 
     public override void HandleMessage(IEvent evt)
     {
@@ -67,12 +61,12 @@ public class MapManager : BaseManager
             Chunk? next_chunk = GetChunk(interChunkPath[1].Item1, interChunkPath[1].Item2);
             if (next_chunk == null)
             {
-                return [];
+                return [.. Path];
             }
             var connectionPoint = GetChunkConnectionPoint(startChunk, next_chunk, (interChunkPath[1].Item1 - startChunkX, interChunkPath[1].Item2 - startChunkY));
             if (connectionPoint == null)
             {
-                return [];
+                return [..Path];
             }
             return startChunk.GetPath(startLocalX, startLocalY, connectionPoint.Value.Item1, connectionPoint.Value.Item2);
         }
@@ -218,10 +212,14 @@ public class MapManager : BaseManager
             for (int y = 0; y < Config.WORLD_SIZE; y++)
             {
                 Chunks[x, y] = new Chunk();
+                EventManager.Emit(new ChunkCreated{X = x, Y = y});
             }
         }
         WorldGenerator.GenerateWorld(this);
         System.Console.WriteLine(VisualizeWorld());
+
+        // Register to events
+        
     }
 
     public override void Destroy()
