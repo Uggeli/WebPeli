@@ -13,6 +13,26 @@ public class MapManager : BaseManager
     public override void HandleMessage(IEvent evt)
     {
         // Handle chunk events
+        switch (evt)
+        {
+            // Priority messages
+            case TerrainCollisionRequestPriority request:
+                bool Result = HandleCollisionCheck(request.X, request.Y);
+                EventManager.EmitCallback(request.CallbackId, Result);
+                break;
+        }
+    }
+
+    bool HandleCollisionCheck(int x, int y)
+    {
+        // X and Y are in world coordinates
+        var (chunkX, chunkY, localX, localY) = Util.CoordinateSystem.WorldToChunkAndLocal(x, y);
+        var chunk = GetChunk(chunkX, chunkY);
+        if (chunk == null)
+        {
+            return false;
+        }
+        return chunk.IsTraversable(localX, localY);
     }
 
     Chunk? GetChunk(int chunkX, int chunkY)
