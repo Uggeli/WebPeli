@@ -1,3 +1,6 @@
+using WebPeli.GameEngine.EntitySystem;
+using WebPeli.GameEngine.Managers;
+
 namespace WebPeli.GameEngine;
 
 public interface IEvent { } // Marker interface
@@ -33,4 +36,24 @@ public record ViewportRequest : IEvent
     public float? WorldWidth { get; init; }
     public float? WorldHeight { get; init; }
     public Guid CallbackId { get; init; }
+}
+
+public readonly record struct TerrainCollisionRequestPriority : IEvent
+{
+    public int X { get; init; }
+    public int Y { get; init; }
+    public required Guid CallbackId { get; init; }
+}
+
+public readonly record struct ChunkCreated : IEvent
+{
+    public readonly int X { get; init; }
+    public readonly int Y { get; init; }
+}
+
+public readonly record struct MoveEntityRequest : IEvent 
+{
+    public required Guid EntityId { get; init; }
+    public required EntityPosition FromPosition { get; init; }  // Current position
+    public required EntityPosition ToPosition { get; init; }    // Target position
 }
