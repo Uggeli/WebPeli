@@ -6,7 +6,7 @@ public abstract class BaseManager : IListener
     public abstract void Init();
     public abstract void Destroy();
     public abstract void HandleMessage(IEvent evt);
-    public void Update(double deltaTime)
+    public virtual void Update(double deltaTime)
     {
         foreach (var evt in EventQueue)
         {

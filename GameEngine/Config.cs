@@ -28,5 +28,10 @@ static class Config
             OnCameraPositionChanged?.Invoke();
         }
     }
+
+    // Systems configuration
+    public const byte HUNGER_RATE = 2;
+    public const byte THIRST_RATE = 2;
+    public const byte FATIGUE_RATE = 2;
 }
 
