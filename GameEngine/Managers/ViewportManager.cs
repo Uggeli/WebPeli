@@ -4,7 +4,7 @@ using System.Buffers.Binary;
 namespace WebPeli.GameEngine.Managers;
 
 // Network-ready version of viewport data
-public record ViewportDataBinary
+public readonly record struct ViewportDataBinary
 {
     public required Memory<byte> EncodedData { get; init; }
     

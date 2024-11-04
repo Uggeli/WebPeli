@@ -9,10 +9,32 @@ public class MapManager : BaseManager
         // Handle chunk events
         switch (evt)
         {
-            // Priority messages
-            case TerrainCollisionRequestPriority request:
+            case TerrainCollisionRequest request:
                 bool Result = HandleCollisionCheck(request.X, request.Y);
                 EventManager.EmitCallback(request.CallbackId, Result);
+                break;
+
+            case MoveEntityRequest request:
+                // Check if the entity can move to the target position
+                bool canMove = HandleCollisionCheck(request.ToPosition.X, request.ToPosition.Y);
+                if (canMove)
+                {
+                    // Move the entity
+                    // Later: EventManager.Emit(new EntityMoved{EntityId = request.EntityId, Position = request.ToPosition});
+                }
+                EventManager.EmitCallback(request.CallbackId, canMove);
+                break;
+
+            case PathfindingRequest request:
+                var path = GetPath(
+                    request.FromScreenX, request.FromScreenY,
+                    request.ToScreenX, request.ToScreenY
+                );
+                EventManager.EmitCallback(request.CallbackId, path);
+                break;
+
+
+            default:
                 break;
         }
     }

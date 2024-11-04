@@ -38,7 +38,7 @@ public record ViewportRequest : IEvent
     public Guid CallbackId { get; init; }
 }
 
-public readonly record struct TerrainCollisionRequestPriority : IEvent
+public readonly record struct TerrainCollisionRequest : IEvent
 {
     public int X { get; init; }
     public int Y { get; init; }
@@ -56,4 +56,13 @@ public readonly record struct MoveEntityRequest : IEvent
     public required Guid EntityId { get; init; }
     public required EntityPosition FromPosition { get; init; }  // Current position
     public required EntityPosition ToPosition { get; init; }    // Target position
+    public required Guid CallbackId { get; init; }
+}
+
+public readonly record struct PathfindingRequest : IEvent
+{
+    public required Guid EntityId { get; init; }
+    public required EntityPosition FromPosition { get; init; }
+    public required EntityPosition ToPosition { get; init; }
+    public required Guid CallbackId { get; init; }
 }
