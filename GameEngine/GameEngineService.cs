@@ -24,6 +24,8 @@ public class GameEngineService : BackgroundService
         }
     }
 
+    private int _lastUpdateTime = Environment.TickCount;
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
@@ -39,14 +41,6 @@ public class GameEngineService : BackgroundService
 
             var processingTime = Environment.TickCount - startTick;
             await Task.Delay(Math.Max(16 - processingTime, 0), stoppingToken);
-        }
-    }
-
-    private void Update()
-    {
-        foreach (BaseManager manager in managers)
-        {
-            manager.Update();
         }
     }
 }
