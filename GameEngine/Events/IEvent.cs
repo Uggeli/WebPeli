@@ -66,3 +66,15 @@ public readonly record struct PathfindingRequest : IEvent
     public required EntityPosition ToPosition { get; init; }
     public required Guid CallbackId { get; init; }
 }
+
+public readonly record struct RegisterToSystem : IEvent
+{
+    public  Guid EntityId { get; init; }
+    public Type SystemType { get; init; } // Type of the system to register to
+}
+
+public readonly record struct UnregisterFromSystem : IEvent
+{
+    public  Guid EntityId { get; init; }
+    public Type SystemType { get; init; } // Type of the system to unregister from
+}

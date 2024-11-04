@@ -1,0 +1,40 @@
+using WebPeli.GameEngine.Managers;
+
+namespace WebPeli.GameEngine.EntitySystem.Interfaces;
+
+public class MetabolismSystem : BaseManager
+{
+    private List<Guid> _entities = [];
+    private const byte NORMAL_MAX = 64;
+    private const byte MILD_THRESHOLD = 65;    // hungry/thirsty/tired
+    private const byte SEVERE_THRESHOLD = 129;  // very hungry/etc
+    private const byte CRITICAL_THRESHOLD = 193; // starving/etc
+    private const byte DEATH_THRESHOLD = 255;    // dead as a doornail, poor guy
+
+    public override void HandleMessage(IEvent evt)
+    {
+        switch (evt)
+        {
+            case RegisterToSystem reg when reg.SystemType == typeof(MetabolismSystem):
+                _entities.Add(reg.EntityId);
+                break;
+            case UnregisterFromSystem unreg when unreg.SystemType == typeof(MetabolismSystem):
+                _entities.Remove(unreg.EntityId);
+                break;
+            default:
+                break;        
+        }
+    }
+
+    public override void Init()
+    {
+        EventManager.RegisterListener<RegisterToSystem>(this);
+        EventManager.RegisterListener<UnregisterFromSystem>(this);
+    }
+
+    public override void Destroy()
+    {
+        EventManager.UnregisterListener<RegisterToSystem>(this);
+        EventManager.UnregisterListener<UnregisterFromSystem>(this);
+    }
+}
