@@ -62,6 +62,15 @@ public static class CoordinateSystem
         return (chunkX, chunkY, localX, localY);
     }
 
+    public static (byte ChunkX, byte ChunkY, byte LocalX, byte LocalY) WorldToChunkAndLocal(float worldX, float worldY)
+    {
+        byte chunkX = (byte)(worldX / Config.CHUNK_SIZE);
+        byte chunkY = (byte)(worldY / Config.CHUNK_SIZE);
+        byte localX = (byte)(worldX % Config.CHUNK_SIZE);
+        byte localY = (byte)(worldY % Config.CHUNK_SIZE);
+        return (chunkX, chunkY, localX, localY);
+    }
+
     // Screen and World conversions
     public static (float ScreenX, float ScreenY) WorldToScreen(
         int worldX, int worldY, 
