@@ -7,7 +7,7 @@ namespace WebPeli.GameEngine.EntitySystem.Interfaces;
 
 public class MetabolismSystem : BaseManager
 {
-    private List<Guid> _entities = [];
+    private Dictionary<Guid, int> _entities = [];
     // Threshold bits - could make these byte flags if we want to be explicit
     private const int HUNGER_MILD     = 1 << 0;     // 0b_0000_0001
     private const int HUNGER_SEVERE   = 1 << 1;     // 0b_0000_0010
@@ -34,7 +34,7 @@ public class MetabolismSystem : BaseManager
         switch (evt)
         {
             case RegisterToSystem reg when reg.SystemType == typeof(MetabolismSystem):
-                _entities.Add(reg.EntityId);
+                _entities.Add(reg.EntityId, 0); // initialize to 0
                 break;
             case UnregisterFromSystem unreg when unreg.SystemType == typeof(MetabolismSystem):
                 _entities.Remove(unreg.EntityId);
@@ -50,13 +50,16 @@ public class MetabolismSystem : BaseManager
         EventManager.RegisterListener<UnregisterFromSystem>(this);
         EventManager.RegisterListener<ConsumeFood>(this);
         EventManager.RegisterListener<ConsumeDrink>(this);
-        
+        EventManager.RegisterListener<Rest>(this);
     }
 
     public override void Destroy()
     {
         EventManager.UnregisterListener<RegisterToSystem>(this);
         EventManager.UnregisterListener<UnregisterFromSystem>(this);
+        EventManager.UnregisterListener<ConsumeFood>(this);
+        EventManager.UnregisterListener<ConsumeDrink>(this);
+        EventManager.UnregisterListener<Rest>(this);
     }
     private int _tickcounter = 0;
     public override void Update(double deltaTime)
@@ -65,13 +68,12 @@ public class MetabolismSystem : BaseManager
         if (++_tickcounter >= 60)  // Update every 60 ticks
         {
             _tickcounter = 0;
-            foreach ((Guid id, IEntity entity)  in EntityManager.Instance.GetEntitiesWithInterface<IMetabolism>(_entities))
+            foreach ((var id, _) in _entities)
             {
-                if (entity is not IMetabolism meta) continue;
-                
-                int hungerBits = meta.State & HUNGER_MASK;
-                int thirstBits = meta.State & THIRST_MASK;
-                int fatigueBits = meta.State & FATIGUE_MASK;
+                int State = _entities[id];
+                int hungerBits = State & HUNGER_MASK;
+                int thirstBits = State & THIRST_MASK;
+                int fatigueBits = State & FATIGUE_MASK;
 
                 // Shift up for hunger/thirst (getting worse)
                 hungerBits = (hungerBits << 1) & HUNGER_MASK;
@@ -80,35 +82,64 @@ public class MetabolismSystem : BaseManager
                 fatigueBits = (fatigueBits >> 1) & FATIGUE_MASK;
 
                 // Combine back
-                meta.State = hungerBits | thirstBits | fatigueBits;
+                State = hungerBits | thirstBits | fatigueBits;
+                _entities[id] = State;
 
-                switch (meta.State)
-                {
-                    case var state when IsAtDeathThreshold(state):
-                        EventManager.Emit(new DeathEvent{EntityId = id});
-                        break;
-                    case var state when IsAtCriticalThreshold(state):
-                        EventManager.Emit(new EntityThresholdReached{EntityId = id, Severity = ThresholdSeverity.Critical, ThresholdType = ThresholdType.Hunger});
-                        break;
-                    case var state when IsAtSevereThreshold(state):
-                        EventManager.Emit(new EntityThresholdReached{EntityId = id, Severity = ThresholdSeverity.Severe, ThresholdType = ThresholdType.Hunger});
-                        break;
-                    case var state when IsAtMildThreshold(state):
-                        EventManager.Emit(new EntityThresholdReached{EntityId = id, Severity = ThresholdSeverity.Mild, ThresholdType = ThresholdType.Hunger});
-                        break;
-                    default:
-                        // Handle normal
-                        break;
-                }
-                EntityManager.Instance.UpdateEntity(id, entity);
+                EvaluateState(id, State);
             }
         }
     }
 
-    private static bool IsAtDeathThreshold(int state) => (state & (HUNGER_DEATH | THIRST_DEATH)) != 0;
-    private static bool IsAtCriticalThreshold(int state) => (state & (HUNGER_CRITICAL | THIRST_CRITICAL)) != 0;
-    private static bool IsAtSevereThreshold(int state) => (state & (HUNGER_SEVERE | THIRST_SEVERE)) != 0;
-    private static bool IsAtMildThreshold(int state) => (state & (HUNGER_MILD | THIRST_MILD)) != 0;
-    public bool IsHungerAtDeath(IMetabolism metabolism) => IsAtDeathThreshold(metabolism.State & HUNGER_MASK);
-    public bool IsHungerAtCritical(IMetabolism metabolism) => IsAtCriticalThreshold(metabolism.State & HUNGER_MASK);
+    private static void EvaluateState(Guid EntityId, int State)
+    {
+        // Check if entity is dead
+        if ((State & (HUNGER_DEATH | THIRST_DEATH | FATIGUE_DEATH)) != 0)
+        {
+            EventManager.Emit(new DeathEvent{EntityId = EntityId});
+            return;
+        }
+
+
+        // Test hunger
+        if ((State & HUNGER_CRITICAL) != 0)
+        {
+            EventManager.Emit(new EntityThresholdReached{EntityId = EntityId, ThresholdType = ThresholdType.Hunger, Severity = ThresholdSeverity.Critical});
+        }
+        else if ((State & HUNGER_SEVERE) != 0)
+        {
+            EventManager.Emit(new EntityThresholdReached{EntityId = EntityId, ThresholdType = ThresholdType.Hunger, Severity = ThresholdSeverity.Severe});
+        }
+        else if ((State & HUNGER_MILD) != 0)
+        {
+            EventManager.Emit(new EntityThresholdReached{EntityId = EntityId, ThresholdType = ThresholdType.Hunger, Severity = ThresholdSeverity.Mild});
+        }
+
+        // Test thirst
+        if ((State & THIRST_CRITICAL) != 0)
+        {
+            EventManager.Emit(new EntityThresholdReached{EntityId = EntityId, ThresholdType = ThresholdType.Thirst, Severity = ThresholdSeverity.Critical});
+        }
+        else if ((State & THIRST_SEVERE) != 0)
+        {
+            EventManager.Emit(new EntityThresholdReached{EntityId = EntityId, ThresholdType = ThresholdType.Thirst, Severity = ThresholdSeverity.Severe});
+        }
+        else if ((State & THIRST_MILD) != 0)
+        {
+            EventManager.Emit(new EntityThresholdReached{EntityId = EntityId, ThresholdType = ThresholdType.Thirst, Severity = ThresholdSeverity.Mild});
+        }
+
+        // Test fatigue
+        if ((State & FATIGUE_CRITICAL) != 0)
+        {
+            EventManager.Emit(new EntityThresholdReached{EntityId = EntityId, ThresholdType = ThresholdType.Fatigue, Severity = ThresholdSeverity.Critical});
+        }
+        else if ((State & FATIGUE_SEVERE) != 0)
+        {
+            EventManager.Emit(new EntityThresholdReached{EntityId = EntityId, ThresholdType = ThresholdType.Fatigue, Severity = ThresholdSeverity.Severe});
+        }
+        else if ((State & FATIGUE_MILD) != 0)
+        {
+            EventManager.Emit(new EntityThresholdReached{EntityId = EntityId, ThresholdType = ThresholdType.Fatigue, Severity = ThresholdSeverity.Mild});
+        }
+    }
 }
