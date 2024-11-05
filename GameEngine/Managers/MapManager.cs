@@ -27,8 +27,8 @@ public class MapManager : BaseManager
 
             case PathfindingRequest request:
                 var path = GetPath(
-                    request.FromScreenX, request.FromScreenY,
-                    request.ToScreenX, request.ToScreenY
+                    request.StartX, request.StartY,
+                    request.TargetX, request.TargetY
                 );
                 EventManager.EmitCallback(request.CallbackId, path);
                 break;
@@ -94,6 +94,8 @@ public class MapManager : BaseManager
         }
         return [];
     }
+
+
 
     (int, int)[] FindInterChunkPath(int startChunkX, int startChunkY, int endChunkX, int endChunkY)
     {

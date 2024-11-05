@@ -50,7 +50,7 @@ public class EntityManager : BaseManager
             if (toChunk.AddEntity(entity, [new(toLocalX, toLocalY)]))
             {
                 fromChunk.RemoveEntity(request.EntityId);
-                _entities[request.EntityId] = (toChunk, toChunkY);
+                _entities[request.EntityId] = (toChunkX, toChunkY);
             }
         }
         else // Same chunk movement
@@ -112,7 +112,54 @@ public class EntityManager : BaseManager
         return true;
     }
 
-    
+    public bool RemoveEntity(Guid entityId)
+    {
+        if (!_entities.TryGetValue(entityId, out var chunkPos))
+            return false;
+
+        var (chunkX, chunkY) = chunkPos;
+        return _chunks[chunkX, chunkY].RemoveEntity(entityId);
+    }
+
+    public IEntity? GetEntity(Guid entityId)
+    {
+        if (!_entities.TryGetValue(entityId, out var chunkPos))
+            return null;
+
+        var (chunkX, chunkY) = chunkPos;
+        return _chunks[chunkX, chunkY].GetEntity(entityId);
+    }
+
+    public Dictionary<Guid,IEntity> GetEntitiesWithInterface<T>(IEnumerable<Guid> EntityIds)
+    {
+        Dictionary<Guid,IEntity> entities = new();
+        foreach (var entityId in EntityIds)
+        {
+            var entity = GetEntity(entityId);
+            if (entity is T tEntity)
+            {
+                entities[entityId] = entity;
+            }
+        }
+        return entities;
+    }
+
+    public IEnumerable<IEntity> GetEntitiesAt(EntityPosition position)
+    {
+        var (chunkX, chunkY, localX, localY) = 
+            Util.CoordinateSystem.WorldToChunkAndLocal(position.X, position.Y);
+
+        return _chunks[chunkX, chunkY].GetEntitiesAt(new EntityPosition(localX, localY));
+    }
+
+    public void UpdateEntity(Guid entityId, IEntity entity)
+    {
+        if (!_entities.TryGetValue(entityId, out var chunkPos))
+            return;
+
+        var (chunkX, chunkY) = chunkPos;
+        _chunks[chunkX, chunkY].UpdateEntity(entityId, entity);
+    }
 }
 
 

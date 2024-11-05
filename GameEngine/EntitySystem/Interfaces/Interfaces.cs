@@ -2,15 +2,25 @@ namespace WebPeli.GameEngine.EntitySystem.Interfaces;
 
 public interface IMetabolism
 {
-    // 0-64, rest is for severerity levels like hungry, starving, etc.
-    byte Hunger { get; set;} 
-    byte Thirst { get; set;}
-    byte Fatigue { get; set;} 
+    public int State { get; set; }
 }
 public interface IHealth
 {
     byte Health { get; set;}
     byte MaxHealth { get; set;}
+}
+
+public interface IPosition
+{
+    public int X { get; set; }
+    public int Y { get; set; }
+}
+
+public interface IRenderable
+{
+    public byte TextureId { get; set; }
+    public byte Facing { get; set; }
+    public string CurrentAction { get; set; }
 }
 
 

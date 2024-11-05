@@ -69,7 +69,7 @@ public class EntityChunk
             var tcs = new TaskCompletionSource<bool>();
             tasks.Add(tcs);
             var CallbackId = EventManager.RegisterCallback(delegate (bool collides) { tcs.SetResult(collides); });
-            EventManager.EmitPriority(new TerrainCollisionRequestPriority{ X = pos.X, Y = pos.Y, CallbackId = CallbackId });
+            EventManager.EmitPriority(new TerrainCollisionRequest{ X = pos.X, Y = pos.Y, CallbackId = CallbackId });
         }
         await Task.WhenAll(tasks.Select(t => t.Task));
         // If any of the tasks returned true, there was a collision
@@ -136,6 +136,21 @@ public class EntityChunk
         }
 
         return true;
+    }
+
+    public IEnumerable<IEntity> GetEntities()
+    {
+        return _entities.Values;
+    }
+
+    public IEnumerable<IEntity> GetEntitiesWithInterface<T>() where T : IEntity
+    {
+        return _entities.Values.Where(e => e is T);
+    }
+
+    public void UpdateEntity(Guid entityId, IEntity entity)
+    {
+        _entities[entityId] = entity;
     }
 }
 

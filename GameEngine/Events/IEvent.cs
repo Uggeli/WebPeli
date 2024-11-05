@@ -62,8 +62,10 @@ public readonly record struct MoveEntityRequest : IEvent
 public readonly record struct PathfindingRequest : IEvent
 {
     public required Guid EntityId { get; init; }
-    public required EntityPosition FromPosition { get; init; }
-    public required EntityPosition ToPosition { get; init; }
+    public required float StartX { get; init; }
+    public required float StartY { get; init; }
+    public required float TargetX { get; init; }
+    public required float TargetY { get; init; }
     public required Guid CallbackId { get; init; }
 }
 
@@ -78,3 +80,33 @@ public readonly record struct UnregisterFromSystem : IEvent
     public  Guid EntityId { get; init; }
     public Type SystemType { get; init; } // Type of the system to unregister from
 }
+
+public readonly record struct DeathEvent : IEvent
+{
+    public Guid EntityId { get; init; } 
+    // EntityManager catches this and removes the entity and sends
+    // UnregisterFromSystem to all systems that entity has interfaces for
+}
+public enum ThresholdSeverity
+{
+    Mild,
+    Severe,
+    Critical
+}
+
+public enum ThresholdType
+{
+    Hunger,
+    Thirst,
+    Fatigue
+}
+public readonly record struct EntityThresholdReached : IEvent
+{
+    public required Guid EntityId { get; init; }
+    public required ThresholdType ThresholdType { get; init; }
+    public required ThresholdSeverity Severity { get; init; }
+}
+
+public record ConsumeFood(Guid EntityId, byte Amount) : IEvent;
+public record ConsumeDrink(Guid EntityId, byte Amount) : IEvent;
+public record Rest(Guid EntityId, byte Amount) : IEvent;
