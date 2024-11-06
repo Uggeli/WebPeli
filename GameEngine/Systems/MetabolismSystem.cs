@@ -10,24 +10,24 @@ public class MetabolismSystem : BaseManager
 {
     private Dictionary<Guid, int> _entities = [];
     // Threshold bits - could make these byte flags if we want to be explicit
-    private const int HUNGER_MILD     = 1 << 0;     // 0b_0000_0001
-    private const int HUNGER_SEVERE   = 1 << 1;     // 0b_0000_0010
+    private const int HUNGER_MILD = 1 << 0;     // 0b_0000_0001
+    private const int HUNGER_SEVERE = 1 << 1;     // 0b_0000_0010
     private const int HUNGER_CRITICAL = 1 << 2;     // 0b_0000_0100
-    private const int HUNGER_DEATH    = 1 << 3;     // 0b_0000_1000
-    
-    private const int THIRST_MILD     = 1 << 4;     // 0b_0001_0000
-    private const int THIRST_SEVERE   = 1 << 5;     // 0b_0010_0000
-    private const int THIRST_CRITICAL = 1 << 6;     // 0b_0100_0000
-    private const int THIRST_DEATH    = 1 << 7;     // 0b_1000_0000
+    private const int HUNGER_DEATH = 1 << 3;     // 0b_0000_1000
 
-    private const int FATIGUE_MILD    = 1 << 8;     // And so on...
-    private const int FATIGUE_SEVERE  = 1 << 9;
+    private const int THIRST_MILD = 1 << 4;     // 0b_0001_0000
+    private const int THIRST_SEVERE = 1 << 5;     // 0b_0010_0000
+    private const int THIRST_CRITICAL = 1 << 6;     // 0b_0100_0000
+    private const int THIRST_DEATH = 1 << 7;     // 0b_1000_0000
+
+    private const int FATIGUE_MILD = 1 << 8;     // And so on...
+    private const int FATIGUE_SEVERE = 1 << 9;
     private const int FATIGUE_CRITICAL = 1 << 10;
-    private const int FATIGUE_DEATH   = 1 << 11;
+    private const int FATIGUE_DEATH = 1 << 11;
 
     // Track which bits belong to which system for easy masking
-    private const int HUNGER_MASK  = HUNGER_MILD | HUNGER_SEVERE | HUNGER_CRITICAL | HUNGER_DEATH;
-    private const int THIRST_MASK  = THIRST_MILD | THIRST_SEVERE | THIRST_CRITICAL | THIRST_DEATH;
+    private const int HUNGER_MASK = HUNGER_MILD | HUNGER_SEVERE | HUNGER_CRITICAL | HUNGER_DEATH;
+    private const int THIRST_MASK = THIRST_MILD | THIRST_SEVERE | THIRST_CRITICAL | THIRST_DEATH;
     private const int FATIGUE_MASK = FATIGUE_MILD | FATIGUE_SEVERE | FATIGUE_CRITICAL | FATIGUE_DEATH;
 
     public override void HandleMessage(IEvent evt)
@@ -52,7 +52,7 @@ public class MetabolismSystem : BaseManager
                 _entities.Remove(unreg.EntityId);
                 break;
             default:
-                break;        
+                break;
         }
     }
 
@@ -61,7 +61,7 @@ public class MetabolismSystem : BaseManager
         if (_entities.ContainsKey(food.EntityId))
         {
             int State = _entities[food.EntityId];
-            
+
             _entities[food.EntityId] = State;
         }
     }
@@ -71,7 +71,7 @@ public class MetabolismSystem : BaseManager
         if (_entities.ContainsKey(drink.EntityId))
         {
             int State = _entities[drink.EntityId];
-            
+
             _entities[drink.EntityId] = State;
         }
     }
@@ -81,7 +81,7 @@ public class MetabolismSystem : BaseManager
         if (_entities.ContainsKey(rest.EntityId))
         {
             int State = _entities[rest.EntityId];
-            
+
             _entities[rest.EntityId] = State;
         }
     }
@@ -132,56 +132,32 @@ public class MetabolismSystem : BaseManager
         }
     }
 
+    private static void EmitThresholdEvents(Guid entityId, int state, int criticalFlag, int severeFlag, int mildFlag, ThresholdType type)
+    {
+        if ((state & criticalFlag) != 0)
+        {
+            EventManager.Emit(new EntityThresholdReached { EntityId = entityId, ThresholdType = type, Severity = ThresholdSeverity.Critical });
+        }
+        else if ((state & severeFlag) != 0)
+        {
+            EventManager.Emit(new EntityThresholdReached { EntityId = entityId, ThresholdType = type, Severity = ThresholdSeverity.Severe });
+        }
+        else if ((state & mildFlag) != 0)
+        {
+            EventManager.Emit(new EntityThresholdReached { EntityId = entityId, ThresholdType = type, Severity = ThresholdSeverity.Mild });
+        }
+    }
+
     private static void EvaluateState(Guid EntityId, int State)
     {
         // Check if entity is dead
         if ((State & (HUNGER_DEATH | THIRST_DEATH | FATIGUE_DEATH)) != 0)
         {
-            EventManager.Emit(new DeathEvent{EntityId = EntityId});
+            EventManager.Emit(new DeathEvent { EntityId = EntityId });
             return;
         }
-
-
-        // Test hunger
-        if ((State & HUNGER_CRITICAL) != 0)
-        {
-            EventManager.Emit(new EntityThresholdReached{EntityId = EntityId, ThresholdType = ThresholdType.Hunger, Severity = ThresholdSeverity.Critical});
-        }
-        else if ((State & HUNGER_SEVERE) != 0)
-        {
-            EventManager.Emit(new EntityThresholdReached{EntityId = EntityId, ThresholdType = ThresholdType.Hunger, Severity = ThresholdSeverity.Severe});
-        }
-        else if ((State & HUNGER_MILD) != 0)
-        {
-            EventManager.Emit(new EntityThresholdReached{EntityId = EntityId, ThresholdType = ThresholdType.Hunger, Severity = ThresholdSeverity.Mild});
-        }
-
-        // Test thirst
-        if ((State & THIRST_CRITICAL) != 0)
-        {
-            EventManager.Emit(new EntityThresholdReached{EntityId = EntityId, ThresholdType = ThresholdType.Thirst, Severity = ThresholdSeverity.Critical});
-        }
-        else if ((State & THIRST_SEVERE) != 0)
-        {
-            EventManager.Emit(new EntityThresholdReached{EntityId = EntityId, ThresholdType = ThresholdType.Thirst, Severity = ThresholdSeverity.Severe});
-        }
-        else if ((State & THIRST_MILD) != 0)
-        {
-            EventManager.Emit(new EntityThresholdReached{EntityId = EntityId, ThresholdType = ThresholdType.Thirst, Severity = ThresholdSeverity.Mild});
-        }
-
-        // Test fatigue
-        if ((State & FATIGUE_CRITICAL) != 0)
-        {
-            EventManager.Emit(new EntityThresholdReached{EntityId = EntityId, ThresholdType = ThresholdType.Fatigue, Severity = ThresholdSeverity.Critical});
-        }
-        else if ((State & FATIGUE_SEVERE) != 0)
-        {
-            EventManager.Emit(new EntityThresholdReached{EntityId = EntityId, ThresholdType = ThresholdType.Fatigue, Severity = ThresholdSeverity.Severe});
-        }
-        else if ((State & FATIGUE_MILD) != 0)
-        {
-            EventManager.Emit(new EntityThresholdReached{EntityId = EntityId, ThresholdType = ThresholdType.Fatigue, Severity = ThresholdSeverity.Mild});
-        }
+        EmitThresholdEvents(EntityId, State, HUNGER_CRITICAL, HUNGER_SEVERE, HUNGER_MILD, ThresholdType.Hunger);
+        EmitThresholdEvents(EntityId, State, THIRST_CRITICAL, THIRST_SEVERE, THIRST_MILD, ThresholdType.Thirst);
+        EmitThresholdEvents(EntityId, State, FATIGUE_CRITICAL, FATIGUE_SEVERE, FATIGUE_MILD, ThresholdType.Fatigue);
     }
 }
