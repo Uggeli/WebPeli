@@ -129,6 +129,7 @@ public class MetabolismSystem : BaseManager
     public override void Update(double deltaTime)
     {
         base.Update(deltaTime);  // Call base update to handle messages
+        // TODO: move update timer stuff to Config
         if (++_tickcounter >= 60)  // Update every 60 ticks
         {
             _tickcounter = 0;
