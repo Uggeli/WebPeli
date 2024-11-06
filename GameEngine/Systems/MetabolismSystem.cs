@@ -1,3 +1,4 @@
+using System.Reflection.Metadata;
 using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
@@ -33,6 +34,17 @@ public class MetabolismSystem : BaseManager
     {
         switch (evt)
         {
+            case ConsumeFood food:
+                HandleConsumeFood(food);
+                break;
+
+            case ConsumeDrink drink:
+                HandleConsumeDrink(drink);
+                break;
+
+            case Rest rest:
+                HandleRest(rest);
+                break;
             case RegisterToSystem reg when reg.SystemType == SystemType.MetabolismSystem:
                 _entities.Add(reg.EntityId, 0); // initialize to 0
                 break;
@@ -41,6 +53,36 @@ public class MetabolismSystem : BaseManager
                 break;
             default:
                 break;        
+        }
+    }
+
+    private void HandleConsumeFood(ConsumeFood food)
+    {
+        if (_entities.ContainsKey(food.EntityId))
+        {
+            int State = _entities[food.EntityId];
+            
+            _entities[food.EntityId] = State;
+        }
+    }
+
+    private void HandleConsumeDrink(ConsumeDrink drink)
+    {
+        if (_entities.ContainsKey(drink.EntityId))
+        {
+            int State = _entities[drink.EntityId];
+            
+            _entities[drink.EntityId] = State;
+        }
+    }
+
+    private void HandleRest(Rest rest)
+    {
+        if (_entities.ContainsKey(rest.EntityId))
+        {
+            int State = _entities[rest.EntityId];
+            
+            _entities[rest.EntityId] = State;
         }
     }
 
