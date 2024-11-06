@@ -58,31 +58,53 @@ public class MetabolismSystem : BaseManager
 
     private void HandleConsumeFood(ConsumeFood food)
     {
-        if (_entities.ContainsKey(food.EntityId))
+        if (_entities.TryGetValue(food.EntityId, out int State))
         {
-            int State = _entities[food.EntityId];
+            // Extract the current hunger state
+            int hungerState = State & HUNGER_MASK;
 
-            _entities[food.EntityId] = State;
+            // Subtract the food amount from the hunger state
+            hungerState -= food.Amount;
+
+            // Ensure the hunger state does not go below zero
+            if (hungerState < 0)
+            {
+                hungerState = 0;
+            }
+
+            // Combine the new hunger state back into the overall state
+            int newState = (State & ~HUNGER_MASK) | (hungerState & HUNGER_MASK);
+            _entities[food.EntityId] = newState;
         }
     }
 
     private void HandleConsumeDrink(ConsumeDrink drink)
     {
-        if (_entities.ContainsKey(drink.EntityId))
+        if (_entities.TryGetValue(drink.EntityId, out int State))
         {
-            int State = _entities[drink.EntityId];
-
-            _entities[drink.EntityId] = State;
+            int thirstState = State & THIRST_MASK;
+            thirstState -= drink.Amount;
+            if (thirstState < 0)
+            {
+                thirstState = 0;
+            }
+            int newState = (State & ~THIRST_MASK) | (thirstState & THIRST_MASK);
+            _entities[drink.EntityId] = newState;
         }
     }
 
     private void HandleRest(Rest rest)
     {
-        if (_entities.ContainsKey(rest.EntityId))
+        if (_entities.TryGetValue(rest.EntityId, out int State))
         {
-            int State = _entities[rest.EntityId];
-
-            _entities[rest.EntityId] = State;
+            int fatigueState = State & FATIGUE_MASK;
+            fatigueState -= rest.Amount;
+            if (fatigueState < 0)
+            {
+                fatigueState = 0;
+            }
+            int newState = (State & ~FATIGUE_MASK) | (fatigueState & FATIGUE_MASK);
+            _entities[rest.EntityId] = newState;
         }
     }
 
