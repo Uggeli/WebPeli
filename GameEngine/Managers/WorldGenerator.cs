@@ -1,3 +1,4 @@
+using WebPeli.GameEngine.EntitySystem;
 using WebPeli.GameEngine.Util;
 
 namespace WebPeli.GameEngine.Managers;
@@ -7,7 +8,7 @@ public class WorldGenerator
     private const float NOISE_SCALE = 0.3f;  // Adjust this to change terrain feature size
     private const float WALKABLE_THRESHOLD = 0.2f;  // Higher = more walkable areas
 
-    public static void GenerateWorld(MapManager mapManager)
+    public static void GenerateWorld()
     {
         // Use a random offset for the noise to get different patterns each time
         Random rand = new();
@@ -15,20 +16,21 @@ public class WorldGenerator
         float offsetY = rand.Next(0, 1000);
 
         // Generate each chunk
-        for (int chunkY = 0; chunkY < Config.WORLD_SIZE; chunkY++)
+        for (byte chunkY = 0; chunkY < Config.WORLD_SIZE; chunkY++)
         {
-            for (int chunkX = 0; chunkX < Config.WORLD_SIZE; chunkX++)
+            for (byte chunkX = 0; chunkX < Config.WORLD_SIZE; chunkX++)
             {
-                GenerateChunk(mapManager.Chunks[chunkX, chunkY], chunkX, chunkY, offsetX, offsetY);
+                GenerateChunk(chunkX, chunkY, offsetX, offsetY);
             }
         }
 
         // Post-process to ensure connectivity
-        EnsureWorldConnectivity(mapManager);
+        EnsureWorldConnectivity();
     }
 
-    private static void GenerateChunk(Chunk chunk, int chunkX, int chunkY, float offsetX, float offsetY)
+    private static void GenerateChunk(byte chunkX, byte chunkY, float offsetX, float offsetY)
     {
+        var chunk = new Chunk();
         for (byte localY = 0; localY < Config.CHUNK_SIZE; localY++)
         {
             for (byte localX = 0; localX < Config.CHUNK_SIZE; localX++)
@@ -58,6 +60,7 @@ public class WorldGenerator
                 chunk.SetTileType(localX, localY, tileType);
             }
         }
+        World.SetChunk(chunkX, chunkY, chunk);
     }
 
     private static byte DetermineTileType(float noiseValue)
@@ -69,32 +72,33 @@ public class WorldGenerator
         else return 3;                          // Mountains/Special
     }
 
-    private static void EnsureWorldConnectivity(MapManager mapManager)
+    private static void EnsureWorldConnectivity()
     {
         // Create a minimum spanning path between chunk centers
-        for (int y = 0; y < Config.WORLD_SIZE; y++)
+        for (byte y = 0; y < Config.WORLD_SIZE; y++)
         {
-            for (int x = 0; x < Config.WORLD_SIZE; x++)
+            for (byte x = 0; x < Config.WORLD_SIZE; x++)
             {
-                var chunk = mapManager.Chunks[x, y];
+                var chunk = World.GetChunk(x, y);
                 
                 // Create path to right neighbor
                 if (x < Config.WORLD_SIZE - 1)
                 {
-                    CreatePathBetweenChunks(chunk, mapManager.Chunks[x + 1, y], true);
+                    CreatePathBetweenChunks(chunk, World.GetChunk(x + 1, y), true);
                 }
 
                 // Create path to bottom neighbor
                 if (y < Config.WORLD_SIZE - 1)
                 {
-                    CreatePathBetweenChunks(chunk, mapManager.Chunks[x, y + 1], false);
+                    CreatePathBetweenChunks(chunk, World.GetChunk(x, y + 1), false);
                 }
             }
         }
     }
 
-    private static void CreatePathBetweenChunks(Chunk chunk1, Chunk chunk2, bool horizontal)
+    private static void CreatePathBetweenChunks(Chunk? chunk1, Chunk? chunk2, bool horizontal)
     {
+        if (chunk1 == null || chunk2 == null) return;
         if (horizontal)
         {
             // Create horizontal connection

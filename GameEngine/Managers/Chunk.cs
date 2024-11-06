@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using WebPeli.GameEngine.EntitySystem;
 namespace WebPeli.GameEngine.Managers;
 
 // TODO: Update coordinates to use Position also Position is in pixels
@@ -18,6 +19,81 @@ public class Chunk
     // tile: first 4 bits is reserved for chunkexit data, last 4 bits is tile data
     // chunkexit data: booleans; exit_north, exit_east, exit_south, exit_west
     // tile data: bool is_traversable, bool is_transparent, byte tile_type: 0-3
+    private readonly Dictionary<EntityPosition, HashSet<Guid>> _positionMap = [];
+    private readonly Dictionary<Guid, HashSet<EntityPosition>> _entityPositions = [];
+    public bool AddEntity(Guid entityId, IEnumerable<EntityPosition> positions)
+    {
+        if (HasCollision(positions)) return false;
+
+        var positionsSet = new HashSet<EntityPosition>(positions);
+        _entityPositions[entityId] = positionsSet;
+
+        foreach (var pos in positions)
+        {
+            if (!_positionMap.TryGetValue(pos, out var entities))
+            {
+                entities = [];
+                _positionMap[pos] = entities;
+            }
+            entities.Add(entityId);
+        }
+        return true;
+    }
+
+    public bool RemoveEntity(Guid entityId)
+    {
+        if (!_entityPositions.TryGetValue(entityId, out var positions))
+            return false;
+
+        foreach (var pos in positions)
+        {
+            if (_positionMap.TryGetValue(pos, out var entities))
+            {
+                entities.Remove(entityId);
+                if (entities.Count == 0)
+                    _positionMap.Remove(pos);
+            }
+        }
+        _entityPositions.Remove(entityId);
+
+        return true;
+    }
+
+    public IEnumerable<Guid> GetEntitiesAt(EntityPosition position) =>
+        _positionMap.TryGetValue(position, out var entities) ? entities : [];
+
+    public bool UpdateEntityPosition(Guid entityId, EntityPosition newPos)
+    {
+        if (!_entityPositions.ContainsKey(entityId)) return false;
+        return UpdateEntityPositions(entityId, [newPos]);
+    }
+
+    public bool UpdateEntityPositions(Guid entityId, IEnumerable<EntityPosition> newPositions)
+    {
+        if (!ValidatePositions(newPositions)) return false;
+        if (HasCollision(newPositions)) return false;
+
+        RemoveEntity(entityId);
+        return AddEntity(entityId, newPositions);
+    }
+
+    private static bool ValidatePositions(IEnumerable<EntityPosition> positions)
+    {
+        foreach (var pos in positions)
+        {
+            if (!IsInBounds(pos.X, pos.Y)) return false;
+        }
+        return true;
+    }
+
+    private bool HasCollision(IEnumerable<EntityPosition> positions)
+    {
+        return positions.Any(pos => 
+            !IsTraversable(pos.X, pos.Y) || 
+            (_positionMap.ContainsKey(pos) && _positionMap[pos].Count > 0));
+    }
+
+
     public void SetTile(byte x, byte y, byte tileData)
     {
         if (!IsInBounds(x, y)) return;
@@ -137,54 +213,6 @@ public class Chunk
         return [];
     }
 
-    public (byte, byte)[] GetPathThreaded(byte startX, byte startY, byte endX, byte endY)
-    {
-        // A* pathfinding
-        var openSet = new PriorityQueue<(byte X, byte Y), float>();
-        var cameFrom = new ConcurrentDictionary<(byte X, byte Y), (byte X, byte Y)>();
-
-        var gScore = new ConcurrentDictionary<(byte X, byte Y), float>();
-        var fScore = new ConcurrentDictionary<(byte X, byte Y), float>();
-
-        openSet.Enqueue((startX, startY), 0);
-        gScore[(startX, startY)] = 0;
-        fScore[(startX, startY)] = Heuristic((startX, startY), (endX, endY));
-
-        while (openSet.Count > 0)
-        {
-            var current = openSet.Dequeue();
-
-            if (current == (endX, endY))
-            {
-                var path = new List<(byte X, byte Y)>
-                {
-                    current
-                };
-                while (cameFrom.ContainsKey(current))
-                {
-                    current = cameFrom[current];
-                    path.Add(current);
-                }
-                path.Reverse();
-                return path.ToArray();
-            }
-
-            Parallel.ForEach(GetNeighbours(current.X, current.Y), neighbour =>
-            {
-                var tentativeGScore = gScore[current] + 1; // 1 is the distance between two nodes
-                if (!gScore.TryGetValue(neighbour, out float value) || tentativeGScore < value)
-                {
-                    cameFrom[neighbour] = current;
-                    value = tentativeGScore;
-                    gScore[neighbour] = value;
-                    fScore[neighbour] = gScore[neighbour] + Heuristic(neighbour, (endX, endY));
-                    openSet.Enqueue(neighbour, fScore[neighbour]);
-                }
-            });
-        }
-        return [];
-    }
-
     private (byte X, byte Y)[] GetNeighbours(byte x, byte y)
     {
         const byte MAX = (byte)(Config.CHUNK_SIZE - 1);
@@ -233,7 +261,7 @@ public class Chunk
             }
         }
 
-        Action<int, ParallelLoopState> value = (x, loopState) =>
+        void value(int x, ParallelLoopState loopState)
         {
             for (byte y = 0; y < Config.CHUNK_SIZE; y++)
             {
@@ -257,7 +285,7 @@ public class Chunk
                     SetExitWest((byte)x, y, true);
                 }
             }
-        };
+        }
         Parallel.For(0, Config.CHUNK_SIZE, value);
     }
 

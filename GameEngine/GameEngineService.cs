@@ -12,7 +12,7 @@ public class GameEngineService : BackgroundService
         _logger = logger;
         managers.Add(mapManager);
         managers.Add(viewportManager);
-        
+
         InitManagers();
     }
 
@@ -24,21 +24,23 @@ public class GameEngineService : BackgroundService
         }
     }
 
+    private int _lastUpdateTime = Environment.TickCount;
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            // _logger.LogInformation("GameEngineService running at: {time}", DateTimeOffset.Now);
-            Update();
-            await Task.Delay(16, stoppingToken);  // Later: reduce delay to 16ms for 60 FPS
-        }
-    }
+            var startTick = Environment.TickCount;
+            float deltaTime = (startTick - _lastUpdateTime) / 1000f;
+            _lastUpdateTime = startTick;
 
-    private void Update()
-    {
-        foreach (BaseManager manager in managers)
-        {
-            manager.Update();
+            foreach (BaseManager manager in managers)
+            {
+                manager.Update(deltaTime);
+            }
+
+            var processingTime = Environment.TickCount - startTick;
+            await Task.Delay(Math.Max(16 - processingTime, 0), stoppingToken);
         }
     }
 }

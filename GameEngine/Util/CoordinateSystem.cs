@@ -53,10 +53,19 @@ public static class CoordinateSystem
         return (chunkX * Config.CHUNK_SIZE + localX, chunkY * Config.CHUNK_SIZE + localY);
     }
 
-    public static (int ChunkX, int ChunkY, byte LocalX, byte LocalY) WorldToChunkAndLocal(int worldX, int worldY)
+    public static (byte ChunkX, byte ChunkY, byte LocalX, byte LocalY) WorldToChunkAndLocal(int worldX, int worldY)
     {
-        int chunkX = worldX / Config.CHUNK_SIZE;
-        int chunkY = worldY / Config.CHUNK_SIZE;
+        byte chunkX = (byte)(worldX / Config.CHUNK_SIZE);
+        byte chunkY = (byte)(worldY / Config.CHUNK_SIZE);
+        byte localX = (byte)(worldX % Config.CHUNK_SIZE);
+        byte localY = (byte)(worldY % Config.CHUNK_SIZE);
+        return (chunkX, chunkY, localX, localY);
+    }
+
+    public static (byte ChunkX, byte ChunkY, byte LocalX, byte LocalY) WorldToChunkAndLocal(float worldX, float worldY)
+    {
+        byte chunkX = (byte)(worldX / Config.CHUNK_SIZE);
+        byte chunkY = (byte)(worldY / Config.CHUNK_SIZE);
         byte localX = (byte)(worldX % Config.CHUNK_SIZE);
         byte localY = (byte)(worldY % Config.CHUNK_SIZE);
         return (chunkX, chunkY, localX, localY);
