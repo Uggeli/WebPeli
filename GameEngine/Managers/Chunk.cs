@@ -2,15 +2,6 @@ using System.Collections.Concurrent;
 using WebPeli.GameEngine.EntitySystem;
 namespace WebPeli.GameEngine.Managers;
 
-// TODO: Update coordinates to use Position also Position is in pixels
-// TODO: Update getting tiles to support multiple chunks in case if we are in corner of a chunk or at border
-// TODO: move the perlin noise to common
-// TODO: Move input stuff to priority event
-// TODO: Update the conversion methods to use Position
-
-// Create mapdata -> divide it into chunks -> load chunks -> handle events -> update chunks -> update sessions -> destroy
-// MapData -> Chunk -> Tile -> Entity
-
 public class Chunk
 {
     private readonly byte[,] tiles = new byte[Config.CHUNK_SIZE, Config.CHUNK_SIZE];
@@ -219,12 +210,12 @@ public class Chunk
         var neighbours = new List<(byte X, byte Y)>(4); // Pre-allocate for max possible neighbours
 
         // Define potential neighbours
-        (byte X, byte Y)[] potentialNeighbours = {
+        (byte X, byte Y)[] potentialNeighbours = [
             (x, (byte)(y - 1)), // North
             ((byte)(x + 1), y), // East
             (x, (byte)(y + 1)), // South
             ((byte)(x - 1), y)  // West
-        };
+        ];
 
         foreach (var (nx, ny) in potentialNeighbours)
         {

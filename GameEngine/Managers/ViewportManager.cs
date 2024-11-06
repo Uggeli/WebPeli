@@ -17,15 +17,14 @@ public readonly record struct ViewportDataBinary
     }
 }
 
+// Specialized manager for handling viewport requests
 public class ViewportManager : BaseManager
 {
-    private readonly MapManager _mapManager;
     private readonly ArrayPool<byte> _arrayPool;
-    // Later: private readonly EntityManager _entityManager;
 
-    public ViewportManager(MapManager mapManager)
+
+    public ViewportManager()
     {
-        _mapManager = mapManager;
         _arrayPool = ArrayPool<byte>.Shared;
         EventManager.RegisterListener<ViewportRequest>(this);
     }
@@ -55,7 +54,16 @@ public class ViewportManager : BaseManager
         float? worldWidth = null,
         float? worldHeight = null)
     {
-        var tileGrid = _mapManager.GetTilesInArea(
+        var tileGrid = World.GetTilesInArea(
+            cameraX,
+            cameraY,
+            viewportWidth,
+            viewportHeight,
+            worldWidth,
+            worldHeight
+        );
+
+        var entityGrid = World.GetEntitiesInArea(
             cameraX,
             cameraY,
             viewportWidth,

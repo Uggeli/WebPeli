@@ -72,10 +72,10 @@ public readonly record struct PathfindingRequest : IEvent
 public enum SystemType
 {
     MetabolismSystem,
-
+    MovementSystem,
+    RenderingSystem,
+    AiSystem,
 }
-
-
 
 public readonly record struct RegisterToSystem : IEvent
 {
@@ -91,9 +91,9 @@ public readonly record struct UnregisterFromSystem : IEvent
 
 public readonly record struct DeathEvent : IEvent
 {
-    public Guid EntityId { get; init; } 
-    // EntityManager catches this and removes the entity and sends
-    // UnregisterFromSystem to all systems that entity has interfaces for
+    public Guid EntityId { get; init; }
+    // Entitys life is over, but is that the end? stay tuned for the next episode of Dragon Ball Z 
+    
 }
 public enum ThresholdSeverity
 {
@@ -118,3 +118,15 @@ public readonly record struct EntityThresholdReached : IEvent
 public record ConsumeFood(Guid EntityId, byte Amount) : IEvent;
 public record ConsumeDrink(Guid EntityId, byte Amount) : IEvent;
 public record Rest(Guid EntityId, byte Amount) : IEvent;
+public record CreateEntity : IEvent
+{
+    public EntityCapabilities Capabilities { get; init; }
+    public Guid EntityId { get; init; }
+}
+
+public record RemoveEntity : IEvent
+{
+    public Guid EntityId { get; init; }
+    // EntityManager catches this and removes the entity and sends
+    // UnregisterFromSystem to all systems that entity has interfaces for
+}

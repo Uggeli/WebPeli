@@ -121,4 +121,108 @@ public static class World
         }
         return false;
     }
+
+    private const float MIN_VIEWPORT_SIZE = 100;  // pixels
+    private const float MAX_VIEWPORT_SIZE = 2000; // pixels
+    public static byte[,] GetTilesInArea(
+        float screenX,
+        float screenY,
+        float viewportWidth,
+        float viewportHeight,
+        float? worldWidth = null,
+        float? worldHeight = null)
+    {
+        // Same viewport size validation as before
+        viewportWidth = Math.Clamp(viewportWidth, MIN_VIEWPORT_SIZE, MAX_VIEWPORT_SIZE);
+        viewportHeight = Math.Clamp(viewportHeight, MIN_VIEWPORT_SIZE, MAX_VIEWPORT_SIZE);
+
+        var (startWorldX, startWorldY) = Util.CoordinateSystem.ScreenToWorld(
+            screenX, screenY,
+            viewportWidth, viewportHeight,
+            worldWidth, worldHeight);
+        var (endWorldX, endWorldY) = Util.CoordinateSystem.ScreenToWorld(
+            screenX + viewportWidth, screenY + viewportHeight,
+            viewportWidth, viewportHeight,
+            worldWidth, worldHeight);
+
+        int gridWidth = Math.Abs(endWorldX - startWorldX) + 1;
+        int gridHeight = Math.Abs(endWorldY - startWorldY) + 1;
+        var tileGrid = new byte[gridWidth, gridHeight];
+
+        // Now matches the tile format from WorldGenerator:
+        // - bits 0-1: tile type (0-3): water, grass, hills, mountains
+        // - bit 6: transparent flag
+        // - bit 7: traversable flag
+        for (int x = 0; x < gridWidth; x++)
+        {
+            for (int y = 0; y < gridHeight; y++)
+            {
+                int worldX = startWorldX + x;
+                int worldY = startWorldY + y;
+
+                var (chunkX, chunkY, localX, localY) =
+                    Util.CoordinateSystem.WorldToChunkAndLocal(worldX, worldY);
+
+                var chunk = World.GetChunk(chunkX, chunkY);
+                if (chunk != null)
+                {
+                    byte tileData = 0;
+                    if (chunk.IsTraversable(localX, localY))
+                        tileData |= 0b10000000;
+                    if (chunk.IsTransparent(localX, localY))
+                        tileData |= 0b01000000;
+                    tileData |= chunk.GetTileType(localX, localY); // Already 0-3
+
+                    tileGrid[x, y] = tileData;
+                }
+                else
+                {
+                    tileGrid[x, y] = 0xFF; // Out of bounds 
+                }
+            }
+        }
+
+        return tileGrid;
+    }
+
+    public static int[,] GetEntitiesInArea(
+        float screenX,
+        float screenY,
+        float viewportWidth,
+        float viewportHeight,
+        float? worldWidth = null,
+        float? worldHeight = null)
+    {
+        // Same viewport size validation as before
+        viewportWidth = Math.Clamp(viewportWidth, MIN_VIEWPORT_SIZE, MAX_VIEWPORT_SIZE);
+        viewportHeight = Math.Clamp(viewportHeight, MIN_VIEWPORT_SIZE, MAX_VIEWPORT_SIZE);
+
+        var (startWorldX, startWorldY) = Util.CoordinateSystem.ScreenToWorld(
+            screenX, screenY,
+            viewportWidth, viewportHeight,
+            worldWidth, worldHeight);
+        var (endWorldX, endWorldY) = Util.CoordinateSystem.ScreenToWorld(
+            screenX + viewportWidth, screenY + viewportHeight,
+            viewportWidth, viewportHeight,
+            worldWidth, worldHeight);
+
+        int gridWidth = Math.Abs(endWorldX - startWorldX) + 1;
+        int gridHeight = Math.Abs(endWorldY - startWorldY) + 1;
+        var entityGrid = new int[gridWidth, gridHeight];
+
+        for (int x = 0; x < gridWidth; x++)
+        {
+            for (int y = 0; y < gridHeight; y++)
+            {
+                int worldX = startWorldX + x;
+                int worldY = startWorldY + y;
+
+                var entities = World.GetEntitiesAt(new Vector2(worldX, worldY));
+                // Later: encode entity stuff to int, Like texture, action, etc.
+                entityGrid[x, y] = entities.Count();
+            }
+        }
+
+        return entityGrid;
+    }
 }

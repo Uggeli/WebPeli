@@ -1,9 +1,8 @@
-
-
 using WebPeli.GameEngine.EntitySystem;
 
 namespace WebPeli.GameEngine.Managers;
 
+// TODO: move static stuff to World class
 public class MovementManager : BaseManager
 {
     public override void Destroy()
@@ -220,42 +219,3 @@ public class MovementManager : BaseManager
 }
 
 
-[Flags]
-public enum EntityCapabilities : ushort
-{
-    // Registers what systems the entity uses
-    None = 0,
-    Metabolism = 1 << 0,
-    Movement = 1 << 1,
-    Render = 1 << 2,
-
-}
-
-public readonly record struct EntityRecord
-{
-    public readonly required Guid EntityId { get; init; }
-    public readonly required EntityCapabilities Capabilities { get; init; }
-}
-
-public class EntityRegister : BaseManager
-{
-    // Handles entity creation and deletion
-    private Dictionary<Guid, EntityCapabilities> _entities = [];
-
-
-
-    public override void Destroy()
-    {
-        throw new NotImplementedException();
-    }
-
-    public override void HandleMessage(IEvent evt)
-    {
-        throw new NotImplementedException();
-    }
-
-    public override void Init()
-    {
-        throw new NotImplementedException();
-    }
-}
