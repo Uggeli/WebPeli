@@ -33,10 +33,10 @@ public class MetabolismSystem : BaseManager
     {
         switch (evt)
         {
-            case RegisterToSystem reg when reg.SystemType == typeof(MetabolismSystem):
+            case RegisterToSystem reg when reg.SystemType == SystemType.MetabolismSystem:
                 _entities.Add(reg.EntityId, 0); // initialize to 0
                 break;
-            case UnregisterFromSystem unreg when unreg.SystemType == typeof(MetabolismSystem):
+            case UnregisterFromSystem unreg when unreg.SystemType == SystemType.MetabolismSystem:
                 _entities.Remove(unreg.EntityId);
                 break;
             default:

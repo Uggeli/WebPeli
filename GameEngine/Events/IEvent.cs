@@ -69,16 +69,24 @@ public readonly record struct PathfindingRequest : IEvent
     public required Guid CallbackId { get; init; }
 }
 
+public enum SystemType
+{
+    MetabolismSystem,
+
+}
+
+
+
 public readonly record struct RegisterToSystem : IEvent
 {
     public  Guid EntityId { get; init; }
-    public Type SystemType { get; init; } // Type of the system to register to
+    public SystemType SystemType { get; init; } // Type of the system to register to
 }
 
 public readonly record struct UnregisterFromSystem : IEvent
 {
     public  Guid EntityId { get; init; }
-    public Type SystemType { get; init; } // Type of the system to unregister from
+    public SystemType SystemType { get; init; } // Type of the system to unregister from
 }
 
 public readonly record struct DeathEvent : IEvent
