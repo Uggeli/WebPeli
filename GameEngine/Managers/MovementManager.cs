@@ -10,7 +10,10 @@ public enum Direction : byte
     Down = 2,
     Left = 3
 }
-
+// Movement system:
+// Ai checks available moves and then selects move it wants to perform and sends MoveEntityRequest to MovementManager
+// MovementManager checks if the move is valid and then moves the entity and sends event to AnimationManager
+// Move takes time and entity can't move again until the move is completed
 public enum MovementType : byte
 {
     Walk = 0,

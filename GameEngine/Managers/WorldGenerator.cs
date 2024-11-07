@@ -23,7 +23,6 @@ public class WorldGenerator
                 GenerateChunk(chunkX, chunkY, offsetX, offsetY);
             }
         }
-
         // Post-process to ensure connectivity
         EnsureWorldConnectivity();
     }
