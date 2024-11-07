@@ -3,8 +3,40 @@ using WebPeli.GameEngine.EntitySystem;
 namespace WebPeli.GameEngine.Managers;
 
 // TODO: move static stuff to World class
+public enum Direction : byte
+{
+    Up = 0,
+    Right = 1,
+    Down = 2,
+    Left = 3
+}
+
+public enum MovementType : byte
+{
+    Walk = 0,
+    Run = 1,
+    Sneak = 2,
+    jump = 3,
+    climb = 4,
+    swim = 5,
+}
+
 public class MovementManager : BaseManager
 {
+
+    private readonly record struct MovementData
+    {
+        public float FromX { get; init; }
+        public float FromY { get; init; }
+        public float ToX { get; init; }
+        public float ToY { get; init; }
+        public float Speed { get; init; } // How long it takes to complete a move
+        public Direction Direction { get; init; }
+        public MovementType MovementType { get; init; }
+    }
+
+    private readonly Dictionary<Guid, MovementData> _entities = [];
+
     public override void Destroy()
     {
         EventManager.UnregisterListener<ChunkCreated>(this);
@@ -30,7 +62,7 @@ public class MovementManager : BaseManager
         }
     }
 
-    private void HandleEntityMove(MoveEntityRequest request)
+    private static void HandleEntityMove(MoveEntityRequest request)
     {
         // Get current and target chunks
         var (fromChunkX, fromChunkY, _, _) =
