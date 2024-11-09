@@ -1,19 +1,86 @@
-namespace WebPeli.GameEngine.Managers;
+using System.Numerics;
+using WebPeli.GameEngine.EntitySystem;
+using WebPeli.GameEngine.Util;
 
+namespace WebPeli.GameEngine.Managers;
+//Placeholder for Ai stuff
 public class AiManager : BaseManager
 {
+    List<Guid> _entities = [];
     public override void Init()
     {
-        // Do nothing
+        EventManager.RegisterListener<RegisterToSystem>(this);
+        EventManager.RegisterListener<UnregisterFromSystem>(this);
     }
 
     public override void Destroy()
     {
-        // Do nothing
+        EventManager.UnregisterListener<RegisterToSystem>(this);
+        EventManager.UnregisterListener<UnregisterFromSystem>(this);
     }
 
     public override void HandleMessage(IEvent evt)
     {
-        // Do nothing
+        switch (evt)
+        {
+            case RegisterToSystem registerToSystem:
+                HandleRegisterToSystem(registerToSystem);
+                break;
+            case UnregisterFromSystem unregisterFromSystem:
+                HandleUnregisterFromSystem(unregisterFromSystem);
+                break;
+            default:
+                break;
+        }
+    }
+
+    private void HandleRegisterToSystem(RegisterToSystem registerToSystem)
+    {
+        if (registerToSystem.SystemType == SystemType.AiSystem)
+            _entities.Add(registerToSystem.EntityId);
+    }
+
+    private void HandleUnregisterFromSystem(UnregisterFromSystem unregisterFromSystem)
+    {
+        if (unregisterFromSystem.SystemType == SystemType.AiSystem)
+            _entities.Remove(unregisterFromSystem.EntityId);
+    }
+
+    public override void Update(double deltaTime)
+    {
+        base.Update(deltaTime);
+
+        foreach (var entity in _entities)
+        {
+            EntityState? state = World.GetEntityState(entity);
+            if (!state.HasValue || state.Value.Current != CurrentAction.Idle)
+            {
+                continue;
+            }
+
+            // Placeholder for AI logic
+
+            // Calculate total world size in tiles
+            float worldSizeInTiles = Config.WORLD_SIZE * Config.CHUNK_SIZE;
+
+            // Generate random target within world bounds
+            // Using floats since entity positions are in world coordinates
+            Random random = new Random();
+            var target = new Vector2(
+                random.NextSingle() * worldSizeInTiles,
+                random.NextSingle() * worldSizeInTiles
+            );
+
+            // Emit pathfinding request with world coordinates
+            EventManager.Emit(new FindPathAndMoveEntity
+            {
+                EntityId = entity,
+                StartX = state.Value.Position.X,
+                StartY = state.Value.Position.Y,
+                TargetX = target.X,
+                TargetY = target.Y,
+                MovementType = MovementType.Walk
+            });
+        }
     }
 }

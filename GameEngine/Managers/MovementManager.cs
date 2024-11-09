@@ -1,3 +1,4 @@
+using System.Numerics;
 using WebPeli.GameEngine.EntitySystem;
 
 namespace WebPeli.GameEngine.Managers;
@@ -27,23 +28,48 @@ public enum MovementType : byte
 public class MovementManager : BaseManager
 {
 
-    private readonly record struct MovementData
+    private record struct MovementData
     {
-        public float FromX { get; init; }
-        public float FromY { get; init; }
-        public float ToX { get; init; }
-        public float ToY { get; init; }
-        public float Speed { get; init; } // How long it takes to complete a move
-        public Direction Direction { get; init; }
+        public int ChunkX { get; init; }
+        public int ChunkY { get; init; }
+        public byte CurrentX { get; init; }
+        public byte CurrentY { get; init; }
+        public (byte, byte)[] Path { get; init; }
         public MovementType MovementType { get; init; }
+        private int _currentMoveIndex = 0;
+
+        public MovementData(int chunkX, int chunkY, byte currentX, byte currentY, (byte, byte)[] path, MovementType movementType)
+        {
+            ChunkX = chunkX;
+            ChunkY = chunkY;
+            CurrentX = currentX;
+            CurrentY = currentY;
+            Path = path;
+            MovementType = movementType;
+        }
+
+        public (byte, byte) GetNextMove()
+        {
+            if (_currentMoveIndex >= Path.Length)
+            {
+                return (CurrentX, CurrentY);
+            }
+            var nextMove = Path.Length > 0 ? Path[_currentMoveIndex] : (CurrentX, CurrentY);
+            _currentMoveIndex++;
+            return nextMove;
+        }
     }
 
-    private readonly Dictionary<Guid, MovementData> _entities = [];
-
+    private readonly Dictionary<Guid, MovementData> _movingEntities = [];
+    
     public override void Destroy()
     {
         EventManager.UnregisterListener<ChunkCreated>(this);
         EventManager.UnregisterListener<MoveEntityRequest>(this);
+        EventManager.UnregisterListener<PathfindingRequest>(this);
+        EventManager.UnregisterListener<RegisterToSystem>(this);
+        EventManager.UnregisterListener<UnregisterFromSystem>(this);
+        EventManager.UnregisterListener<FindPathAndMoveEntity>(this);
     }
 
     public override void HandleMessage(IEvent evt)
@@ -60,35 +86,87 @@ public class MovementManager : BaseManager
                 );
                 EventManager.EmitCallback(request.CallbackId, path);
                 break;
+            case FindPathAndMoveEntity findPathAndMoveEntity:
+                HandlePathAndMove(findPathAndMoveEntity);
+                break;
             default:
                 break;
         }
     }
-
-    private static void HandleEntityMove(MoveEntityRequest request)
+    private int _tickCounter = 0;
+    public override void Update(double deltaTime)
     {
-        // Get current and target chunks
-        var (fromChunkX, fromChunkY, _, _) =
-            Util.CoordinateSystem.WorldToChunkAndLocal(request.FromPosition.X, request.FromPosition.Y);
-        var (toChunkX, toChunkY, toLocalX, toLocalY) =
-            Util.CoordinateSystem.WorldToChunkAndLocal(request.ToPosition.X, request.ToPosition.Y);
+        base.Update(deltaTime);
 
-        // Handle movement
-        var fromChunk = World.GetChunk(fromChunkX, fromChunkY);
-        if (fromChunk == null) return; // Chunk not found where expected
-
-        // If moving to different chunk
-        if (fromChunkX != toChunkX || fromChunkY != toChunkY)
+        // Later: add deltaTime to moving entities, now just use crude loop limiter
+        if (_tickCounter++  >= 60)
         {
-            var toChunk = World.GetChunk(toChunkX, toChunkY);
-            if (toChunk != null && toChunk.AddEntity(request.EntityId, [new(toLocalX, toLocalY)]))
-            {
-                fromChunk.RemoveEntity(request.EntityId);
-            }
+            _tickCounter = 0;
+            MoveEntities(deltaTime);
         }
-        else // Same chunk movement
+
+    }
+
+    private void HandlePathAndMove(FindPathAndMoveEntity request)
+    {
+
+        float startScreenX = request.StartX;
+        float startScreenY = request.StartY;
+        float endScreenX = request.TargetX;
+        float endScreenY = request.TargetY;
+
+        var path = GetPath(startScreenX, startScreenY, endScreenX, endScreenY);
+        if (path.Length == 0) return;  // No path found
+        var (startChunkX, startChunkY, startLocalX, startLocalY) = Util.CoordinateSystem.ScreenToLocal(startScreenX, startScreenY);
+        var movementData = new MovementData(
+            startChunkX, startChunkY, startLocalX, startLocalY,
+            path,
+            request.MovementType
+        );
+        // Add entity to moving entities, overwriting if already exists
+        _movingEntities[request.EntityId] = movementData;
+        World.SetEntityState(request.EntityId, new EntityState
         {
-            fromChunk.UpdateEntityPositions(request.EntityId, [new(toLocalX, toLocalY)]);
+            Position = new Vector2(startScreenX, startScreenY),
+            Current = CurrentAction.Moving
+        });
+    }
+
+    private void HandleEntityMove(MoveEntityRequest request)
+    {
+        // TODO
+    }
+
+    private void MoveEntities(double deltaTime)
+    {
+        foreach (var (entityId, movementData) in _movingEntities)
+        {
+            var (nextX, nextY) = movementData.GetNextMove();
+            if (nextX == movementData.CurrentX && nextY == movementData.CurrentY)
+            {
+                // Entity has reached the end of the path
+                _movingEntities.Remove(entityId);
+                World.SetEntityState(entityId, new EntityState
+                {
+                    Position = new Vector2(
+                        movementData.ChunkX * Config.CHUNK_SIZE + movementData.CurrentX,
+                        movementData.ChunkY * Config.CHUNK_SIZE + movementData.CurrentY
+                    ),
+                    Current = CurrentAction.Idle
+                });
+            }
+            else
+            {
+                // Move entity
+                World.SetEntityState(entityId, new EntityState
+                {
+                    Position = new Vector2(
+                        movementData.ChunkX * Config.CHUNK_SIZE + nextX,
+                        movementData.ChunkY * Config.CHUNK_SIZE + nextY
+                    ),
+                    Current = CurrentAction.Moving
+                });
+            }
         }
     }
 
@@ -96,6 +174,10 @@ public class MovementManager : BaseManager
     {
         EventManager.RegisterListener<ChunkCreated>(this);
         EventManager.RegisterListener<MoveEntityRequest>(this);
+        EventManager.RegisterListener<PathfindingRequest>(this);
+        EventManager.RegisterListener<RegisterToSystem>(this);
+        EventManager.RegisterListener<UnregisterFromSystem>(this);
+        EventManager.RegisterListener<FindPathAndMoveEntity>(this);
     }
 
     private static bool ValidateEntityPositions(IEnumerable<EntityPosition> positions, out Dictionary<(int, int), List<EntityPosition>> chunkPositions)
@@ -145,6 +227,7 @@ public class MovementManager : BaseManager
         return World.RemoveEntity(entityId);
     }
 
+    // Path is returned in Chunk coordinates, path contains only start chunk coordinates
     public (byte, byte)[] GetPath(float startScreenX, float startScreenY, float endScreenX, float endScreenY)
     {
         var (startChunkX, startChunkY, startLocalX, startLocalY) = Util.CoordinateSystem.ScreenToLocal(startScreenX, startScreenY);
@@ -153,31 +236,35 @@ public class MovementManager : BaseManager
         var startChunk = World.GetChunk(startChunkX, startChunkY);
         var endChunk = World.GetChunk(endChunkX, endChunkY);
 
-        if (startChunk == null || endChunk == null)
-        {
-            return [];
-        }
-        if (startChunk == endChunk)
-        {
-            return startChunk.GetPath(startLocalX, startLocalY, endLocalX, endLocalY);
-        }
+        if (startChunk == null || endChunk == null) return [];
+        if (startChunk == endChunk) return startChunk.GetPath(startLocalX, startLocalY, endLocalX, endLocalY);
+
         var interChunkPath = FindInterChunkPath(startChunkX, startChunkY, endChunkX, endChunkY);
         if (interChunkPath.Length > 0)
         {
-            List<(byte, byte)> Path = [];
             Chunk? next_chunk = World.GetChunk(interChunkPath[1].Item1, interChunkPath[1].Item2);
-            if (next_chunk == null)
-            {
-                return [.. Path];
-            }
+            if (next_chunk == null) return [];
             var connectionPoint = World.GetChunkConnectionPoint(startChunk, next_chunk, (interChunkPath[1].Item1 - startChunkX, interChunkPath[1].Item2 - startChunkY));
-            if (connectionPoint == null)
-            {
-                return [.. Path];
-            }
+            if (connectionPoint == null) return [];
             return startChunk.GetPath(startLocalX, startLocalY, connectionPoint.Value.Item1, connectionPoint.Value.Item2);
         }
         return [];
+    }
+
+    private static Vector2[] ConvertPathToWorldCoordinates((byte, byte)[] path, byte chunkX, byte chunkY)
+    {
+         return path.Select(node => new Vector2(
+        chunkX * Config.CHUNK_SIZE + node.Item1,
+        chunkY * Config.CHUNK_SIZE + node.Item2
+        )).ToArray();
+    }
+
+    private static Vector2[] ConvertPathToWorldCoordinates((byte, byte)[] path, int chunkX, int chunkY)
+    {
+         return path.Select(node => new Vector2(
+        chunkX * Config.CHUNK_SIZE + node.Item1,
+        chunkY * Config.CHUNK_SIZE + node.Item2
+        )).ToArray();
     }
 
     static (int, int)[] FindInterChunkPath(int startChunkX, int startChunkY, int endChunkX, int endChunkY)

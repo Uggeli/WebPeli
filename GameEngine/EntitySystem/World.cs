@@ -4,9 +4,51 @@ using WebPeli.GameEngine.Managers;
 
 namespace WebPeli.GameEngine;
 
+
+public enum CurrentAction : byte
+{
+    Idle,
+    Moving,
+    Attacking,
+}
+
+
+
+public readonly record struct EntityState
+{
+    public Vector2 Position { get; init; }  // in world coordinates
+    public float Rotation { get; init; }  // Added rotation in radians
+    public CurrentAction Current { get; init; }
+}
+
+// Add this struct to hold entity cell data
+public readonly record struct EntityGridCell
+{
+    public int Count { get; init; }
+    public CurrentAction Action { get; init; }
+    public float Rotation { get; init; }
+}
+
 public static class World
 {
+
     private static Chunk[,] _chunks { get; set; } = new Chunk[Config.WORLD_SIZE, Config.WORLD_SIZE];
+    private static Dictionary<Guid, EntityState> _entityStates = [];
+
+    public static void SetEntityState(Guid entityId, EntityState state)
+    {
+        _entityStates[entityId] = state;
+    }
+
+    public static EntityState? GetEntityState(Guid entityId)
+    {
+        if (_entityStates.TryGetValue(entityId, out EntityState state))
+        {
+            return state;
+        }
+        return null;
+    }   
+
     public static Chunk? GetChunk(byte x, byte y)
     {
         if (!IsInWorldBounds(x, y))
@@ -185,7 +227,7 @@ public static class World
         return tileGrid;
     }
 
-    public static int[,] GetEntitiesInArea(
+    public static EntityGridCell[,] GetEntitiesInArea(
         float screenX,
         float screenY,
         float viewportWidth,
@@ -208,7 +250,7 @@ public static class World
 
         int gridWidth = Math.Abs(endWorldX - startWorldX) + 1;
         int gridHeight = Math.Abs(endWorldY - startWorldY) + 1;
-        var entityGrid = new int[gridWidth, gridHeight];
+        var entityGrid = new EntityGridCell[gridWidth, gridHeight];
 
         for (int x = 0; x < gridWidth; x++)
         {
@@ -217,9 +259,20 @@ public static class World
                 int worldX = startWorldX + x;
                 int worldY = startWorldY + y;
 
-                var entities = World.GetEntitiesAt(new Vector2(worldX, worldY));
-                // Later: encode entity stuff to int, Like texture, action, etc.
-                entityGrid[x, y] = entities.Count();
+                var entities = GetEntitiesAt(new Vector2(worldX, worldY)).ToList();
+                if (entities.Count > 0)
+                {
+                    // Get state of first entity at this position
+                    var firstEntity = entities.First();
+                    var state = GetEntityState(firstEntity);
+                    
+                    entityGrid[x, y] = new EntityGridCell
+                    {
+                        Count = entities.Count,
+                        Action = state?.Current ?? CurrentAction.Idle,
+                        Rotation = state?.Rotation ?? 0f
+                    };
+                }
             }
         }
 

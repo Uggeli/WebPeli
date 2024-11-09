@@ -51,6 +51,7 @@ public readonly record struct ChunkCreated : IEvent
     public readonly int Y { get; init; }
 }
 
+// For teleporting entities, Enitypositions are in local coordinates
 public readonly record struct MoveEntityRequest : IEvent 
 {
     public required Guid EntityId { get; init; }
@@ -69,6 +70,19 @@ public readonly record struct PathfindingRequest : IEvent
     public required float TargetY { get; init; }
     public required Guid CallbackId { get; init; }
 }
+
+// MovementManager handles this event and finds path for entity
+// Then puts in to movement queue and starts moving entity down the path with movement type
+public readonly record struct FindPathAndMoveEntity : IEvent
+{
+    public required Guid EntityId { get; init; }
+    public required float StartX { get; init; }
+    public required float StartY { get; init; }
+    public required float TargetX { get; init; }
+    public required float TargetY { get; init; }
+    public required MovementType MovementType { get; init; }
+}
+
 
 public enum SystemType
 {

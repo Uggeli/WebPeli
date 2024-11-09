@@ -9,8 +9,9 @@ public enum EntityCapabilities : ushort
     Movement = 1 << 1,
     Render = 1 << 2,
     AiSystem = 1 << 3,  // Later, split this into more specific systems
-
 }
+
+
 
 public readonly record struct EntityRecord
 {
@@ -97,6 +98,5 @@ public class EntityRegister : BaseManager
             _entities.Remove(removeEntity.EntityId);
         }
     }
-
 
 }

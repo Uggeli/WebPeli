@@ -150,10 +150,13 @@
                 const width = view.getUint16(0, true);
                 const height = view.getUint16(2, true);
 
-                // Get tile data as Uint8Array
-                const tiles = new Uint8Array(data, offset + 4, width * height);
-
-                this.lastTiles = { width, height, tiles };
+                // Get tile data
+                const tileData = new Uint8Array(data, offset + 4, width * height);
+                
+                // Get entity data
+                const entityData = new Uint8Array(data, offset + 4 + width * height, width * height * 4);
+                
+                this.lastTiles = { width, height, tiles: tileData, entities: entityData };
                 this.render();
             }
 
@@ -226,7 +229,7 @@
 
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                const { width, height, tiles } = this.lastTiles;
+                const { width, height, tiles, entities } = this.lastTiles;
 
                 // Update debug info
                 debug.textContent = `Viewport: ${this.viewportX.toFixed(1)}, ${this.viewportY.toFixed(1)}\nTiles: ${width}x${height}`;
@@ -259,6 +262,52 @@
                                 TILE_SIZE - 5,
                                 TILE_SIZE - 5
                             );
+                        }
+                    }
+                }
+
+                // Draw entities
+                for (let y = 0; y < height; y++) {
+                    for (let x = 0; x < width; x++) {
+                        const idx = (y * width + x) * 4;
+                        const count = entities[idx];
+                        const action = entities[idx + 1];
+                        const rotation = (entities[idx + 2] * Math.PI * 2) / 255;
+
+                        if (count > 0) {
+                            // Draw triangle for each entity
+                            const centerX = x * TILE_SIZE + TILE_SIZE / 2;
+                            const centerY = y * TILE_SIZE + TILE_SIZE / 2;
+                            
+                            ctx.save();
+                            ctx.translate(centerX, centerY);
+                            ctx.rotate(rotation);
+                            
+                            // Draw triangle
+                            ctx.beginPath();
+                            ctx.fillStyle = 'red';
+                            ctx.moveTo(0, -TILE_SIZE/2);
+                            ctx.lineTo(-TILE_SIZE/2, TILE_SIZE/2);
+                            ctx.lineTo(TILE_SIZE/2, TILE_SIZE/2);
+                            ctx.closePath();
+                            ctx.fill();
+
+                            // Visual indicators for different actions
+                            switch(action) {
+                                case 1: // Moving
+                                    ctx.strokeStyle = 'yellow';
+                                    ctx.lineWidth = 2;
+                                    ctx.stroke();
+                                    break;
+                                case 2: // Attacking
+                                    ctx.fillStyle = 'rgba(255,0,0,0.3)';
+                                    ctx.beginPath();
+                                    ctx.arc(0, 0, TILE_SIZE/2, 0, Math.PI * 2);
+                                    ctx.fill();
+                                    break;
+                            }
+                            
+                            ctx.restore();
                         }
                     }
                 }
