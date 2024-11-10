@@ -157,7 +157,7 @@ public class Chunk
         }
     }
 
-    public (byte, byte)[] GetPath(byte startX, byte startY, byte endX, byte endY)
+    public (int, int)[] GetPath(byte startX, byte startY, byte endX, byte endY)
     {
         // A* pathfinding
         var openSet = new PriorityQueue<(byte X, byte Y), float>();
