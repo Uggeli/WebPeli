@@ -36,13 +36,13 @@ public class AiManager : BaseManager
 
     private void HandleRegisterToSystem(RegisterToSystem registerToSystem)
     {
-        if (registerToSystem.SystemType == SystemType.AiSystem)
+        if (registerToSystem.SystemType.HasFlag(SystemType.AiSystem))
             _entities.Add(registerToSystem.EntityId);
     }
 
     private void HandleUnregisterFromSystem(UnregisterFromSystem unregisterFromSystem)
     {
-        if (unregisterFromSystem.SystemType == SystemType.AiSystem)
+        if (unregisterFromSystem.SystemType.HasFlag(SystemType.AiSystem))
             _entities.Remove(unregisterFromSystem.EntityId);
     }
 
@@ -61,15 +61,13 @@ public class AiManager : BaseManager
             // Placeholder for AI logic
 
             // Calculate total world size in tiles
-            float worldSizeInTiles = Config.WORLD_SIZE * Config.CHUNK_SIZE;
+            int worldSizeInTiles = Config.WORLD_SIZE * Config.CHUNK_SIZE;
 
             // Generate random target within world bounds
             // Using floats since entity positions are in world coordinates
             Random random = new Random();
-            var target = new Vector2(
-                random.NextSingle() * worldSizeInTiles,
-                random.NextSingle() * worldSizeInTiles
-            );
+            var target_x = random.Next(0, worldSizeInTiles);
+            var target_y = random.Next(0, worldSizeInTiles);
 
             // Emit pathfinding request with world coordinates
             EventManager.Emit(new FindPathAndMoveEntity
@@ -77,8 +75,8 @@ public class AiManager : BaseManager
                 EntityId = entity,
                 StartX = state.Value.Position.X,
                 StartY = state.Value.Position.Y,
-                TargetX = target.X,
-                TargetY = target.Y,
+                TargetX = target_x,
+                TargetY = target_y,
                 MovementType = MovementType.Walk
             });
         }
