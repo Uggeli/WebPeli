@@ -73,13 +73,14 @@ public readonly record struct PathfindingRequest : IEvent
 
 // MovementManager handles this event and finds path for entity
 // Then puts in to movement queue and starts moving entity down the path with movement type
+// In world coordinates (world_size * chunk_size)
 public readonly record struct FindPathAndMoveEntity : IEvent
 {
     public required Guid EntityId { get; init; }
-    public required float StartX { get; init; }
-    public required float StartY { get; init; }
-    public required float TargetX { get; init; }
-    public required float TargetY { get; init; }
+    public required int StartX { get; init; }
+    public required int StartY { get; init; }
+    public required int TargetX { get; init; }
+    public required int TargetY { get; init; }
     public required MovementType MovementType { get; init; }
 }
 
@@ -135,7 +136,7 @@ public record ConsumeDrink(Guid EntityId, byte Amount) : IEvent;
 public record Rest(Guid EntityId, byte Amount) : IEvent;
 public record CreateEntity : IEvent
 {
-    public EntityCapabilities Capabilities { get; init; }
+    public required EntityCapabilities[] Capabilities { get; init; }
     public Guid EntityId { get; init; }
 }
 
