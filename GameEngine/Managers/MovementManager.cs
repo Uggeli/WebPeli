@@ -28,47 +28,35 @@ public enum MovementType : byte
 public class MovementManager : BaseManager
 {
 
-    private record struct MovementData
+    private class MovementData(int currentX, int currentY, (int, int)[] path, MovementType movementType)
     {
-        public int ChunkX { get; init; }
-        public int ChunkY { get; init; }
-        public byte CurrentX { get; set; }
-        public byte CurrentY { get; set; }
-        public (byte, byte)[] Path { get; init; }
-        public MovementType MovementType { get; init; }
-        private int _currentMoveIndex = 0;
+        public int CurrentX { get; set; } = currentX;
+        public int CurrentY { get; set; } = currentY;
+        public (int, int)[] Path { get; init; } = path;
+        public MovementType MovementType { get; init; } = movementType;
+        private int CurrentMoveIndex { get; set; } = 0;
 
-        public MovementData(int chunkX, int chunkY, byte currentX, byte currentY, (byte, byte)[] path, MovementType movementType)
+        public (int, int) GetNextMove()
         {
-            ChunkX = chunkX;
-            ChunkY = chunkY;
-            CurrentX = currentX;
-            CurrentY = currentY;
-            Path = path;
-            MovementType = movementType;
-        }
-
-        public (byte, byte) GetNextMove()
-        {
-            if (_currentMoveIndex >= Path.Length)
+            if (CurrentMoveIndex >= Path.Length)
             {
                 return (CurrentX, CurrentY);
             }
-            var nextMove = Path[_currentMoveIndex];
-            _currentMoveIndex++;
+            var nextMove = Path[CurrentMoveIndex];
+            CurrentMoveIndex += 1;
             return nextMove;
         }
 
         public void UpdateCurrentPosition()
         {
-            var nextMove = Path[_currentMoveIndex];
+            var nextMove = Path[CurrentMoveIndex];
             CurrentX = nextMove.Item1;
             CurrentY = nextMove.Item2;
         }
     }
 
     private readonly Dictionary<Guid, MovementData> _movingEntities = [];
-    
+
     public override void Destroy()
     {
         EventManager.UnregisterListener<ChunkCreated>(this);
@@ -87,7 +75,7 @@ public class MovementManager : BaseManager
             case RegisterToSystem registerToSystem:
                 if (registerToSystem.SystemType.HasFlag(SystemType.MovementSystem))
                 {
-                    
+
                 }
                 break;
 
@@ -122,7 +110,7 @@ public class MovementManager : BaseManager
         base.Update(deltaTime);
 
         // Later: add deltaTime to moving entities, now just use crude loop limiter
-        if (_tickCounter++  >= 5)
+        if (_tickCounter++ >= 5)
         {
             _tickCounter = 0;
             MoveEntities(deltaTime);
@@ -138,9 +126,9 @@ public class MovementManager : BaseManager
         int endWorldY = request.TargetY;
         var path = GetPathWithWorldCoordinates(startWorldX, startWorldY, endWorldX, endWorldY);
         if (path.Length == 0) return;  // No path found
-        var (startChunkX, startChunkY, startLocalX, startLocalY) = Util.CoordinateSystem.WorldToChunkAndLocal(startWorldX, startWorldY);
+        var (_, _, startLocalX, startLocalY) = Util.CoordinateSystem.WorldToChunkAndLocal(startWorldX, startWorldY);
         var movementData = new MovementData(
-            startChunkX, startChunkY, startLocalX, startLocalY,
+            startLocalX, startLocalY,
             path,
             request.MovementType
         );
@@ -165,15 +153,22 @@ public class MovementManager : BaseManager
             var (nextX, nextY) = movementData.GetNextMove();
 
             System.Console.WriteLine($"Moving entity {entityId}: from {movementData.CurrentX}, {movementData.CurrentY} to {nextX}, {nextY}");
+            System.Console.WriteLine($"Path goal: {movementData.Path.Last().Item1}, {movementData.Path.Last().Item2}");
             if (nextX == movementData.CurrentX && nextY == movementData.CurrentY)
             {
+                System.Console.WriteLine("Entity has reached the end of the path");
+                System.Console.WriteLine($"Path length: {movementData.Path.Length}");
+                foreach (var (x, y) in movementData.Path)
+                {
+                    System.Console.WriteLine($"Path: {x}, {y}");
+                }
                 // Entity has reached the end of the path
                 _movingEntities.Remove(entityId);
                 World.SetEntityState(entityId, new EntityState
                 {
                     Position = new EntityPosition(
-                        movementData.ChunkX * Config.CHUNK_SIZE + movementData.CurrentX,
-                        movementData.ChunkY * Config.CHUNK_SIZE + movementData.CurrentY
+                        movementData.CurrentX,
+                        movementData.CurrentY
                     ),
                     Current = CurrentAction.Idle
                 });
@@ -182,8 +177,7 @@ public class MovementManager : BaseManager
             {
                 movementData.UpdateCurrentPosition();
                 World.UpdateEntityPosition(entityId, new EntityPosition(
-                    movementData.ChunkX * Config.CHUNK_SIZE + nextX,
-                    movementData.ChunkY * Config.CHUNK_SIZE + nextY
+                    nextX, nextY
                 ));
             }
         }
@@ -247,7 +241,7 @@ public class MovementManager : BaseManager
     }
 
     // Path is returned in WORLD coordinates, path contains only start chunk coordinates
-    public (byte, byte)[] GetPathWithWorldCoordinates(int startX, int startY, int EndX, int EndY)
+    public (int, int)[] GetPathWithWorldCoordinates(int startX, int startY, int EndX, int EndY)
     {
         var (startChunkX, startChunkY, startLocalX, startLocalY) = Util.CoordinateSystem.WorldToChunkAndLocal(startX, startY);
         var (endChunkX, endChunkY, endLocalX, endLocalY) = Util.CoordinateSystem.WorldToChunkAndLocal(EndX, EndY);
@@ -256,21 +250,42 @@ public class MovementManager : BaseManager
         var endChunk = World.GetChunk(endChunkX, endChunkY);
 
         if (startChunk == null || endChunk == null) return [];
-        if (startChunk == endChunk) return startChunk.GetPath(startLocalX, startLocalY, endLocalX, endLocalY);
+        if (startChunk == endChunk)
+            return ConvertPathToWorldCoordinates(startChunk.GetPath(startLocalX, startLocalY, endLocalX, endLocalY), startChunkX, startChunkY);
 
         var interChunkPath = FindInterChunkPath(startChunkX, startChunkY, endChunkX, endChunkY);
         if (interChunkPath.Length > 0)
         {
             Chunk? next_chunk = World.GetChunk(interChunkPath[1].Item1, interChunkPath[1].Item2);
             if (next_chunk == null) return [];
-            var connectionPoint = World.GetChunkConnectionPoint(startChunk, next_chunk, (interChunkPath[1].Item1 - startChunkX, interChunkPath[1].Item2 - startChunkY));
+
+            var connectionPoint = World.GetChunkConnectionPoint(startChunk, next_chunk,
+                (interChunkPath[1].Item1 - startChunkX, interChunkPath[1].Item2 - startChunkY));
             if (connectionPoint == null) return [];
-            var path = startChunk.GetPath(startLocalX, startLocalY, connectionPoint.Value.Item1, connectionPoint.Value.Item2);
-            return ;
+
+            var tmp_path = startChunk.GetPath(startLocalX, startLocalY, connectionPoint.Value.x, connectionPoint.Value.y);
+            if (tmp_path.Length == 0) return [];
+            (int, int)[] path = new (int, int)[tmp_path.Length + 1];
+
+            // Get the direction to the next chunk
+            var chunkDirX = interChunkPath[1].Item1 - startChunkX;
+            var chunkDirY = interChunkPath[1].Item2 - startChunkY;
+
+            // Copy the temporary path
+            for (int i = 0; i < tmp_path.Length; i++)
+            {
+                path[i] = tmp_path[i];
+            }
+
+            // Add the transition point that connects to the next chunk
+            var lastPoint = tmp_path.Last();
+            path[tmp_path.Length] = (lastPoint.Item1 + chunkDirX, lastPoint.Item2 + chunkDirY);
+
+            return ConvertPathToWorldCoordinates(path, startChunkX, startChunkY);
         }
         return [];
     }
-    public (byte, byte)[] GetPathWithScreenCoordinates(float startScreenX, float startScreenY, float endScreenX, float endScreenY)
+    public (int, int)[] GetPathWithScreenCoordinates(float startScreenX, float startScreenY, float endScreenX, float endScreenY)
     {
         var (startChunkX, startChunkY, startLocalX, startLocalY) = Util.CoordinateSystem.ScreenToLocal(startScreenX, startScreenY);
         var (endChunkX, endChunkY, endLocalX, endLocalY) = Util.CoordinateSystem.ScreenToLocal(endScreenX, endScreenY);
@@ -288,25 +303,16 @@ public class MovementManager : BaseManager
             if (next_chunk == null) return [];
             var connectionPoint = World.GetChunkConnectionPoint(startChunk, next_chunk, (interChunkPath[1].Item1 - startChunkX, interChunkPath[1].Item2 - startChunkY));
             if (connectionPoint == null) return [];
-            return startChunk.GetPath(startLocalX, startLocalY, connectionPoint.Value.Item1, connectionPoint.Value.Item2);
+            return startChunk.GetPath(startLocalX, startLocalY, connectionPoint.Value.x, connectionPoint.Value.y);
         }
         return [];
     }
 
-    private static Vector2[] ConvertPathToWorldCoordinates((byte, byte)[] path, byte chunkX, byte chunkY)
+    private static (int, int)[] ConvertPathToWorldCoordinates((int, int)[] path, int chunkX, int chunkY)
     {
-         return path.Select(node => new Vector2(
-        chunkX * Config.CHUNK_SIZE + node.Item1,
-        chunkY * Config.CHUNK_SIZE + node.Item2
-        )).ToArray();
-    }
-
-    private static Vector2[] ConvertPathToWorldCoordinates((byte, byte)[] path, int chunkX, int chunkY)
-    {
-         return path.Select(node => new Vector2(
-        chunkX * Config.CHUNK_SIZE + node.Item1,
-        chunkY * Config.CHUNK_SIZE + node.Item2
-        )).ToArray();
+        return path.Select(node => (chunkX * Config.CHUNK_SIZE + node.Item1,
+       chunkY * Config.CHUNK_SIZE + node.Item2
+       )).ToArray();
     }
 
     static (int, int)[] FindInterChunkPath(int startChunkX, int startChunkY, int endChunkX, int endChunkY)
