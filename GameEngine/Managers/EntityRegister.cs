@@ -3,20 +3,32 @@ namespace WebPeli.GameEngine.Managers;
 [Flags]
 public enum EntityCapabilities : ushort
 {
-    // Registers what systems the entity uses
     None = 0,
-    Metabolism = 1 << 0,
-    Movement = 1 << 1,
-    Render = 1 << 2,
-    AiSystem = 1 << 3,  // Later, split this into more specific systems
+    MetabolismSystem = 1 << 0,
+    MovementSystem = 1 << 1,
+    RenderingSystem = 1 << 2,
+    AiSystem = 1 << 3,
 }
 
-
+public static class EntityCapabilitiesExtensions 
+{
+    public static SystemType ToSystemType(this EntityCapabilities capability) 
+    {
+        return capability switch 
+        {
+            EntityCapabilities.MetabolismSystem => SystemType.MetabolismSystem,
+            EntityCapabilities.MovementSystem => SystemType.MovementSystem,
+            EntityCapabilities.RenderingSystem => SystemType.RenderingSystem,
+            EntityCapabilities.AiSystem => SystemType.AiSystem,
+            _ => throw new ArgumentException($"Invalid capability: {capability}")
+        };
+    }
+}
 
 public readonly record struct EntityRecord
 {
     public readonly required Guid EntityId { get; init; }
-    public readonly required EntityCapabilities Capabilities { get; init; }
+    public readonly required EntityCapabilities[] Capabilities { get; init; }
 }
 
 public class EntityRegister : BaseManager
@@ -57,20 +69,17 @@ public class EntityRegister : BaseManager
         EventManager.RegisterListener<RemoveEntity>(this); // For Removing Entity
     }
 
-    private static void NotifySystems(Guid entityId, EntityCapabilities capabilities, bool remove = false)
+    private static void NotifySystems(Guid entityId, EntityCapabilities[] capabilities, bool remove = false)
     {
-        foreach (var system in Enum.GetValues<EntityCapabilities>())
+        foreach (var capability in capabilities)
         {
-            if (capabilities.HasFlag(system))
+            if (remove)
             {
-                if (remove)
-                {
-                    EventManager.Emit(new UnregisterFromSystem{ EntityId=entityId, SystemType=(SystemType)system});
-                }
-                else
-                {
-                    EventManager.Emit(new RegisterToSystem{ EntityId=entityId, SystemType=(SystemType)system});
-                }
+                EventManager.Emit(new UnregisterFromSystem { EntityId = entityId, SystemType = capability.ToSystemType() });
+            }
+            else
+            {
+                EventManager.Emit(new RegisterToSystem { EntityId = entityId, SystemType = capability.ToSystemType() });
             }
         }
     }
@@ -82,6 +91,7 @@ public class EntityRegister : BaseManager
             EntityId = createEntity.EntityId,
             Capabilities = createEntity.Capabilities
         });
+        World.AddEntity(createEntity.EntityId);
         NotifySystems(createEntity.EntityId, createEntity.Capabilities);
     }
 
@@ -97,6 +107,8 @@ public class EntityRegister : BaseManager
             NotifySystems(removeEntity.EntityId, entity.Capabilities, true);
             _entities.Remove(removeEntity.EntityId);
         }
+        World.RemoveEntity(removeEntity.EntityId);
+        
     }
 
 }
