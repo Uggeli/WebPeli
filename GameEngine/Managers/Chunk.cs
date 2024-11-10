@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using WebPeli.GameEngine.EntitySystem;
 namespace WebPeli.GameEngine.Managers;
+public readonly record struct EntityPosition(int X, int Y);
 
 public class Chunk
 {
@@ -80,7 +81,7 @@ public class Chunk
     private bool HasCollision(IEnumerable<EntityPosition> positions)
     {
         return positions.Any(pos => 
-            !IsTraversable(pos.X, pos.Y) || 
+            !IsTraversable(pos) || 
             (_positionMap.ContainsKey(pos) && _positionMap[pos].Count > 0));
     }
 
@@ -97,10 +98,9 @@ public class Chunk
         return tiles[x, y];
     }
 
-    static bool IsInBounds(byte x, byte y)
-    {
-        return x >= 0 && x < Config.CHUNK_SIZE && y >= 0 && y < Config.CHUNK_SIZE;
-    }
+    static bool IsInBounds(byte x, byte y) => x >= 0 && x < Config.CHUNK_SIZE && y >= 0 && y < Config.CHUNK_SIZE;
+    static bool IsInBounds(int x, int y) => x >= 0 && x < Config.CHUNK_SIZE && y >= 0 && y < Config.CHUNK_SIZE;
+
 
     public byte this[byte x, byte y]
     {
@@ -121,6 +121,7 @@ public class Chunk
 
     // Tile property methods
     public bool IsTraversable(byte x, byte y) => (GetTile(x, y) & 0b00010000) != 0;
+    public bool IsTraversable(EntityPosition pos) => IsTraversable((byte)pos.X, (byte)pos.Y);
     public bool IsTransparent(byte x, byte y) => (GetTile(x, y) & 0b00100000) != 0;
     public byte GetTileType(byte x, byte y) => (byte)((GetTile(x, y) & 0b11000000) >> 6);
 
@@ -185,6 +186,7 @@ public class Chunk
                     path.Add(current);
                 }
                 path.Reverse();
+                path.RemoveAt(0); // Remove the starting position
                 return [.. path];
             }
 
