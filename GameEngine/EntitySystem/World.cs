@@ -101,7 +101,7 @@ public static class World
         return [.. connectedChunks];
     }
 
-    public static (byte, byte)? GetChunkConnectionPoint(Chunk chunk1, Chunk chunk2, (int, int) direction)
+    public static (byte x, byte y)? GetChunkConnectionPoint(Chunk chunk1, Chunk chunk2, (int, int) direction)
     {
         switch (direction)
         {
