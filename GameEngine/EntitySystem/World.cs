@@ -12,11 +12,9 @@ public enum CurrentAction : byte
     Attacking,
 }
 
-
-
 public readonly record struct EntityState
 {
-    public Vector2 Position { get; init; }  // in world coordinates
+    public EntityPosition Position { get; init; }  // in world coordinates
     public float Rotation { get; init; }  // Added rotation in radians
     public CurrentAction Current { get; init; }
 }
@@ -47,7 +45,7 @@ public static class World
             return state;
         }
         return null;
-    }   
+    }
 
     public static Chunk? GetChunk(byte x, byte y)
     {
@@ -151,17 +149,62 @@ public static class World
     {
         var (chunkX, chunkY, localX, localY) =
             Util.CoordinateSystem.WorldToChunkAndLocal(position.X, position.Y);
-
+        if (!IsInWorldBounds(chunkX, chunkY))
+            return [];
         return _chunks[chunkX, chunkY].GetEntitiesAt(new EntityPosition(localX, localY));
+    }
+
+    public static void UpdateEntityPosition(Guid entityId, EntityPosition position)
+    {
+        var (chunkX, chunkY, localX, localY) =
+            Util.CoordinateSystem.WorldToChunkAndLocal(position.X, position.Y);
+        if (!IsInWorldBounds(chunkX, chunkY))
+            return;
+        SetEntityState(entityId, new EntityState
+        {
+            Position = position,
+            Rotation = GetEntityState(entityId)?.Rotation ?? 0f,
+            Current = GetEntityState(entityId)?.Current ?? CurrentAction.Idle
+        });
+        _chunks[chunkX, chunkY].UpdateEntityPosition(entityId, new EntityPosition(localX, localY));
     }
 
     public static bool RemoveEntity(Guid entityId)
     {
+        _entityStates.Remove(entityId);
         foreach (var chunk in _chunks)
         {
+            _entityStates.Remove(entityId);
             if (chunk.RemoveEntity(entityId)) return true;
         }
         return false;
+    }
+
+    public static void AddEntity(Guid entityId, EntityPosition position)
+    {
+        // TODO: add multiposition support
+        var (chunkX, chunkY, localX, localY) =
+            Util.CoordinateSystem.WorldToChunkAndLocal(position.X, position.Y);
+        if (!IsInWorldBounds(chunkX, chunkY))
+            return;
+        _chunks[chunkX, chunkY].AddEntity(entityId, [new EntityPosition(localX, localY)]);
+    }
+
+    public static void AddEntity(Guid entityId)
+    {
+        var random = new Random();
+        // var randomChunk = new Vector2(random.Next(0, Config.WORLD_SIZE), random.Next(0, Config.WORLD_SIZE));
+        var position = new EntityPosition(
+            random.Next(0, Config.WORLD_SIZE * Config.CHUNK_SIZE),
+            random.Next(0, Config.WORLD_SIZE * Config.CHUNK_SIZE)
+        );
+        SetEntityState(entityId, new EntityState
+        {
+            Position = position,
+            Rotation = 0f,
+            Current = CurrentAction.Idle
+        });
+        AddEntity(entityId, position);
     }
 
     private const float MIN_VIEWPORT_SIZE = 100;  // pixels
