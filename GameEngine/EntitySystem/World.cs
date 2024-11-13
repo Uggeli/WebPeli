@@ -570,12 +570,12 @@ public static class World
 
                 var tentativeScore = gScore[(current.x, current.y)] + 1;
 
-                if (!gScore.ContainsKey((x, y)) || 
+                if (!gScore.ContainsKey((x, y)) ||
                     tentativeScore < gScore[(x, y)])
                 {
                     cameFrom[(x, y)] = (current.x, current.y);
                     gScore[(x, y)] = tentativeScore;
-                    var priority = tentativeScore + Heuristic((x, y),(targetChunkX, targetChunkY));
+                    var priority = tentativeScore + Heuristic((x, y), (targetChunkX, targetChunkY));
                     openSet.Enqueue((x, y), priority);
                 }
             }
@@ -584,25 +584,123 @@ public static class World
         return []; // No path found
     }
 
-    private static int[/*ids here*/] GetZonePath(int startX, int startY, int targetX, int targetY, Chunk startChunk, Chunk endChunk)
+    private static (int ZoneId, ChunkExit Exit)[] GetZonePath(int startX, int startY, Chunk startChunk, Chunk? targetChunk, Direction targetDirection)
     {
-        var openSet = new PriorityQueue<(byte ChunkX, byte ChunkY, int ZoneId), float>();
-        var cameFrom = new Dictionary<(byte ChunkX, byte ChunkY, int ZoneId), (byte ChunkX, byte ChunkY, byte ZoneId)>();
-        var gScore = new Dictionary<(byte ChunkX, byte ChunkY, int ZoneId), float>();
+        var openSet = new PriorityQueue<(int ZoneId, ChunkExit? Exit), float>();
+        var cameFrom = new Dictionary<int, (int ZoneId, ChunkExit? Exit)>();
+        var gScore = new Dictionary<int, float>();
 
-        List<ChunkZone> zones = [.._chunkZones[(startChunk.X, startChunk.Y)], .._chunkZones[(endChunk.X, endChunk.Y)]];  // this is our search space
+        // Get starting zone
+        var (_, _, startLocalX, startLocalY) = Util.CoordinateSystem.WorldToChunkAndLocal(startX, startY);
+        var startZone = _chunkZones[(startChunk.X, startChunk.Y)]
+            .First(z => z.Tiles.Contains((startLocalX, startLocalY)));
 
-        var (_, _, startLocalX, startLocalY)= Util.CoordinateSystem.WorldToChunkAndLocal(startX, startY);
-        var startZone = zones.First(z => z.Tiles.Contains((startLocalX, startLocalY)));
+        // Initialize search
+        openSet.Enqueue((startZone.ZoneId, null), 0);
+        gScore[startZone.ZoneId] = 0;
 
-        
+        while (openSet.Count > 0)
+        {
+            var current = openSet.Dequeue();
+            var currentZone = _chunkZones[(startChunk.X, startChunk.Y)]
+                .First(z => z.ZoneId == current.ZoneId);
 
+            // If we're pathing to next chunk, check if this zone has valid exit in target direction
+            if (targetChunk != startChunk)
+            {
+                var validExit = currentZone.Exits
+                    .FirstOrDefault(e => e.Direction == targetDirection);
 
+                if (validExit != null)
+                {
+                    // We found path to next chunk!
+                    return ReconstructZonePath(cameFrom, current.ZoneId);
+                }
+            }
+            else
+            {
+                // Same chunk - check if we reached target zone
+                // (You'll need to pass target coords to identify target zone)
+                // ...
+            }
 
+            // Check connections to other zones
+            foreach (var exit in currentZone.Exits)
+            {
+                // Get connecting zone through this exit
+                var connection = _zoneConnections.FirstOrDefault(c =>
+                    c.Key.Item1 == (startChunk.X, startChunk.Y, current.ZoneId));
 
-        
+                if (connection.Value == null) continue;
+
+                var nextZone = connection.Value.ZoneB;
+                var tentativeScore = gScore[current.ZoneId] + connection.Value.Cost;
+
+                if (!gScore.ContainsKey(nextZone.ZoneId) ||
+                    tentativeScore < gScore[nextZone.ZoneId])
+                {
+                    cameFrom[nextZone.ZoneId] = (current.ZoneId, exit);
+                    gScore[nextZone.ZoneId] = tentativeScore;
+
+                    // If pathing to next chunk, prioritize zones with exits in target direction
+                    float heuristic = nextZone.Exits.Any(e => e.Direction == targetDirection) ? 0 : 1;
+                    openSet.Enqueue((nextZone.ZoneId, exit), tentativeScore + heuristic);
+                }
+            }
+        }
+
         return []; // No path found
     }
+
+    private static (byte x, byte y)[] GetTilePath(byte startX, byte startY, byte targetX, byte targetY, ChunkZone startZone, ChunkZone endZone)
+    {
+        var openSet = new PriorityQueue<(byte X, byte Y), float>();
+        var cameFrom = new Dictionary<(byte X, byte Y), (byte X, byte Y)>();
+        var gScore = new Dictionary<(byte X, byte Y), float>();
+
+        var (_, _, startLocalX, startLocalY) = Util.CoordinateSystem.WorldToChunkAndLocal(startX, startY);
+        var (_, _, targetLocalX, targetLocalY) = Util.CoordinateSystem.WorldToChunkAndLocal(targetX, targetY);
+
+        openSet.Enqueue((startLocalX, startLocalY), 0);
+        gScore[(startLocalX, startLocalY)] = 0;
+
+        while (openSet.Count > 0)
+        {
+            var current = openSet.Dequeue();
+
+            if (current.X == targetLocalX && current.Y == targetLocalY)
+            {
+                return ReconstructPath(cameFrom, current);
+            }
+
+            // Get valid neighbors based on chunk exits
+            if (!_chunkExits.TryGetValue((current.X, current.Y), out var exits))
+                continue;
+
+            foreach (var exit in exits)
+            {
+                // Determine neighbor chunk based on exit direction
+                var (x, y) = GetNeighborFromExit(current.X, current.Y, exit.Direction);
+                if (!IsInChunkBounds(x, y))
+                    continue;
+
+                var tentativeScore = gScore[(current.X, current.Y)] + 1;
+
+                if (!gScore.ContainsKey((x, y)) ||
+                    tentativeScore < gScore[(x, y)])
+                {
+                    cameFrom[(x, y)] = (current.X, current.Y);
+                    gScore[(x, y)] = tentativeScore;
+                    var priority = tentativeScore + Heuristic((x, y), (targetLocalX, targetLocalY));
+                    openSet.Enqueue((x, y), priority);
+                }
+            }
+        }
+
+        return []; // No path found
+    }
+
+
 
     public static (int x, int y)[] FindPath(int startX, int startY, int targetX, int targetY)
     {
@@ -616,7 +714,7 @@ public static class World
             if (chunk == null)
                 return []; // No path found
 
-            
+
 
 
             return []; // Placeholder
@@ -659,10 +757,10 @@ public static class World
     }
 
 
-    private static (byte chunkX, byte chunkY)[] ReconstructPath(Dictionary<(byte x, byte y), (byte x, byte y)> cameFrom,(byte x, byte y) current)
+    private static (byte chunkX, byte chunkY)[] ReconstructPath(Dictionary<(byte x, byte y), (byte x, byte y)> cameFrom, (byte x, byte y) current)
     {
         var path = new List<(byte x, byte y)> { current };
-        
+
         while (cameFrom.ContainsKey(current))
         {
             current = cameFrom[current];
