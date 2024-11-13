@@ -12,6 +12,8 @@ public class GameEngineService : BackgroundService
     public GameEngineService(ILogger<GameEngineService> logger, ViewportManager viewportManager)
     {
         _logger = logger;
+        // Build world
+        WorldGenerator.GenerateWorld();
 
         managers.Add(new EntityRegister());
         managers.Add(new MapManager());
