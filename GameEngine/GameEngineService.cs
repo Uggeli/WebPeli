@@ -15,10 +15,8 @@ public class GameEngineService : BackgroundService
         // Build world
         var startTime = Environment.TickCount;
         World.GenerateWorld();
-        System.Console.WriteLine($"World generation took {Environment.TickCount - startTime}ms");
-        System.Console.WriteLine($"World size: {Config.WORLD_SIZE}");
-        System.Console.WriteLine($"Chunk size: {Config.CHUNK_SIZE}");
-
+        _logger.LogInformation($"World generation took {Environment.TickCount - startTime}ms");
+        _logger.LogInformation(World.GetWorldInfo());
         System.Console.WriteLine(World.GetWorldInfo());
 
         // Initialize managers
@@ -37,7 +35,8 @@ public class GameEngineService : BackgroundService
         InitSystems();
 
         // Add placeholder entities
-        for (int i = 0; i < 1000; i++)
+        int num_entities = 1;
+        for (int i = 0; i < num_entities; i++)
         {
             Guid entityId = Guid.NewGuid();
             managers[0].HandleMessage(new CreateEntity{EntityId = entityId, Capabilities = [EntityCapabilities.MetabolismSystem,
@@ -52,6 +51,7 @@ public class GameEngineService : BackgroundService
 
     private void InitManagers()
     {
+        _logger.LogInformation("Initializing managers");
         foreach (BaseManager manager in managers)
         {
             manager.Init();
@@ -68,6 +68,7 @@ public class GameEngineService : BackgroundService
 
     private void InitSystems()
     {
+        _logger.LogInformation("Initializing systems");
         foreach (BaseManager system in systems)
         {
             system.Init();
@@ -88,6 +89,7 @@ public class GameEngineService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        _logger.LogInformation("GameEngineService is starting.");
         while (!stoppingToken.IsCancellationRequested)
         {
             var startTick = Environment.TickCount;
@@ -107,9 +109,6 @@ public class GameEngineService : BackgroundService
 
             var processingTime = Environment.TickCount - startTick;
             await Task.Delay(Math.Max(16 - processingTime, 0), stoppingToken);
-            System.Console.WriteLine($"Frame time: {Environment.TickCount - startTick}ms");
-            System.Console.WriteLine($"Processing time: {processingTime}ms");
-            // await Task.Delay(1000, stoppingToken); // debug
         }
     }
 }
