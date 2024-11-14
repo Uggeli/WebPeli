@@ -1,8 +1,10 @@
+using System.Collections.Concurrent;
+
 namespace WebPeli.GameEngine;
 
 public abstract class BaseManager : IListener
 {
-    public List<IEvent> EventQueue {get; set; } = [];
+    public ConcurrentBag<IEvent> EventQueue {get; set; } = [];
     public abstract void Init();
     public abstract void Destroy();
     public abstract void HandleMessage(IEvent evt);

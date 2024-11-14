@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Numerics;
 using WebPeli.GameEngine.EntitySystem;
 
@@ -56,7 +57,7 @@ public class MovementManager : BaseManager
         }
     }
 
-    private readonly Dictionary<Guid, MovementData> _movingEntities = [];
+    private readonly ConcurrentDictionary<Guid, MovementData> _movingEntities = [];
 
     public override void Destroy()
     {
@@ -104,8 +105,7 @@ public class MovementManager : BaseManager
     private int _tickCounter = 0;
     public override void Update(double deltaTime)
     {
-        base.Update(deltaTime);
-
+        Parallel.ForEach(EventQueue, HandleMessage);
         // Later: add deltaTime to moving entities, now just use crude loop limiter
         if (_tickCounter++ >= 5)
         {
@@ -117,18 +117,24 @@ public class MovementManager : BaseManager
 
     private void HandlePathAndMove(FindPathAndMoveEntity request)
     {
+        // NOTE: copying guid to local variable results to blank guid
         var path = World.FindPath(request.StartX, request.StartY, request.TargetX, request.TargetY);
         if (path == null || path.Length == 0)
         {
             // No path found
             return;
         }
-
-        var entityId = request.EntityId;
         var movementData = new MovementData(
             request.StartX, request.StartY, path, request.MovementType
         );
-        _movingEntities[entityId] = movementData;
+        _movingEntities[request.EntityId] = movementData;
+        World.SetEntityState(request.EntityId, new EntityState
+        {
+            Position = new EntityPosition(
+                request.StartX, request.StartY
+            ),
+            Current = CurrentAction.Moving
+        });
     }
 
     private void HandleEntityMove(MoveEntityRequest request)
@@ -137,23 +143,17 @@ public class MovementManager : BaseManager
     }
 
     private void MoveEntities(double deltaTime)
-    {
-        foreach (var (entityId, movementData) in _movingEntities)
+    {   
+        Parallel.ForEach(_movingEntities, kvp =>
         {
+            var entityId = kvp.Key;
+            var movementData = kvp.Value;
             var (nextX, nextY) = movementData.GetNextMove();
 
-            System.Console.WriteLine($"Moving entity {entityId}: from {movementData.CurrentX}, {movementData.CurrentY} to {nextX}, {nextY}");
-            System.Console.WriteLine($"Path goal: {movementData.Path.Last().Item1}, {movementData.Path.Last().Item2}");
             if (nextX == movementData.CurrentX && nextY == movementData.CurrentY)
             {
-                System.Console.WriteLine("Entity has reached the end of the path");
-                System.Console.WriteLine($"Path length: {movementData.Path.Length}");
-                foreach (var (x, y) in movementData.Path)
-                {
-                    System.Console.WriteLine($"Path: {x}, {y}");
-                }
                 // Entity has reached the end of the path
-                _movingEntities.Remove(entityId);
+                _movingEntities.TryRemove(entityId, out _);
                 World.SetEntityState(entityId, new EntityState
                 {
                     Position = new EntityPosition(
@@ -166,11 +166,12 @@ public class MovementManager : BaseManager
             else
             {
                 movementData.UpdateCurrentPosition();
+                System.Console.WriteLine($"Moving entity {entityId} to {nextX}, {nextY}");
                 World.UpdateEntityPosition(entityId, new EntityPosition(
                     nextX, nextY
                 ));
             }
-        }
+        });
     }
 
     public override void Init()

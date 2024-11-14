@@ -1,8 +1,10 @@
+using System.Collections.Concurrent;
+
 namespace WebPeli.GameEngine;
 
 public interface IListener
 {
-    List<IEvent> EventQueue { get; set; }
+    ConcurrentBag<IEvent> EventQueue { get; set; }
     public void OnMessage(IEvent evt)
     {
         EventQueue.Add(evt);
