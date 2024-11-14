@@ -35,7 +35,7 @@ public class MovementManager : BaseManager
         public int CurrentY { get; set; } = currentY;
         public (int, int)[] Path { get; init; } = path;
         public MovementType MovementType { get; init; } = movementType;
-        private int CurrentMoveIndex { get; set; } = 0;
+        private int CurrentMoveIndex { get; set; } = 1;
 
         public (int, int) GetNextMove()
         {
@@ -117,7 +117,18 @@ public class MovementManager : BaseManager
 
     private void HandlePathAndMove(FindPathAndMoveEntity request)
     {
+        var path = World.FindPath(request.StartX, request.StartY, request.TargetX, request.TargetY);
+        if (path == null || path.Length == 0)
+        {
+            // No path found
+            return;
+        }
 
+        var entityId = request.EntityId;
+        var movementData = new MovementData(
+            request.StartX, request.StartY, path, request.MovementType
+        );
+        _movingEntities[entityId] = movementData;
     }
 
     private void HandleEntityMove(MoveEntityRequest request)

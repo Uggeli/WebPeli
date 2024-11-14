@@ -13,8 +13,15 @@ public class GameEngineService : BackgroundService
     {
         _logger = logger;
         // Build world
-        WorldGenerator.GenerateWorld();
+        var startTime = Environment.TickCount;
+        World.GenerateWorld();
+        System.Console.WriteLine($"World generation took {Environment.TickCount - startTime}ms");
+        System.Console.WriteLine($"World size: {Config.WORLD_SIZE}");
+        System.Console.WriteLine($"Chunk size: {Config.CHUNK_SIZE}");
 
+        System.Console.WriteLine(World.GetWorldInfo());
+
+        // Initialize managers
         managers.Add(new EntityRegister());
         managers.Add(new MapManager());
         // managers.Add(new ViewportManager());
@@ -30,7 +37,7 @@ public class GameEngineService : BackgroundService
         InitSystems();
 
         // Add placeholder entities
-        for (int i = 0; i < 1; i++)
+        for (int i = 0; i < 1000; i++)
         {
             Guid entityId = Guid.NewGuid();
             managers[0].HandleMessage(new CreateEntity{EntityId = entityId, Capabilities = [EntityCapabilities.MetabolismSystem,
@@ -99,8 +106,10 @@ public class GameEngineService : BackgroundService
 
 
             var processingTime = Environment.TickCount - startTick;
-            // await Task.Delay(Math.Max(16 - processingTime, 0), stoppingToken);
-            await Task.Delay(1000, stoppingToken); // debug
+            await Task.Delay(Math.Max(16 - processingTime, 0), stoppingToken);
+            System.Console.WriteLine($"Frame time: {Environment.TickCount - startTick}ms");
+            System.Console.WriteLine($"Processing time: {processingTime}ms");
+            // await Task.Delay(1000, stoppingToken); // debug
         }
     }
 }
