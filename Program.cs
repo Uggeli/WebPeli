@@ -1,15 +1,14 @@
-using WebPeli.GameEngine.Managers;
+
 using WebPeli.GameEngine;
+using WebPeli.GameEngine.Managers;
+
 
 var builder = WebApplication.CreateBuilder(args);
 // Logging
 builder.Services.AddLogging(configure => configure.AddConsole());
 builder.Logging.SetMinimumLevel(LogLevel.Debug);
 
-// Engine services
-builder.Services.AddSingleton<MapManager>();
 builder.Services.AddSingleton<ViewportManager>();
-// Later: builder.Services.AddSingleton<EntityManager>();
 
 // Start the engine
 builder.Services.AddHostedService<GameEngineService>();

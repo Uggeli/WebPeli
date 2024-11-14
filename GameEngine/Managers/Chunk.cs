@@ -1,31 +1,21 @@
 using System.Collections.Concurrent;
-using WebPeli.GameEngine.EntitySystem;
 namespace WebPeli.GameEngine.Managers;
 
-// TODO: Update coordinates to use Position also Position is in pixels
-// TODO: Update getting tiles to support multiple chunks in case if we are in corner of a chunk or at border
-// TODO: move the perlin noise to common
-// TODO: Move input stuff to priority event
-// TODO: Update the conversion methods to use Position
-
-// Create mapdata -> divide it into chunks -> load chunks -> handle events -> update chunks -> update sessions -> destroy
-// MapData -> Chunk -> Tile -> Entity
-
-public class Chunk
+public class Chunk(byte x, byte y)
 {
+    public byte X { get; } = x;
+    public byte Y { get; } = y;
+
     private readonly byte[,] tiles = new byte[Config.CHUNK_SIZE, Config.CHUNK_SIZE];
     private readonly byte[,] tileTextures = new byte[Config.CHUNK_SIZE, Config.CHUNK_SIZE];  // Later: used for rendering
-    // x, y, tile
-    // tile: first 4 bits is reserved for chunkexit data, last 4 bits is tile data
-    // chunkexit data: booleans; exit_north, exit_east, exit_south, exit_west
-    // tile data: bool is_traversable, bool is_transparent, byte tile_type: 0-3
-    private readonly Dictionary<EntityPosition, HashSet<Guid>> _positionMap = [];
-    private readonly Dictionary<Guid, HashSet<EntityPosition>> _entityPositions = [];
-    public bool AddEntity(Guid entityId, IEnumerable<EntityPosition> positions)
+    private readonly Dictionary<(byte X, byte Y), HashSet<Guid>> _positionMap = [];
+    private readonly Dictionary<Guid, HashSet<(byte X, byte Y)>> _entityPositions = [];
+
+    public bool AddEntity(Guid entityId, IEnumerable<(byte X, byte Y)> positions)
     {
         if (HasCollision(positions)) return false;
 
-        var positionsSet = new HashSet<EntityPosition>(positions);
+        var positionsSet = new HashSet<(byte X, byte Y)>(positions);
         _entityPositions[entityId] = positionsSet;
 
         foreach (var pos in positions)
@@ -59,16 +49,16 @@ public class Chunk
         return true;
     }
 
-    public IEnumerable<Guid> GetEntitiesAt(EntityPosition position) =>
+    public IEnumerable<Guid> GetEntitiesAt((byte X, byte Y) position) =>
         _positionMap.TryGetValue(position, out var entities) ? entities : [];
 
-    public bool UpdateEntityPosition(Guid entityId, EntityPosition newPos)
+    public bool UpdateEntityPosition(Guid entityId, (byte X, byte Y) newPos)
     {
         if (!_entityPositions.ContainsKey(entityId)) return false;
         return UpdateEntityPositions(entityId, [newPos]);
     }
 
-    public bool UpdateEntityPositions(Guid entityId, IEnumerable<EntityPosition> newPositions)
+    public bool UpdateEntityPositions(Guid entityId, IEnumerable<(byte X, byte Y)> newPositions)
     {
         if (!ValidatePositions(newPositions)) return false;
         if (HasCollision(newPositions)) return false;
@@ -77,38 +67,32 @@ public class Chunk
         return AddEntity(entityId, newPositions);
     }
 
-    private static bool ValidatePositions(IEnumerable<EntityPosition> positions)
+    private static bool ValidatePositions(IEnumerable<(byte X, byte Y)> positions)
     {
         foreach (var pos in positions)
         {
-            if (!IsInBounds(pos.X, pos.Y)) return false;
+            if (!World.IsInChunkBounds(pos.X, pos.Y)) return false;
         }
         return true;
     }
 
-    private bool HasCollision(IEnumerable<EntityPosition> positions)
+    private bool HasCollision(IEnumerable<(byte X, byte Y)> positions)
     {
         return positions.Any(pos => 
             !IsTraversable(pos.X, pos.Y) || 
             (_positionMap.ContainsKey(pos) && _positionMap[pos].Count > 0));
     }
 
-
     public void SetTile(byte x, byte y, byte tileData)
     {
-        if (!IsInBounds(x, y)) return;
+        if (!World.IsInChunkBounds(x, y)) return;
         tiles[x, y] = tileData;
     }
 
     public byte GetTile(byte x, byte y)
     {
-        if (!IsInBounds(x, y)) return 0;
+        if (!World.IsInChunkBounds(x, y)) return 0;
         return tiles[x, y];
-    }
-
-    static bool IsInBounds(byte x, byte y)
-    {
-        return x >= 0 && x < Config.CHUNK_SIZE && y >= 0 && y < Config.CHUNK_SIZE;
     }
 
     public byte this[byte x, byte y]
@@ -151,159 +135,5 @@ public class Chunk
         else
             tile &= (byte)~(1 << bitPosition);
         SetTile(x, y, tile);
-    }
-
-    private void GenerateChunk()
-    {
-        for (byte x = 0; x < Config.CHUNK_SIZE; x++)
-        {
-            for (byte y = 0; y < Config.CHUNK_SIZE; y++)
-            {
-                byte tile = 0b00010000; // Empty walkable tile
-                SetTile(x, y, tile);
-            }
-        }
-    }
-
-    public (byte, byte)[] GetPath(byte startX, byte startY, byte endX, byte endY)
-    {
-        // A* pathfinding
-        var openSet = new PriorityQueue<(byte X, byte Y), float>();
-        var cameFrom = new Dictionary<(byte X, byte Y), (byte X, byte Y)>();
-
-        var gScore = new Dictionary<(byte X, byte Y), float>();
-        var fScore = new Dictionary<(byte X, byte Y), float>();
-
-        openSet.Enqueue((startX, startY), 0);
-        gScore[(startX, startY)] = 0;
-        fScore[(startX, startY)] = Heuristic((startX, startY), (endX, endY));
-
-        while (openSet.Count > 0)
-        {
-            var current = openSet.Dequeue();
-
-            if (current == (endX, endY))
-            {
-                var path = new List<(byte X, byte Y)>
-                {
-                    current
-                };
-                while (cameFrom.ContainsKey(current))
-                {
-                    current = cameFrom[current];
-                    path.Add(current);
-                }
-                path.Reverse();
-                return [.. path];
-            }
-
-            foreach (var neighbour in GetNeighbours(current.X, current.Y))
-            {
-                var tentativeGScore = gScore[current] + 1; // 1 is the distance between two nodes
-                if (!gScore.TryGetValue(neighbour, out float value) || tentativeGScore < value)
-                {
-                    cameFrom[neighbour] = current;
-                    value = tentativeGScore;
-                    gScore[neighbour] = value;
-                    fScore[neighbour] = gScore[neighbour] + Heuristic(neighbour, (endX, endY));
-                    openSet.Enqueue(neighbour, fScore[neighbour]);
-                }
-            }
-        }
-        return [];
-    }
-
-    private (byte X, byte Y)[] GetNeighbours(byte x, byte y)
-    {
-        const byte MAX = (byte)(Config.CHUNK_SIZE - 1);
-        var neighbours = new List<(byte X, byte Y)>(4); // Pre-allocate for max possible neighbours
-
-        // Define potential neighbours
-        (byte X, byte Y)[] potentialNeighbours = {
-            (x, (byte)(y - 1)), // North
-            ((byte)(x + 1), y), // East
-            (x, (byte)(y + 1)), // South
-            ((byte)(x - 1), y)  // West
-        };
-
-        foreach (var (nx, ny) in potentialNeighbours)
-        {
-            if (nx <= MAX && ny <= MAX && IsInBounds(nx, ny) && IsTraversable(nx, ny))
-            {
-                neighbours.Add((nx, ny));
-            }
-        }
-
-        return [.. neighbours];
-    }
-
-    private static float Heuristic((byte X, byte Y) a, (byte X, byte Y) b)
-    {
-        return MathF.Abs(a.X - b.X) + MathF.Abs(a.Y - b.Y); // Manhattan distance
-    }
-
-    private void BuildChunkExits()
-    {
-        var NorthEdgeTiles = new List<(byte X, byte Y)>();
-        var EastEdgeTiles = new List<(byte X, byte Y)>();
-        var SouthEdgeTiles = new List<(byte X, byte Y)>();
-        var WestEdgeTiles = new List<(byte X, byte Y)>();
-
-        for (byte x = 0; x < Config.CHUNK_SIZE; x++)
-        {
-            for (byte y = 0; y < Config.CHUNK_SIZE; y++)
-            {
-                if (!IsTraversable(x, y)) continue;
-                if (y == 0) NorthEdgeTiles.Add((x, y));
-                if (x == Config.CHUNK_SIZE - 1) EastEdgeTiles.Add((x, y));
-                if (y == Config.CHUNK_SIZE - 1) SouthEdgeTiles.Add((x, y));
-                if (x == 0) WestEdgeTiles.Add((x, y));
-            }
-        }
-
-        void value(int x, ParallelLoopState loopState)
-        {
-            for (byte y = 0; y < Config.CHUNK_SIZE; y++)
-            {
-                // only check on actual edge tiles
-                if (x != 0 && x != Config.CHUNK_SIZE - 1 && y != 0 && y != Config.CHUNK_SIZE - 1) continue;
-
-                if (IsConnectedToEdge((byte)x, y, NorthEdgeTiles))
-                {
-                    SetExitNorth((byte)x, y, true);
-                }
-                if (IsConnectedToEdge((byte)x, y, EastEdgeTiles))
-                {
-                    SetExitEast((byte)x, y, true);
-                }
-                if (IsConnectedToEdge((byte)x, y, SouthEdgeTiles))
-                {
-                    SetExitSouth((byte)x, y, true);
-                }
-                if (IsConnectedToEdge((byte)x, y, WestEdgeTiles))
-                {
-                    SetExitWest((byte)x, y, true);
-                }
-            }
-        }
-        Parallel.For(0, Config.CHUNK_SIZE, value);
-    }
-
-    private bool IsConnectedToEdge(byte x, byte y, List<(byte X, byte Y)> edgeTiles)
-    {
-        foreach (var (ex, ey) in edgeTiles)
-        {
-            if (GetPath(x, y, ex, ey).Length > 0)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public Chunk()
-    {
-        GenerateChunk();
-        BuildChunkExits();
     }
 }

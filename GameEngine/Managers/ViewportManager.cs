@@ -17,15 +17,14 @@ public readonly record struct ViewportDataBinary
     }
 }
 
+// Specialized manager for handling viewport requests
 public class ViewportManager : BaseManager
 {
-    private readonly MapManager _mapManager;
     private readonly ArrayPool<byte> _arrayPool;
-    // Later: private readonly EntityManager _entityManager;
 
-    public ViewportManager(MapManager mapManager)
+
+    public ViewportManager()
     {
-        _mapManager = mapManager;
         _arrayPool = ArrayPool<byte>.Shared;
         EventManager.RegisterListener<ViewportRequest>(this);
     }
@@ -55,7 +54,16 @@ public class ViewportManager : BaseManager
         float? worldWidth = null,
         float? worldHeight = null)
     {
-        var tileGrid = _mapManager.GetTilesInArea(
+        var tileGrid = World.GetTilesInArea(
+            cameraX,
+            cameraY,
+            viewportWidth,
+            viewportHeight,
+            worldWidth,
+            worldHeight
+        );
+
+        var entityGrid = World.GetEntitiesInArea(
             cameraX,
             cameraY,
             viewportWidth,
@@ -67,8 +75,8 @@ public class ViewportManager : BaseManager
         var width = (ushort)tileGrid.GetLength(0);
         var height = (ushort)tileGrid.GetLength(1);
         
-        // Allocate buffer from pool: 4 bytes for dimensions + tile data
-        var dataSize = 4 + (width * height);
+        // Calculate total size: 4 bytes header + tiles + entities
+        var dataSize = 4 + (width * height) + (width * height * 4); // 4 bytes per entity cell
         var buffer = _arrayPool.Rent(dataSize);
 
         // Write dimensions
@@ -82,6 +90,20 @@ public class ViewportManager : BaseManager
             for (var x = 0; x < width; x++)
             {
                 buffer[i++] = tileGrid[x, y];
+            }
+        }
+
+        // Write entity data (4 bytes per cell: count, action, rotation)
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var cell = entityGrid[x, y];
+                buffer[i++] = (byte)cell.Count;
+                buffer[i++] = (byte)cell.Action;
+                // Convert rotation to 0-255 range
+                buffer[i++] = (byte)((cell.Rotation / (2 * Math.PI)) * 255);
+                buffer[i++] = 0; // Reserved for future use
             }
         }
 
