@@ -1,335 +1,183 @@
 <!DOCTYPE html>
 <html>
-
 <head>
     <title>WebPeli</title>
+    <meta charset="UTF-8">
     <style>
-        body {
+        body, html { 
             margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
             overflow: hidden;
-            background: #333;
-        }
-
-        canvas {
-            image-rendering: pixelated;
-            display: block;
-            margin: auto;
-        }
-
-        #debug {
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            color: white;
+            background: #000;
             font-family: monospace;
+        }
+        
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            image-rendering: pixelated;  /* Keep pixel art crisp */
+        }
+
+        #loadingOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #000;
+            color: #0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: opacity 0.5s;
+        }
+
+        #controls {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            color: #0f0;
             background: rgba(0, 0, 0, 0.7);
             padding: 10px;
-            white-space: pre;
+            border-radius: 5px;
+            font-size: 12px;
+            pointer-events: none;
+        }
+
+        .error {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #ff0000;
+            color: white;
+            padding: 20px;
+            border-radius: 5px;
+            text-align: center;
+            display: none;
         }
     </style>
 </head>
-
 <body>
+    <!-- Loading screen -->
+    <div id="loadingOverlay">
+        <div>Loading WebPeli...</div>
+        <div id="loadingProgress">0%</div>
+    </div>
+
+    <!-- Main canvas -->
     <canvas id="gameCanvas"></canvas>
-    <div id="debug"></div>
+
+    <!-- Controls help -->
+    <div id="controls">
+        <div>Controls:</div>
+        <div>WASD - Move camera</div>
+        <div>QE - Rotate camera</div>
+        <div>RF - Zoom in/out</div>
+        <div>Mouse drag - Pan camera</div>
+        <div>Right mouse drag - Rotate</div>
+        <div>Mouse wheel - Zoom</div>
+        <div>G - Toggle grid</div>
+        <div>I - Toggle info</div>
+        <div>D - Toggle debug overlay</div>
+    </div>
+
+    <!-- Error display -->
+    <div id="errorOverlay" class="error"></div>
+
+    <!-- External dependencies -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gl-matrix/2.8.1/gl-matrix-min.js"></script>
+
+    <!-- Shaders -->
+    <script src="shaders/basic.js"></script>
+
+    <!-- Core engine -->
+    <script src="rendering/IsometricRenderer.js"></script>
+    <script src="Camera.js"></script>
+    <script src="NetworkManager.js"></script>
+    <script src="Game.js"></script>
 
     <script>
-        const TILE_SIZE = 32; // pixels
-        const debug = document.getElementById('debug');
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
+        // Main initialization
+        window.addEventListener('load', () => {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            const errorOverlay = document.getElementById('errorOverlay');
+            const progress = document.getElementById('loadingProgress');
 
-        // Message types from protocol spec
-        const MessageType = {
-            ViewportRequest: 0x01,
-            ViewportData: 0x02,
-            Error: 0x03
-        };
+            // Simple resource loader
+            const resources = [
+                'shaders/basic.js',
+                'rendering/IsometricRenderer.js',
+                'Camera.js',
+                'NetworkManager.js',
+                'Game.js'
+            ];
+            
+            let loaded = 0;
 
-        // Colors for each tile type (water, grass, hills, mountains)
-        const TILE_COLORS = [
-            '#4287f5', // Water - blue
-            '#3ba13b', // Grass - green
-            '#8b6914', // Hills - brown
-            '#737373'  // Mountains - grey
-        ];
+            // Show loading progress
+            const updateProgress = () => {
+                loaded++;
+                const percent = Math.round((loaded / resources.length) * 100);
+                progress.textContent = `${percent}%`;
+            };
 
-        class GameClient {
-            constructor() {
-                this.ws = null;
-                this.connected = false;
-                this.pendingViewportRequest = false;
-
-                // Viewport state
-                this.viewportX = 0;
-                this.viewportY = 0;
-                this.lastTiles = null;
-
-                // Input state
-                this.keys = new Set();
-
-                this.setupCanvas();
-                this.setupInput();
-            }
-
-            setupCanvas() {
-                // Make canvas fill window
-                const resize = () => {
-                    canvas.width = window.innerWidth;
-                    canvas.height = window.innerHeight;
-                    // Request new viewport data when size changes
-                    if (this.connected) this.requestViewport();
-                };
-
-                window.addEventListener('resize', resize);
-                resize();
-            }
-
-            setupInput() {
-                window.addEventListener('keydown', e => {
-                    this.keys.add(e.key);
-                });
-
-                window.addEventListener('keyup', e => {
-                    this.keys.delete(e.key);
-                });
-            }
-
-            async connect() {
+            // Initialize game when everything is loaded
+            const startGame = () => {
                 try {
-                    // this.ws = new WebSocket('ws://localhost:5000/ws');
-                    this.ws = new WebSocket(`ws://${document.location.host}/ws`);
+                    // Fade out loading screen
+                    loadingOverlay.style.opacity = '0';
+                    setTimeout(() => {
+                        loadingOverlay.style.display = 'none';
+                    }, 500);
 
-                    this.ws.binaryType = 'arraybuffer';  // Important for binary messages
+                    // Start game
+                    window.game = new Game('gameCanvas');
 
-                    this.ws.onopen = () => {
-                        console.log('Connected!');
-                        debug.textContent = 'Connected!';
-                        this.connected = true;
-                        this.requestViewport();
-                    };
-
-                    this.ws.onmessage = (event) => this.handleMessage(event.data);
-
-                    this.ws.onclose = () => {
-                        debug.textContent += '\nConnection closed';
-                        this.connected = false;
-                    };
-
-                    this.ws.onerror = (error) => {
-                        debug.textContent += '\nWebSocket error: ' + error;
+                    // Error handler
+                    window.onerror = (msg, url, line) => {
+                        errorOverlay.textContent = `Error: ${msg} (${url}:${line})`;
+                        errorOverlay.style.display = 'block';
+                        return false;
                     };
                 } catch (error) {
-                    console.error('Connection failed:', error);
-                    debug.textContent += '\nConnection failed: ' + error;
+                    console.error('Game initialization failed:', error);
+                    errorOverlay.textContent = 'Failed to start game: ' + error.message;
+                    errorOverlay.style.display = 'block';
                 }
+            };
+
+            // Check WebGL2 support
+            const canvas = document.getElementById('gameCanvas');
+            if (!canvas.getContext('webgl2')) {
+                errorOverlay.textContent = 'WebGL2 not supported - please use a modern browser';
+                errorOverlay.style.display = 'block';
+                loadingOverlay.style.display = 'none';
+                return;
             }
 
-            // Protocol message handling
-            handleMessage(data) {
-                const view = new DataView(data);
-                const messageType = view.getUint8(0);
-                const length = view.getUint16(1, true); // true for little-endian
-
-                switch (messageType) {
-                    case MessageType.ViewportData:
-                        this.handleViewportData(data, 3); // Skip header
-                        break;
-                    case MessageType.Error:
-                        this.handleError(data, 3, length);
-                        break;
-                    default:
-                        debug.textContent += `\nUnknown message type: ${messageType}`;
-                }
-
-                this.pendingViewportRequest = false;
-            }
-
-            handleViewportData(data, offset) {
-                const view = new DataView(data, offset);
-                const width = view.getUint16(0, true);
-                const height = view.getUint16(2, true);
-
-                // Get tile data
-                const tileData = new Uint8Array(data, offset + 4, width * height);
-                
-                // Get entity data
-                const entityData = new Uint8Array(data, offset + 4 + width * height, width * height * 4);
-                
-                this.lastTiles = { width, height, tiles: tileData, entities: entityData };
-                this.render();
-            }
-
-            handleError(data, offset, length) {
-                const view = new DataView(data, offset);
-                const errorCode = view.getUint8(0);
-                const messageLength = view.getUint16(1, true);
-
-                // Convert error message bytes to string
-                const encoder = new TextDecoder();
-                const message = encoder.decode(new Uint8Array(data, offset + 3, messageLength));
-
-                debug.textContent += `\nServer error ${errorCode}: ${message}`;
-            }
-
-            requestViewport() {
-                if (!this.connected || this.pendingViewportRequest) return;
-
-                // Prepare viewport request payload
-                const payload = new ArrayBuffer(16); // 4 x float32
-                const view = new DataView(payload);
-
-                view.setFloat32(0, this.viewportX, true);
-                view.setFloat32(4, this.viewportY, true);
-                view.setFloat32(8, canvas.width, true);
-                view.setFloat32(12, canvas.height, true);
-
-                // Add message header
-                const message = new ArrayBuffer(payload.byteLength + 3);
-                const messageView = new DataView(message);
-
-                messageView.setUint8(0, MessageType.ViewportRequest);
-                messageView.setUint16(1, payload.byteLength, true);
-
-                // Copy payload after header
-                new Uint8Array(message, 3).set(new Uint8Array(payload));
-
-                this.ws.send(message);
-                this.pendingViewportRequest = true;
-            }
-
-            update() {
-                let moved = false;
-                const speed = 5;
-
-                if (this.keys.has('ArrowLeft')) {
-                    this.viewportX -= speed;
-                    moved = true;
-                }
-                if (this.keys.has('ArrowRight')) {
-                    this.viewportX += speed;
-                    moved = true;
-                }
-                if (this.keys.has('ArrowUp')) {
-                    this.viewportY += speed;
-                    moved = true;
-                }
-                if (this.keys.has('ArrowDown')) {
-                    this.viewportY -= speed;
-                    moved = true;
-                }
-
-                if (moved) {
-                    this.requestViewport();
-                }
-            }
-
-            render() {
-                if (!this.lastTiles) return;
-
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-                const { width, height, tiles, entities } = this.lastTiles;
-
-                // Update debug info
-                debug.textContent = `Viewport: ${this.viewportX.toFixed(1)}, ${this.viewportY.toFixed(1)}\nTiles: ${width}x${height}`;
-
-                // Draw tiles
-                for (let y = 0; y < height; y++) {
-                    for (let x = 0; x < width; x++) {
-                        const tile = tiles[y * width + x];
-
-                        // Extract tile type from bits 0-1
-                        const tileType = tile & 0b11;
-                        // Extract flags from bits 6-7
-                        const isTransparent = (tile & 0b01000000) !== 0;
-                        const isTraversable = (tile & 0b10000000) !== 0;
-
-                        ctx.fillStyle = TILE_COLORS[tileType];
-                        ctx.fillRect(
-                            x * TILE_SIZE,
-                            y * TILE_SIZE,
-                            TILE_SIZE - 1,
-                            TILE_SIZE - 1
-                        );
-
-                        // Visual indicator for traversable tiles
-                        if (isTraversable) {
-                            ctx.fillStyle = 'rgba(255,255,255,0.2)';
-                            ctx.fillRect(
-                                x * TILE_SIZE + 2,
-                                y * TILE_SIZE + 2,
-                                TILE_SIZE - 5,
-                                TILE_SIZE - 5
-                            );
-                        }
-                    }
-                }
-
-                // Draw entities
-                for (let y = 0; y < height; y++) {
-                    for (let x = 0; x < width; x++) {
-                        const idx = (y * width + x) * 4;
-                        const count = entities[idx];
-                        const action = entities[idx + 1];
-                        const rotation = (entities[idx + 2] * Math.PI * 2) / 255;
-
-                        if (count > 0) {
-                            // Draw triangle for each entity
-                            const centerX = x * TILE_SIZE + TILE_SIZE / 2;
-                            const centerY = y * TILE_SIZE + TILE_SIZE / 2;
-                            
-                            ctx.save();
-                            ctx.translate(centerX, centerY);
-                            ctx.rotate(rotation);
-                            
-                            // Draw triangle
-                            ctx.beginPath();
-                            ctx.fillStyle = 'red';
-                            ctx.moveTo(0, -TILE_SIZE/2);
-                            ctx.lineTo(-TILE_SIZE/2, TILE_SIZE/2);
-                            ctx.lineTo(TILE_SIZE/2, TILE_SIZE/2);
-                            ctx.closePath();
-                            ctx.fill();
-
-                            // Visual indicators for different actions
-                            switch(action) {
-                                case 1: // Moving
-                                    ctx.strokeStyle = 'yellow';
-                                    ctx.lineWidth = 2;
-                                    ctx.stroke();
-                                    break;
-                                case 2: // Attacking
-                                    ctx.fillStyle = 'rgba(255,0,0,0.3)';
-                                    ctx.beginPath();
-                                    ctx.arc(0, 0, TILE_SIZE/2, 0, Math.PI * 2);
-                                    ctx.fill();
-                                    break;
-                            }
-                            
-                            ctx.restore();
-                        }
-                    }
-                }
-            }
-
-            gameLoop() {
-                this.update();
-                requestAnimationFrame(() => this.gameLoop());
-            }
-
-            start() {
-                this.connect();
-                this.gameLoop();
-            }
-        }
-
-        // Start the game when page loads
-        window.onload = () => {
-            const game = new GameClient();
-            game.start();
-        };
+            // Load all resources
+            Promise.all(resources.map(url => 
+                fetch(url)
+                    .then(response => {
+                        if (!response.ok) throw new Error(`Failed to load ${url}`);
+                        updateProgress();
+                        return response.text();
+                    })
+            ))
+            .then(startGame)
+            .catch(error => {
+                console.error('Resource loading failed:', error);
+                errorOverlay.textContent = 'Failed to load resources: ' + error.message;
+                errorOverlay.style.display = 'block';
+                loadingOverlay.style.display = 'none';
+            });
+        });
     </script>
 </body>
-
 </html>
