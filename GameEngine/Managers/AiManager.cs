@@ -52,10 +52,7 @@ public class AiManager : BaseManager
         foreach (var entity in _entities)
         {
             EntityState? state = World.GetEntityState(entity);
-            if (!state.HasValue || state.Value.Current != CurrentAction.Idle)
-            {
-                continue;
-            }
+            if (state == null) continue;
 
             // Placeholder for AI logic
 
@@ -72,8 +69,8 @@ public class AiManager : BaseManager
             EventManager.Emit(new FindPathAndMoveEntity
             {
                 EntityId = entity,
-                StartX = state.Value.Position.X,
-                StartY = state.Value.Position.Y,
+                StartX = state.Position.X,
+                StartY = state.Position.Y,
                 TargetX = target_x,
                 TargetY = target_y,
                 MovementType = MovementType.Walk

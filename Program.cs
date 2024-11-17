@@ -8,6 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddLogging(configure => configure.AddConsole());
 builder.Logging.SetMinimumLevel(LogLevel.Debug);
 
+
 builder.Services.AddSingleton<ViewportManager>();
 
 // Start the engine

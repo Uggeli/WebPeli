@@ -7,7 +7,7 @@ namespace WebPeli.GameEngine.Managers;
 public readonly record struct ViewportDataBinary
 {
     public required Memory<byte> EncodedData { get; init; }
-    
+
     // Helper to get dimensions from encoded data
     public (ushort Width, ushort Height) GetDimensions()
     {
@@ -21,10 +21,11 @@ public readonly record struct ViewportDataBinary
 public class ViewportManager : BaseManager
 {
     private readonly ArrayPool<byte> _arrayPool;
+    private readonly ILogger<ViewportManager> _logger;
 
-
-    public ViewportManager()
+    public ViewportManager(ILogger<ViewportManager> logger)
     {
+        _logger = logger;
         _arrayPool = ArrayPool<byte>.Shared;
         EventManager.RegisterListener<ViewportRequest>(this);
     }
@@ -46,13 +47,7 @@ public class ViewportManager : BaseManager
         }
     }
 
-    private ViewportDataBinary GetViewportDataBinary(
-        float cameraX,
-        float cameraY,
-        float viewportWidth,
-        float viewportHeight,
-        float? worldWidth = null,
-        float? worldHeight = null)
+    private ViewportDataBinary GetViewportDataBinary(float cameraX, float cameraY, float viewportWidth, float viewportHeight, float? worldWidth = null, float? worldHeight = null)
     {
         var tileGrid = World.GetTilesInArea(
             cameraX,
@@ -63,25 +58,20 @@ public class ViewportManager : BaseManager
             worldHeight
         );
 
-        // var entityGrid = World.GetEntitiesInArea(
-        //     cameraX,
-        //     cameraY,
-        //     viewportWidth,
-        //     viewportHeight,
-        //     worldWidth,
-        //     worldHeight
-        // );
-
         var width = (ushort)tileGrid.GetLength(0);
         var height = (ushort)tileGrid.GetLength(1);
-        
-        // Calculate total size: 4 bytes header + tiles + entities
-        var dataSize = 4 + (width * height) + (width * height * 4); // 4 bytes per entity cell
+
+        _logger.LogDebug($"Creating viewport data: {width}x{height}");
+
+        // Calculate total size: 4 bytes header + tiles
+        var dataSize = 4 + (width * height);
         var buffer = _arrayPool.Rent(dataSize);
 
         // Write dimensions
         BinaryPrimitives.WriteUInt16LittleEndian(buffer.AsSpan(0..2), width);
         BinaryPrimitives.WriteUInt16LittleEndian(buffer.AsSpan(2..4), height);
+
+        _logger.LogDebug($"Header bytes: [{string.Join(", ", buffer.AsSpan(0..4).ToArray())}]");
 
         // Write tile data
         var i = 4;
@@ -89,27 +79,17 @@ public class ViewportManager : BaseManager
         {
             for (var x = 0; x < width; x++)
             {
-                buffer[i++] = tileGrid[x, y];
+                buffer[i] = tileGrid[x, y];
+                if (x < 5 && y < 5)
+                {
+                    _logger.LogDebug($"Tile({x},{y}): material={buffer[i]}");
+                }
+                i++;
             }
         }
 
-        // Write entity data (4 bytes per cell: count, action, rotation)
-        // for (var y = 0; y < height; y++)
-        // {
-        //     for (var x = 0; x < width; x++)
-        //     {
-        //         var cell = entityGrid[x, y];
-        //         buffer[i++] = (byte)cell.Count;
-        //         buffer[i++] = (byte)cell.Action;
-        //         // Convert rotation to 0-255 range
-        //         buffer[i++] = (byte)((cell.Rotation / (2 * Math.PI)) * 255);
-        //         buffer[i++] = 0; // Reserved for future use
-        //     }
-        // }
-
-        // Return data with cleanup callback
-        return new ViewportDataBinary 
-        { 
+        return new ViewportDataBinary
+        {
             EncodedData = new Memory<byte>(buffer, 0, dataSize)
         };
     }

@@ -50,7 +50,7 @@ public static class World
     private static ConcurrentDictionary<(byte X, byte Y), Chunk> _chunks = [];
     private static ConcurrentDictionary<Guid, EntityState> _entityStates = [];
 
-    // Accessors
+    // Accessors, Map data
     public static (byte material, TileSurface surface, TileProperties properties) GetTileAt(Position pos)
     {
         var chunkPos = pos.ChunkPosition;
@@ -86,6 +86,40 @@ public static class World
         var center = new Position { X = (int)cameraX, Y = (int)cameraY };
         return GetTilesInArea(center, width, height);
     }
+
+    // Accessors, Entity data
+    public static EntityState? GetEntityState(Guid entityId)
+    {
+        return _entityStates.TryGetValue(entityId, out var state) ? state : null;
+    }
+
+    public static void SetEntityState(Guid entityId, EntityState state)
+    {
+        _entityStates[entityId] = state;
+    }
+
+    public static void RemoveEntityState(Guid entityId)
+    {
+        _entityStates.TryRemove(entityId, out _);
+    }
+
+    public static void AddEntity(Guid id)
+    {
+        // TODO
+    }
+
+    public static void RemoveEntity(Guid id)
+    {
+        // TODO
+    }
+
+
+
+
+
+
+
+
 
     // Bounds checking
     public static bool IsInChunkBounds(byte X, byte Y) =>

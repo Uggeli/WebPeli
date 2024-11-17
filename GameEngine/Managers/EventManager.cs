@@ -26,12 +26,10 @@ public static class EventManager
 
     public static void Emit<T>(T evt) where T : IEvent
     {
-        System.Console.WriteLine($"Emitting event {evt.GetType().Name}");
         if (Listeners.ContainsKey(typeof(T)))
         {
             foreach (var listener in Listeners[typeof(T)])
             {
-                System.Console.WriteLine($"Sending event to {listener.GetType().Name}");
                 listener.OnMessage(evt);
             }
         }
