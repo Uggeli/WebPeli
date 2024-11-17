@@ -49,7 +49,6 @@ public class AiManager : BaseManager
     public override void Update(double deltaTime)
     {
         base.Update(deltaTime);
-        var entity_count = 0;
         foreach (var entity in _entities)
         {
             EntityState? state = World.GetEntityState(entity);
@@ -57,7 +56,7 @@ public class AiManager : BaseManager
             {
                 continue;
             }
-            entity_count++;
+
             // Placeholder for AI logic
 
             // Calculate total world size in tiles
