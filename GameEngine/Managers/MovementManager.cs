@@ -30,7 +30,7 @@ public enum MovementType : byte
 public class MovementManager : BaseManager
 {
 
-    private class MovementData(int currentX, int currentY, (int, int)[] path, MovementType movementType)
+    internal class MovementData(int currentX, int currentY, (int, int)[] path, MovementType movementType)
     {
         public int CurrentX { get; set; } = currentX;
         public int CurrentY { get; set; } = currentY;
@@ -45,7 +45,7 @@ public class MovementManager : BaseManager
                 return (CurrentX, CurrentY);
             }
             var nextMove = Path[CurrentMoveIndex];
-            CurrentMoveIndex += 1;
+            CurrentMoveIndex++;
             return nextMove;
         }
 
@@ -106,6 +106,7 @@ public class MovementManager : BaseManager
     public override void Update(double deltaTime)
     {
         Parallel.ForEach(EventQueue, HandleMessage);
+        EventQueue.Clear();
         // Later: add deltaTime to moving entities, now just use crude loop limiter
         if (_tickCounter++ >= 5)
         {
@@ -117,61 +118,27 @@ public class MovementManager : BaseManager
 
     private void HandlePathAndMove(FindPathAndMoveEntity request)
     {
-        // NOTE: copying guid to local variable results to blank guid
-        var path = World.FindPath(request.StartX, request.StartY, request.TargetX, request.TargetY);
-        if (path == null || path.Length == 0)
-        {
-            // No path found
-            return;
-        }
-        var movementData = new MovementData(
-            request.StartX, request.StartY, path, request.MovementType
-        );
-        _movingEntities[request.EntityId] = movementData;
-        World.SetEntityState(request.EntityId, new EntityState
-        {
-            Position = new EntityPosition(
-                request.StartX, request.StartY
-            ),
-            Current = CurrentAction.Moving
-        });
+        System.Console.WriteLine("Handling path and move");
+
     }
 
     private void HandleEntityMove(MoveEntityRequest request)
     {
-        // TODO
+        // TODO, Teleport entity to new position
     }
 
     private void MoveEntities(double deltaTime)
-    {   
+    {
+        List<Guid> toRemove = [];
         Parallel.ForEach(_movingEntities, kvp =>
         {
-            var entityId = kvp.Key;
-            var movementData = kvp.Value;
-            var (nextX, nextY) = movementData.GetNextMove();
-
-            if (nextX == movementData.CurrentX && nextY == movementData.CurrentY)
-            {
-                // Entity has reached the end of the path
-                _movingEntities.TryRemove(entityId, out _);
-                World.SetEntityState(entityId, new EntityState
-                {
-                    Position = new EntityPosition(
-                        movementData.CurrentX,
-                        movementData.CurrentY
-                    ),
-                    Current = CurrentAction.Idle
-                });
-            }
-            else
-            {
-                movementData.UpdateCurrentPosition();
-                System.Console.WriteLine($"Moving entity {entityId} to {nextX}, {nextY}");
-                World.UpdateEntityPosition(entityId, new EntityPosition(
-                    nextX, nextY
-                ));
-            }
+            
         });
+
+        foreach (var entityId in toRemove)
+        {
+            _movingEntities.TryRemove(entityId, out _);
+        }
     }
 
     public override void Init()
@@ -182,50 +149,6 @@ public class MovementManager : BaseManager
         EventManager.RegisterListener<RegisterToSystem>(this);
         EventManager.RegisterListener<UnregisterFromSystem>(this);
         EventManager.RegisterListener<FindPathAndMoveEntity>(this);
-    }
-
-    private static bool ValidateEntityPositions(IEnumerable<EntityPosition> positions, out Dictionary<(int, int), List<EntityPosition>> chunkPositions)
-    {
-        chunkPositions = [];
-
-        foreach (var pos in positions)
-        {
-            var (chunkX, chunkY, localX, localY) =
-                Util.CoordinateSystem.WorldToChunkAndLocal(pos.X, pos.Y);
-
-            // Validate chunk exists
-            if (chunkX < 0 || chunkX >= Config.WORLD_SIZE ||
-                chunkY < 0 || chunkY >= Config.WORLD_SIZE)
-                return false;
-
-            var key = (chunkX, chunkY);
-            if (!chunkPositions.TryGetValue(key, out var positionList))
-            {
-                positionList = [];
-                chunkPositions[key] = positionList;
-            }
-            positionList.Add(new EntityPosition(localX, localY));
-        }
-
-        return true;
-    }
-
-    public bool AddEntity(Guid entity, IEnumerable<EntityPosition> worldPositions)
-    {
-        if (!ValidateEntityPositions(worldPositions, out var chunkPositions))
-            return false;
-
-        // Try to add to all relevant chunks
-        foreach (var ((chunkX, chunkY), positions) in chunkPositions)
-        {
-       
-        }
-        return true;
-    }
-
-    public bool RemoveEntity(Guid entityId)
-    {
-        return World.RemoveEntity(entityId);
     }
 }
 

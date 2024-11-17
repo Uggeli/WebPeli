@@ -63,14 +63,14 @@ public class ViewportManager : BaseManager
             worldHeight
         );
 
-        var entityGrid = World.GetEntitiesInArea(
-            cameraX,
-            cameraY,
-            viewportWidth,
-            viewportHeight,
-            worldWidth,
-            worldHeight
-        );
+        // var entityGrid = World.GetEntitiesInArea(
+        //     cameraX,
+        //     cameraY,
+        //     viewportWidth,
+        //     viewportHeight,
+        //     worldWidth,
+        //     worldHeight
+        // );
 
         var width = (ushort)tileGrid.GetLength(0);
         var height = (ushort)tileGrid.GetLength(1);
@@ -94,18 +94,18 @@ public class ViewportManager : BaseManager
         }
 
         // Write entity data (4 bytes per cell: count, action, rotation)
-        for (var y = 0; y < height; y++)
-        {
-            for (var x = 0; x < width; x++)
-            {
-                var cell = entityGrid[x, y];
-                buffer[i++] = (byte)cell.Count;
-                buffer[i++] = (byte)cell.Action;
-                // Convert rotation to 0-255 range
-                buffer[i++] = (byte)((cell.Rotation / (2 * Math.PI)) * 255);
-                buffer[i++] = 0; // Reserved for future use
-            }
-        }
+        // for (var y = 0; y < height; y++)
+        // {
+        //     for (var x = 0; x < width; x++)
+        //     {
+        //         var cell = entityGrid[x, y];
+        //         buffer[i++] = (byte)cell.Count;
+        //         buffer[i++] = (byte)cell.Action;
+        //         // Convert rotation to 0-255 range
+        //         buffer[i++] = (byte)((cell.Rotation / (2 * Math.PI)) * 255);
+        //         buffer[i++] = 0; // Reserved for future use
+        //     }
+        // }
 
         // Return data with cleanup callback
         return new ViewportDataBinary 
