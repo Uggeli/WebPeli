@@ -3,18 +3,11 @@ using Microsoft.AspNetCore.Mvc;
 using WebPeli.GameEngine.Managers;
 using WebPeli.Transport;
 
-public class GameSocketHandler : ControllerBase
+public class GameSocketHandler(ViewportManager viewportManager, ILogger<GameSocketHandler> logger, ILoggerFactory loggerFactory) : ControllerBase
 {
-    private readonly ViewportManager _viewportManager;
-    private readonly ILogger<GameSocketHandler> _logger;
-    private readonly ILoggerFactory _loggerFactory;
-
-    public GameSocketHandler(ViewportManager viewportManager, ILogger<GameSocketHandler> logger, ILoggerFactory loggerFactory)
-    {
-        _viewportManager = viewportManager;
-        _logger = logger;
-        _loggerFactory = loggerFactory;
-    }
+    private readonly ViewportManager _viewportManager = viewportManager;
+    private readonly ILogger<GameSocketHandler> _logger = logger;
+    private readonly ILoggerFactory _loggerFactory = loggerFactory;
 
     [Route("/ws")]
     public async Task Get()
