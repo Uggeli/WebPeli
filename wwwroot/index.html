@@ -1,183 +1,176 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>WebPeli</title>
-    <meta charset="UTF-8">
+    <title>WebPeli Client</title>
     <style>
-        body, html { 
+        body {
             margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
             overflow: hidden;
             background: #000;
-            font-family: monospace;
         }
-        
-        canvas {
-            display: block;
-            width: 100vw;
-            height: 100vh;
-            image-rendering: pixelated;  /* Keep pixel art crisp */
-        }
-
-        #loadingOverlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: #000;
-            color: #0f0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-            transition: opacity 0.5s;
-        }
-
-        #controls {
-            position: fixed;
-            bottom: 10px;
-            left: 10px;
-            color: #0f0;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 10px;
-            border-radius: 5px;
-            font-size: 12px;
-            pointer-events: none;
-        }
-
-        .error {
-            position: fixed;
+        #gameCanvas {
+            position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: #ff0000;
+        }
+        #debugInfo {
+            position: fixed;
+            top: 10px;
+            left: 10px;
             color: white;
-            padding: 20px;
-            border-radius: 5px;
-            text-align: center;
-            display: none;
+            font-family: monospace;
+            pointer-events: none;
         }
     </style>
 </head>
 <body>
-    <!-- Loading screen -->
-    <div id="loadingOverlay">
-        <div>Loading WebPeli...</div>
-        <div id="loadingProgress">0%</div>
-    </div>
-
-    <!-- Main canvas -->
     <canvas id="gameCanvas"></canvas>
+    <div id="debugInfo"></div>
 
-    <!-- Controls help -->
-    <div id="controls">
-        <div>Controls:</div>
-        <div>WASD - Move camera</div>
-        <div>QE - Rotate camera</div>
-        <div>RF - Zoom in/out</div>
-        <div>Mouse drag - Pan camera</div>
-        <div>Right mouse drag - Rotate</div>
-        <div>Mouse wheel - Zoom</div>
-        <div>G - Toggle grid</div>
-        <div>I - Toggle info</div>
-        <div>D - Toggle debug overlay</div>
-    </div>
-
-    <!-- Error display -->
-    <div id="errorOverlay" class="error"></div>
-
-    <!-- External dependencies -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gl-matrix/2.8.1/gl-matrix-min.js"></script>
-
-    <!-- Shaders -->
-    <script src="shaders/basic.js"></script>
-
-    <!-- Core engine -->
-    <script src="rendering/IsometricRenderer.js"></script>
-    <script src="Camera.js"></script>
-    <script src="NetworkManager.js"></script>
-    <script src="Game.js"></script>
-
+    <script src="/game-client.js"></script>
     <script>
-        // Main initialization
-        window.addEventListener('load', () => {
-            const loadingOverlay = document.getElementById('loadingOverlay');
-            const errorOverlay = document.getElementById('errorOverlay');
-            const progress = document.getElementById('loadingProgress');
-
-            // Simple resource loader
-            const resources = [
-                'shaders/basic.js',
-                'rendering/IsometricRenderer.js',
-                'Camera.js',
-                'NetworkManager.js',
-                'Game.js'
-            ];
-            
-            let loaded = 0;
-
-            // Show loading progress
-            const updateProgress = () => {
-                loaded++;
-                const percent = Math.round((loaded / resources.length) * 100);
-                progress.textContent = `${percent}%`;
-            };
-
-            // Initialize game when everything is loaded
-            const startGame = () => {
-                try {
-                    // Fade out loading screen
-                    loadingOverlay.style.opacity = '0';
-                    setTimeout(() => {
-                        loadingOverlay.style.display = 'none';
-                    }, 500);
-
-                    // Start game
-                    window.game = new Game('gameCanvas');
-
-                    // Error handler
-                    window.onerror = (msg, url, line) => {
-                        errorOverlay.textContent = `Error: ${msg} (${url}:${line})`;
-                        errorOverlay.style.display = 'block';
-                        return false;
-                    };
-                } catch (error) {
-                    console.error('Game initialization failed:', error);
-                    errorOverlay.textContent = 'Failed to start game: ' + error.message;
-                    errorOverlay.style.display = 'block';
-                }
-            };
-
-            // Check WebGL2 support
-            const canvas = document.getElementById('gameCanvas');
-            if (!canvas.getContext('webgl2')) {
-                errorOverlay.textContent = 'WebGL2 not supported - please use a modern browser';
-                errorOverlay.style.display = 'block';
-                loadingOverlay.style.display = 'none';
-                return;
+        // Game renderer
+        class GameRenderer {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.tileSize = 32; // Size of each tile in pixels
+                this.camera = { x: 0, y: 0 };
+                this.debugElement = document.getElementById('debugInfo');
+                
+                // Initialize size
+                this.resize();
+                
+                // Handle window resize
+                window.addEventListener('resize', () => this.resize());
+                
+                // Handle keyboard input
+                window.addEventListener('keydown', (e) => this.handleKeyPress(e));
             }
-
-            // Load all resources
-            Promise.all(resources.map(url => 
-                fetch(url)
-                    .then(response => {
-                        if (!response.ok) throw new Error(`Failed to load ${url}`);
-                        updateProgress();
-                        return response.text();
-                    })
-            ))
-            .then(startGame)
-            .catch(error => {
-                console.error('Resource loading failed:', error);
-                errorOverlay.textContent = 'Failed to load resources: ' + error.message;
-                errorOverlay.style.display = 'block';
-                loadingOverlay.style.display = 'none';
-            });
-        });
+            
+            resize() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+                
+                // Request new viewport data after resize
+                this.requestViewport();
+            }
+            
+            handleKeyPress(e) {
+                const moveSpeed = 32; // Pixels per keypress
+                
+                switch(e.key) {
+                    case 'ArrowUp':
+                        this.camera.y -= moveSpeed;
+                        break;
+                    case 'ArrowDown':
+                        this.camera.y += moveSpeed;
+                        break;
+                    case 'ArrowLeft':
+                        this.camera.x -= moveSpeed;
+                        break;
+                    case 'ArrowRight':
+                        this.camera.x += moveSpeed;
+                        break;
+                }
+                
+                this.requestViewport();
+            }
+            
+            requestViewport() {
+                if (this.client) {
+                    const viewportWidth = Math.ceil(this.canvas.width / this.tileSize);
+                    const viewportHeight = Math.ceil(this.canvas.height / this.tileSize);
+                    
+                    this.client.requestViewport(
+                        this.camera.x,
+                        this.camera.y,
+                        viewportWidth,
+                        viewportHeight
+                    );
+                    
+                    // Update debug info
+                    this.debugElement.textContent = 
+                        `Camera: (${this.camera.x}, ${this.camera.y})\n` +
+                        `Viewport: ${viewportWidth}x${viewportHeight}`;
+                }
+            }
+            
+            setClient(client) {
+                this.client = client;
+                
+                client.onViewportData(({width, height, grid}) => {
+                    this.renderViewport(width, height, grid);
+                });
+            }
+            
+            renderViewport(width, height, grid) {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                for (let y = 0; y < height; y++) {
+                    for (let x = 0; x < width; x++) {
+                        const tile = grid[y * width + x];
+                        this.renderTile(x, y, tile);
+                    }
+                }
+            }
+            
+            renderTile(x, y, tileType) {
+                // Simple color mapping for now
+                const colors = {
+                    0: '#000000', // Empty
+                    1: '#8B4513', // Dirt
+                    2: '#808080', // Stone
+                    3: '#8B7355', // Wood
+                    4: '#C0C0C0', // Metal
+                    5: '#E0FFFF', // Ice
+                    6: '#F4A460', // Sand
+                    8: '#0000FF', // Water
+                    9: '#FF4500', // Lava
+                    10: '#FFFFFF', // Snow
+                    12: '#8B0000', // Blood
+                    13: '#654321', // Mud
+                };
+                
+                const color = colors[tileType] || '#FF00FF'; // Magenta for unknown tiles
+                
+                this.ctx.fillStyle = color;
+                this.ctx.fillRect(
+                    x * this.tileSize,
+                    y * this.tileSize,
+                    this.tileSize,
+                    this.tileSize
+                );
+                
+                // Draw grid lines
+                this.ctx.strokeStyle = '#333333';
+                this.ctx.strokeRect(
+                    x * this.tileSize,
+                    y * this.tileSize,
+                    this.tileSize,
+                    this.tileSize
+                );
+            }
+        }
+        
+        // Initialize game
+        async function initGame() {
+            const renderer = new GameRenderer(document.getElementById('gameCanvas'));
+            
+            // Create and connect client
+            const client = new GameClient('ws://' + window.location.host + '/ws');
+            await client.connect();
+            
+            // Set client in renderer
+            renderer.setClient(client);
+            
+            // Request initial viewport
+            renderer.requestViewport();
+        }
+        
+        // Start game when page loads
+        window.addEventListener('load', initGame);
     </script>
 </body>
 </html>

@@ -4,9 +4,9 @@ static class Config
 {
     public const int SCREENWIDTH = 800;
     public const int SCREENHEIGHT = 600;
-    // public const int TILE_SIZE = 32;
-    public const byte CHUNK_SIZE = 255;
-    public const byte WORLD_SIZE = 3;
+    public const int TILE_SIZE = 32; // pixels
+    public const byte CHUNK_SIZE = 128;
+    public const byte WORLD_SIZE = 3; // world size = 2^WORLD_SIZE chunks
 
     // Mutable static fields
     private static float _cameraX;

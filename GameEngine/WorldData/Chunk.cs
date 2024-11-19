@@ -12,7 +12,7 @@ public class Chunk(byte x, byte y)
     private readonly TileProperties[] Properties = new TileProperties[Config.CHUNK_SIZE * Config.CHUNK_SIZE];
     private readonly byte[] Material = new byte[Config.CHUNK_SIZE * Config.CHUNK_SIZE];
     private readonly TileSurface[] Surface = new TileSurface[Config.CHUNK_SIZE * Config.CHUNK_SIZE];
-    private static byte ConvertTo1D(byte x, byte y) => (byte)(x * Config.CHUNK_SIZE + y);
+    private static int ConvertTo1D(byte x, byte y) => y * Config.CHUNK_SIZE + x;
     private static (byte, byte) ConvertTo2D(byte i) => ((byte)(i / Config.CHUNK_SIZE), (byte)(i % Config.CHUNK_SIZE));
     public (byte material, TileSurface surface, TileProperties properties) GetTile(byte x, byte y) => (Material[ConvertTo1D(x, y)], Surface[ConvertTo1D(x, y)], Properties[ConvertTo1D(x, y)]);
     public void SetTile(byte x, byte y, byte material, TileSurface surface, TileProperties properties)

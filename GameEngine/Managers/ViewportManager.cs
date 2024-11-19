@@ -34,16 +34,34 @@ public class ViewportManager : BaseManager
     {
         if (evt is ViewportRequest req)
         {
-            var viewportData = GetViewportDataBinary(
-                req.CameraX,
-                req.CameraY,
-                req.ViewportWidth,
-                req.ViewportHeight,
-                req.WorldWidth,
-                req.WorldHeight
+            _logger.LogInformation(
+                "Viewport request: Camera({X:F2}, {Y:F2}), Viewport({W:F2}, {H:F2})",
+                req.CameraX, req.CameraY, req.ViewportWidth, req.ViewportHeight
             );
 
-            EventManager.EmitCallback(req.CallbackId, viewportData);
+            try
+            {
+                var viewportData = GetViewportDataBinary(
+                    req.CameraX,
+                    req.CameraY,
+                    req.ViewportWidth,
+                    req.ViewportHeight,
+                    req.WorldWidth,
+                    req.WorldHeight
+                );
+
+                _logger.LogInformation(
+                    "Sending viewport data: {Size} bytes for area at ({X:F2}, {Y:F2})",
+                    viewportData.EncodedData.Length, req.CameraX, req.CameraY
+                );
+
+                EventManager.EmitCallback(req.CallbackId, viewportData);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing viewport request");
+                throw;
+            }
         }
     }
 
@@ -61,7 +79,9 @@ public class ViewportManager : BaseManager
         var width = (ushort)tileGrid.GetLength(0);
         var height = (ushort)tileGrid.GetLength(1);
 
-        _logger.LogDebug($"Creating viewport data: {width}x{height}");
+        // _logger.LogDebug($"Creating viewport data: {width}x{height}");
+        // System.Console.WriteLine($"Creating viewport data: {width}x{height}");
+        // System.Console.WriteLine($"Camera: {cameraX},{cameraY} Viewport: {viewportWidth}x{viewportHeight}");
 
         // Calculate total size: 4 bytes header + tiles
         var dataSize = 4 + (width * height);
@@ -71,7 +91,8 @@ public class ViewportManager : BaseManager
         BinaryPrimitives.WriteUInt16LittleEndian(buffer.AsSpan(0..2), width);
         BinaryPrimitives.WriteUInt16LittleEndian(buffer.AsSpan(2..4), height);
 
-        _logger.LogDebug($"Header bytes: [{string.Join(", ", buffer.AsSpan(0..4).ToArray())}]");
+        // _logger.LogDebug($"Header bytes: [{string.Join(", ", buffer.AsSpan(0..4).ToArray())}]");
+        // System.Console.WriteLine($"Header bytes: [{string.Join(", ", buffer.AsSpan(0..4).ToArray())}]");
 
         // Write tile data
         var i = 4;
@@ -87,6 +108,19 @@ public class ViewportManager : BaseManager
                 i++;
             }
         }
+        // for (var x = 0; x < width; x++)
+        // {
+        //     for (var y = 0; y < height; y++)
+        //     {
+        //         buffer[i] = tileGrid[x, y];
+        //         if (x < 5 && y < 5)
+        //         {
+        //             // _logger.LogInformation($"Tile({x},{y}): material={buffer[i]}");
+        //         }
+        //         i++;
+        //     }
+        // }
+
 
         return new ViewportDataBinary
         {
