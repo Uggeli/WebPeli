@@ -53,8 +53,8 @@ public class EntityState(Position position, CurrentAction currentAction, Directi
 
 public static class World
 {
-    private static readonly int _worldGridSize = Config.WORLD_SIZE * Config.WORLD_SIZE;
-    private static readonly int _chunkSize = Config.CHUNK_SIZE * Config.CHUNK_SIZE;
+    // private static readonly int _worldGridSize = Config.WORLD_SIZE * Config.WORLD_SIZE;
+    // private static readonly int _chunkSize = Config.CHUNK_SIZE * Config.CHUNK_SIZE;
     private static ConcurrentDictionary<(byte X, byte Y), Chunk> _chunks = [];
     private static ConcurrentDictionary<Guid, EntityState> _entityStates = [];
     private static Dictionary<(int x, int y), ChunkConnection> _chunkGraph = [];
