@@ -16,8 +16,6 @@ public class GameEngineService : BackgroundService
         var startTime = Environment.TickCount;
         World.GenerateWorld();
         _logger.LogInformation($"World generation took {Environment.TickCount - startTime}ms");
-        _logger.LogInformation(World.GetWorldInfo());
-        System.Console.WriteLine(World.GetWorldInfo());
 
         // Initialize managers
         managers.Add(new EntityRegister());

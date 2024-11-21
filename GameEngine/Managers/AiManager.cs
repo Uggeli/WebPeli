@@ -49,15 +49,11 @@ public class AiManager : BaseManager
     public override void Update(double deltaTime)
     {
         base.Update(deltaTime);
-        var entity_count = 0;
         foreach (var entity in _entities)
         {
             EntityState? state = World.GetEntityState(entity);
-            if (!state.HasValue || state.Value.Current != CurrentAction.Idle)
-            {
-                continue;
-            }
-            entity_count++;
+            if (state == null) continue;
+
             // Placeholder for AI logic
 
             // Calculate total world size in tiles
@@ -73,8 +69,8 @@ public class AiManager : BaseManager
             EventManager.Emit(new FindPathAndMoveEntity
             {
                 EntityId = entity,
-                StartX = state.Value.Position.X,
-                StartY = state.Value.Position.Y,
+                StartX = state.Position.X,
+                StartY = state.Position.Y,
                 TargetX = target_x,
                 TargetY = target_y,
                 MovementType = MovementType.Walk

@@ -55,8 +55,8 @@ public readonly record struct ChunkCreated : IEvent
 public readonly record struct MoveEntityRequest : IEvent 
 {
     public required Guid EntityId { get; init; }
-    public required EntityPosition FromPosition { get; init; }  // Current position
-    public required EntityPosition ToPosition { get; init; }    // Target position
+    public required Position FromPosition { get; init; }  // Current position
+    public required Position ToPosition { get; init; }    // Target position
     public required MovementType MovementType { get; init; }
     public required Guid CallbackId { get; init; }
 }
