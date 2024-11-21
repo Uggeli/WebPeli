@@ -43,9 +43,13 @@ public readonly record struct EntityPosition(int X, int Y)
     }
 }
 
-public static class World
+public class World
 {
-
+    // Singleton pattern
+    private static World? _instance;
+    public static World Instance => _instance ??= new World();
+    private World() { }
+    
     public readonly record struct ChunkExit
     {
         public required byte X { get; init; }
@@ -56,7 +60,7 @@ public static class World
     private static readonly ConcurrentDictionary<(int ChunkX, int ChunkY), List<ChunkExit>> _chunkExits = [];
 
     private static Chunk[,] _chunks { get; set; } = new Chunk[Config.WORLD_SIZE, Config.WORLD_SIZE];
-    private static ConcurrentDictionary<Guid, EntityState> _entityStates = [];
+    public static ConcurrentDictionary<Guid, EntityState> _entityStates = [];
 
     // Entity methods
     public static void SetEntityState(Guid entityId, EntityState state)
@@ -72,7 +76,7 @@ public static class World
     public static IEnumerable<Guid> GetEntitiesAt(Vector2 position)
     {
         var (chunkX, chunkY, localX, localY) = new EntityPosition((int)position.X, (int)position.Y).ToChunkSpace();
-        return GetChunk(chunkX, chunkY)?.GetEntitiesAt((localX, localY)) ?? Enumerable.Empty<Guid>();
+        return GetChunk(chunkX, chunkY)?.GetEntitiesAt((localX, localY)) ?? [];
     }
 
     public static void UpdateEntityPosition(Guid entityId, EntityPosition position)
@@ -883,7 +887,7 @@ public static class World
             for (byte chunkX = 0; chunkX < Config.WORLD_SIZE; chunkX++)
             {
                 chunkCounter++;
-                System.Console.Clear();
+                // System.Console.Clear();
                 System.Console.WriteLine($"Generating chunk {chunkCounter} / {Config.WORLD_SIZE * Config.WORLD_SIZE}");
                 // Generate basic chunk
                 GenerateChunk(chunkX, chunkY, offsetX, offsetY);

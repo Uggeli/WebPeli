@@ -8,8 +8,8 @@ public class Chunk(byte x, byte y)
 
     private readonly byte[,] tiles = new byte[Config.CHUNK_SIZE, Config.CHUNK_SIZE];
     private readonly byte[,] tileTextures = new byte[Config.CHUNK_SIZE, Config.CHUNK_SIZE];  // Later: used for rendering
-    private readonly Dictionary<(byte X, byte Y), HashSet<Guid>> _positionMap = [];
-    private readonly Dictionary<Guid, HashSet<(byte X, byte Y)>> _entityPositions = [];
+    private readonly ConcurrentDictionary<(byte X, byte Y), HashSet<Guid>> _positionMap = [];
+    private readonly ConcurrentDictionary<Guid, HashSet<(byte X, byte Y)>> _entityPositions = [];
 
     public bool AddEntity(Guid entityId, IEnumerable<(byte X, byte Y)> positions)
     {
@@ -37,14 +37,12 @@ public class Chunk(byte x, byte y)
 
         foreach (var pos in positions)
         {
-            if (_positionMap.TryGetValue(pos, out var entities))
-            {
-                entities.Remove(entityId);
-                if (entities.Count == 0)
-                    _positionMap.Remove(pos);
-            }
+            if (!_positionMap.TryGetValue(pos, out var entities)) continue;
+            entities.Remove(entityId);
+            if (entities.Count == 0)
+                _positionMap.TryRemove(pos, out _);
         }
-        _entityPositions.Remove(entityId);
+        _entityPositions.TryRemove(entityId, out _);
 
         return true;
     }

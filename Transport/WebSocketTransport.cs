@@ -11,10 +11,23 @@ public class WebSocketTransport(WebSocket webSocket, ViewportManager viewportMan
     private readonly WebSocket _webSocket = webSocket;
     private readonly CancellationTokenSource _cts = new();
     private readonly SemaphoreSlim _sendLock = new(1, 1);
+    private Memory<byte>? _lastViewportRequest;
+    private readonly TimeSpan _viewportUpdateInterval = TimeSpan.FromMilliseconds(16); 
 
     public async Task StartAsync(CancellationToken ct = default)
     {
         _logger.LogInformation("WebSocket transport started");
+
+        var receiveTask = ReceiveLoopAsync(ct);
+        var updateTask = UpdateLoopAsync(ct);
+
+        await Task.WhenAny(receiveTask, updateTask);
+
+        await StopAsync(ct);
+    }
+
+    private async Task ReceiveLoopAsync(CancellationToken ct)
+    {
         try
         {
             var buffer = new byte[MaxMessageSize];
@@ -29,6 +42,7 @@ public class WebSocketTransport(WebSocket webSocket, ViewportManager viewportMan
                     await HandleMessageAsync(messageData);
                 }
 
+                
                 receiveResult = await _webSocket.ReceiveAsync(
                     new ArraySegment<byte>(buffer), ct);
             }
@@ -46,6 +60,30 @@ public class WebSocketTransport(WebSocket webSocket, ViewportManager viewportMan
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in WebSocket transport");
+            throw;
+        }
+    }
+
+    private async Task UpdateLoopAsync(CancellationToken ct)
+    {
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                if (_lastViewportRequest is not null)
+                {
+                    await HandleViewportRequestAsync(_lastViewportRequest.Value, SendMessageWrapper);
+                }
+                await Task.Delay(_viewportUpdateInterval, ct);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Normal shutdown
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in WebSocket transport update loop");
             throw;
         }
     }
@@ -72,11 +110,20 @@ public class WebSocketTransport(WebSocket webSocket, ViewportManager viewportMan
         switch (messageType)
         {
             case MessageType.ViewportRequest:
+                _lastViewportRequest = payload;
                 await HandleViewportRequestAsync(payload, SendMessageWrapper);
                 break;
             default:
                 await SendErrorAsync(SendMessageWrapper, 0x04, "Unknown message type");
                 break;
+        }
+    }
+
+    private async Task SendViewportUpdateAsync()
+    {
+        if (_lastViewportRequest is not null)
+        {
+            await HandleViewportRequestAsync(_lastViewportRequest.Value, SendMessageWrapper);
         }
     }
 
