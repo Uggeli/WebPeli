@@ -57,7 +57,7 @@ public static class World
     private static readonly int _chunkSize = Config.CHUNK_SIZE * Config.CHUNK_SIZE;
     private static ConcurrentDictionary<(byte X, byte Y), Chunk> _chunks = [];
     private static ConcurrentDictionary<Guid, EntityState> _entityStates = [];
-    private static Dictionary<(byte x, byte y), ChunkConnection> _chunkGraph = [];
+    private static Dictionary<(int x, int y), ChunkConnection> _chunkGraph = [];
 
 
     // Accessors, Map data
@@ -167,7 +167,19 @@ public static class World
                 neighbours.Add((nx, ny));
             }
         }
-        return neighbours.ToArray();
+        return [.. neighbours];
+    }
+
+    private static (byte x, byte y) GetNeighborPosition((byte x, byte y) pos, Direction direction)
+    {
+        return direction switch
+        {
+            Direction.North => (pos.x, (byte)(pos.y - 1)),
+            Direction.East => ((byte)(pos.x + 1), pos.y),
+            Direction.South => (pos.x, (byte)(pos.y + 1)),
+            Direction.West => ((byte)(pos.x - 1), pos.y),
+            _ => pos
+        };
     }
 
     private static List<Zone> GetZoneNeighbours(Position pos)
@@ -182,7 +194,13 @@ public static class World
     {
         if (start == end) return [];  // Already there
         // 1. find the chunk level path, ie can we path from start to end on chunk level if not return [], if we can return zones along the path, limiting to first and second zone to limit search space
-        var chunkPath = FindPathChunkLevel(start, end);
+        var chunkPath = FindPathChunkLevel(start, end);  // returns (x, y) positions for chunks
+        if (chunkPath.Length == 0) return [];  // No path
+
+        // 2. find zones in the chunks along the path
+        var zones = FindSearchSpace(start, end, chunkPath);  // return start zone and the next zone along the path, limiting search space
+
+        // 3. find the tile level path in the zones
 
 
 
@@ -193,23 +211,62 @@ public static class World
         return [];
     }
 
-    private static (Zone start, Zone end)? FindPathChunkLevel(Position start, Position end)
+    private static (byte X, byte Y)[] FindPathChunkLevel(Position start, Position end)
     {
         var startChunk = GetChunk(start.ChunkPosition);
         var endChunk = GetChunk(end.ChunkPosition);
-        if (startChunk == null || endChunk == null) return null;
+        if (startChunk == null || endChunk == null) return [];
 
+        Queue<(int X, int Y)> openSet = new();
+        HashSet<(int X, int Y)> closedSet = [];
+        Dictionary<(int X, int Y), (int X, int Y)> cameFrom = [];
 
+        openSet.Enqueue((startChunk.X, startChunk.Y));
+        var endPos = (endChunk.X, endChunk.Y);
 
+        while (openSet.Count > 0)
+        {
+            var current = openSet.Dequeue();
+            if (current == endPos) return ReconstructChunkPath(cameFrom, current);
 
+            foreach (var neighbour in GetChunkNeighbours(current.X, current.Y))
+            {
+                if (closedSet.Contains(neighbour)) continue;
 
+                var delta = (dx: current.X - neighbour.X, dy: current.Y - neighbour.Y);
+                var connection = _chunkGraph[neighbour];
 
+                var canMove = (delta, connection) switch
+                {
+                    ((1, 0) or (-1, 0), var c) when c.HasFlag(ChunkConnection.EastWest) => true,
+                    ((0, 1) or (0, -1), var c) when c.HasFlag(ChunkConnection.NorthSouth) => true,
+                    _ => false
+                };
 
+                if (!canMove) continue;
 
-        return null;
+                openSet.Enqueue(neighbour);
+                closedSet.Add(neighbour);
+                cameFrom[neighbour] = current;
+            }
+        }
+        return [];
     }
 
-    private static (int x, int Y)[]? FindPathZoneLevel(Position start, Position end)
+    private static (byte X, byte Y)[] ReconstructChunkPath(Dictionary<(int X, int Y), (int X, int Y)> cameFrom, (int X, int Y) current)
+    {
+        var path = new List<(byte X, byte Y)>();
+        while (cameFrom.TryGetValue(current, out var previous))
+        {
+            path.Add(((byte X, byte Y))(current.X, current.Y));
+            current = previous;
+        }
+        path.Reverse();
+        if (path.Count == 1) return [.. path];
+        return path.Take(2).ToArray();
+    }
+
+    private static (Zone start, Zone end)? FindSearchSpace(Position start, Position end, (byte X, byte Y)[] chunkPath)
     {
         return null;
     }
@@ -525,7 +582,7 @@ public static class World
                                 connections |= ChunkConnection.NorthSouth;
                         }
                     }
-                    
+
                     // South neighbor
                     if (worldY < Config.WORLD_SIZE - 1 && southEdgeTiles.Count > 0)
                     {
@@ -551,7 +608,7 @@ public static class World
                                 connections |= ChunkConnection.EastWest;
                         }
                     }
-                    
+
                     _chunkGraph[(worldX, worldY)] = connections;
                 }
             }
@@ -583,22 +640,6 @@ public static class World
                 TileManager.IsWalkable(chunk1.GetTile(pos.x, pos.y).properties) &&
                 TileManager.IsWalkable(chunk2.GetTile(pos.x, pos.y).properties));
         }
-
-        // Helper to get position in neighbor chunk from a position in this chunk
-        private static (byte x, byte y) GetNeighborPosition((byte x, byte y) pos, Direction direction)
-        {
-            return direction switch
-            {
-                Direction.North => (pos.x, (byte)(pos.y - 1)),
-                Direction.East => ((byte)(pos.x + 1), pos.y),
-                Direction.South => (pos.x, (byte)(pos.y + 1)),
-                Direction.West => ((byte)(pos.x - 1), pos.y),
-                _ => pos
-            };
-        }
-
-
-
 
         private static void GenerateChunkTerrain(Chunk chunk)
         {
