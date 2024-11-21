@@ -1,5 +1,16 @@
 # WebPeli Development TODOs
 
+
+
+
+# Milestone: Basic stuff
+- Done refactor client side for easy debugging
+- Rewrote whole fucking mapping system
+
+
+
+
+
 ## High priority
 - Get pathfinding stuff working
 

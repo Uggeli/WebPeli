@@ -5,9 +5,14 @@ namespace WebPeli.GameEngine.WorldData;
 
 public class Chunk(byte x, byte y)
 {
+    // Chunk data
     public byte X { get; } = x;
     public byte Y { get; } = y;
-
+    public ChunkConnection Connections { get; set; } = ChunkConnection.None;
+    public bool IsConnected(ChunkConnection connection) => (Connections & connection) == connection;
+    public void Connect(ChunkConnection connection) => Connections |= connection;
+    public void Disconnect(ChunkConnection connection) => Connections &= ~connection;
+    
     // Tile data
     private readonly TileProperties[] Properties = new TileProperties[Config.CHUNK_SIZE * Config.CHUNK_SIZE];
     private readonly byte[] Material = new byte[Config.CHUNK_SIZE * Config.CHUNK_SIZE];
@@ -15,6 +20,15 @@ public class Chunk(byte x, byte y)
     private static int ConvertTo1D(byte x, byte y) => y * Config.CHUNK_SIZE + x;
     private static (byte, byte) ConvertTo2D(byte i) => ((byte)(i / Config.CHUNK_SIZE), (byte)(i % Config.CHUNK_SIZE));
     public (byte material, TileSurface surface, TileProperties properties) GetTile(byte x, byte y) => (Material[ConvertTo1D(x, y)], Surface[ConvertTo1D(x, y)], Properties[ConvertTo1D(x, y)]);
+    public (byte material, TileSurface surface, TileProperties properties) GetTile(int x, int y)
+    {
+        if (x < 0 || x >= Config.CHUNK_SIZE || y < 0 || y >= Config.CHUNK_SIZE)
+        {
+            return (0, TileSurface.None, TileProperties.None);
+        }
+        return (Material[ConvertTo1D((byte)x, (byte)y)], Surface[ConvertTo1D((byte)x, (byte)y)], Properties[ConvertTo1D((byte)x, (byte)y)]);
+    }
+
     public void SetTile(byte x, byte y, byte material, TileSurface surface, TileProperties properties)
     {
         Material[ConvertTo1D(x, y)] = material;
@@ -43,6 +57,26 @@ public class Chunk(byte x, byte y)
         return null;
     }
 }
+
+[Flags]
+public enum ChunkConnection : byte
+{
+    None = 0,
+    NorthSouth = 1 << 0, // 1
+    NorthEast = 1 << 1,  // 2
+    NorthWest = 1 << 2,  // 4
+    SouthEast = 1 << 3,  // 8
+    SouthWest = 1 << 4,  // 16
+    EastWest = 1 << 5    // 32
+}
+
+// N<->S (1 bit)
+// N<->E (1 bit)
+// N<->W (1 bit)
+// S<->E (1 bit)
+// S<->W (1 bit)
+// E<->W (1 bit)
+
 
 
 

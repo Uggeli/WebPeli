@@ -28,6 +28,13 @@ public readonly struct Position
     {
         return new Position { X = a.X - b.X, Y = a.Y - b.Y };
     }
+    public static bool operator ==(Position a, Position b) => a.X == b.X && a.Y == b.Y;
+    public static bool operator !=(Position a, Position b) => a.X != b.X || a.Y != b.Y;
+    public override bool Equals(object? obj)
+    {
+        return obj != null && obj is Position pos && X == pos.X && Y == pos.Y;
+    }
+    public override int GetHashCode() => HashCode.Combine(X, Y);
 }
 
 public enum CurrentAction : byte
@@ -90,6 +97,16 @@ public static class World
         return GetTilesInArea(center, width, height);
     }
 
+    private static Chunk? GetChunk((byte X, byte Y) pos)
+    {
+        return _chunks.TryGetValue(pos, out var c) ? c : null;
+    }
+
+    private static Chunk? GetChunk(Position pos)
+    {
+        return GetChunk(pos.ChunkPosition);
+    }
+
     // Accessors, Entity data
     public static EntityState? GetEntityState(Guid entityId)
     {
@@ -136,22 +153,19 @@ public static class World
         return IsInChunkBounds(X, Y) && GetTileAt(pos).properties.HasFlag(TileProperties.Walkable);
     }
 
-    private static List<Position> GetChunkNeighbours(Position pos)
+    private static (int X, int Y)[] GetChunkNeighbours(int x, int y)
     {
-        var (X, Y) = pos.ChunkPosition;
-        var neighbours = new List<Position>();
-        for (int x = -1; x <= 1; x++)
+        var neighbours = new List<(int X, int Y)>();
+        foreach (var (dx, dy) in new[] { (-1, 0), (1, 0), (0, -1), (0, 1) })
         {
-            for (int y = -1; y <= 1; y++)
+            var nx = x + dx;
+            var ny = y + dy;
+            if (IsInWorldBounds(nx, ny))
             {
-                var neighbour = pos + new Position { X = x, Y = y };
-                if (IsInWorldBounds(neighbour.X, neighbour.Y))
-                {
-                    neighbours.Add(neighbour);
-                }
+                neighbours.Add((nx, ny));
             }
         }
-        return neighbours;
+        return neighbours.ToArray();
     }
 
     private static List<Zone> GetZoneNeighbours(Position pos)
@@ -162,13 +176,34 @@ public static class World
         return neighbours;
     }
 
-    public static (int X, int Y)[] GetPath(Position start, Position end)
+    public static Position[] GetPath(Position start, Position end)
     {
+        if (start == end) return [];  // Already there
+        // 1. find the chunk level path, ie can we path from start to end on chunk level if not return [], if we can return zones along the path, limiting to first and second zone to limit search space
+        var chunkPath = FindPathChunkLevel(start, end);
+
+
+         
+
+        
+
+
         return [];
     }
 
-    private static (Chunk start, Chunk end)? FindPathChunkLevel(Position start, Position end)
+    private static (Zone start, Zone end)? FindPathChunkLevel(Position start, Position end)
     {
+        var startChunk = GetChunk(start.ChunkPosition);
+        var endChunk = GetChunk(end.ChunkPosition);
+        if (startChunk == null || endChunk == null) return null;
+
+
+
+
+
+
+
+
         return null;
     }
 
@@ -248,13 +283,13 @@ public static class World
             // Check a few key positions, including edges
             byte[][] positionsToCheck =
             [
-        [0, 0],
-        [(byte)(Config.CHUNK_SIZE-1), 0],
-        [0, (byte)(Config.CHUNK_SIZE-1)],
-        [(byte)(Config.CHUNK_SIZE-1), (byte)(Config.CHUNK_SIZE-1)],
-        // [64, 64],  // Middle-ish
-        // [32, 96],  // Random positions
-        // [96, 32]
+                [0, 0],
+                [(byte)(Config.CHUNK_SIZE-1), 0],
+                [0, (byte)(Config.CHUNK_SIZE-1)],
+                [(byte)(Config.CHUNK_SIZE-1), (byte)(Config.CHUNK_SIZE-1)],
+                // [64, 64],  // Middle-ish
+                // [32, 96],  // Random positions
+                // [96, 32]
             ];
 
             Console.WriteLine("Checking key positions:");
@@ -438,7 +473,25 @@ public static class World
                     _chunks[(worldX, worldY)] = newChunk;
                 }
             }
+
+            BuildChunkGraph();
         }
+
+        private static void BuildChunkGraph()
+        {
+            // Build a graph of chunks and their neighbours
+            for (byte worldX = 0; worldX < Config.WORLD_SIZE; worldX++)
+            {
+                for (byte worldY = 0; worldY < Config.WORLD_SIZE; worldY++)
+                {
+                    var chunk = GetChunk((worldX, worldY));
+                    if (chunk == null) continue;
+
+                    
+                }
+            }
+        }
+        
 
         private static void GenerateChunkTerrain(Chunk chunk)
         {
