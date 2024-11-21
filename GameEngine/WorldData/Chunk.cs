@@ -358,6 +358,30 @@ public static class ZoneManager
         var zone = new Zone(IDManager.GetZoneId(), chunk.X, chunk.Y, zoneTiles, edges);
         return zone;
     }
+
+
+    public static void UpdateZone(Chunk chunk, Zone zone)
+    {
+        // Remove zone from chunk
+        chunk.RemoveZone(zone.Id);
+        // Re-create zone
+        var visited = new bool[Config.CHUNK_SIZE, Config.CHUNK_SIZE];
+        // populate visited with zone tiles
+        for (byte y = 0; y < Config.CHUNK_SIZE; y++)
+        {
+            for (byte x = 0; x < Config.CHUNK_SIZE; x++)
+            {
+                if (zone.TilePositions.Contains((x, y))) continue;
+                visited[x, y] = true;
+            }
+        }
+        DiscoverZone(chunk, zone.TilePositions.First(), ref visited);
+    }
+
+    public static List<Zone> GetZones(Chunk chunk)
+    {
+        return chunk.GetZones().ToList();
+    }
 }
 
 

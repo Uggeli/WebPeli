@@ -8,10 +8,14 @@ namespace WebPeli.GameEngine.Managers;
 public enum Direction : byte
 {
     Up = 0,
+    North = Up,
     Right = 1,
+    East = Right,
     Down = 2,
+    South = Down,
     Left = 3,
-    None = 4,
+    West = Left,
+    None = 4
 }
 // Movement system:
 // Ai checks available moves and then selects move it wants to perform and sends MoveEntityRequest to MovementManager

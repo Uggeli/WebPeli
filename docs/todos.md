@@ -16,7 +16,8 @@
 
 ## Low priority
 - add shutdown thingies for server that terminates all websocket connections and shutdowns all systems and managers in orderly manner
--everything should use new id system
+- everything should use new id system
+- move enums to file of their own
 
 ## Done stuff
 - Core Systems

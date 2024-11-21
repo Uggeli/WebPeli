@@ -57,6 +57,8 @@ public static class World
     private static readonly int _chunkSize = Config.CHUNK_SIZE * Config.CHUNK_SIZE;
     private static ConcurrentDictionary<(byte X, byte Y), Chunk> _chunks = [];
     private static ConcurrentDictionary<Guid, EntityState> _entityStates = [];
+    private static Dictionary<(byte x, byte y), ChunkConnection> _chunkGraph = [];
+
 
     // Accessors, Map data
     public static (byte material, TileSurface surface, TileProperties properties) GetTileAt(Position pos)
@@ -183,9 +185,9 @@ public static class World
         var chunkPath = FindPathChunkLevel(start, end);
 
 
-         
 
-        
+
+
 
 
         return [];
@@ -479,7 +481,7 @@ public static class World
 
         private static void BuildChunkGraph()
         {
-            // Build a graph of chunks and their neighbours
+
             for (byte worldX = 0; worldX < Config.WORLD_SIZE; worldX++)
             {
                 for (byte worldY = 0; worldY < Config.WORLD_SIZE; worldY++)
@@ -487,11 +489,116 @@ public static class World
                     var chunk = GetChunk((worldX, worldY));
                     if (chunk == null) continue;
 
+                    var chunkZones = ZoneManager.GetZones(chunk);
+                    var connections = ChunkConnection.None;
+
+                    // First collect all edge tiles per direction
+                    List<(byte x, byte y)> northEdgeTiles = [];
+                    List<(byte x, byte y)> eastEdgeTiles = [];
+                    List<(byte x, byte y)> southEdgeTiles = [];
+                    List<(byte x, byte y)> westEdgeTiles = [];
+
+                    foreach (var zone in chunkZones)
+                    {
+                        foreach (var (pos, edge) in zone.Edges)
+                        {
+                            if (edge.HasFlag(ZoneEdge.ChunkNorth)) northEdgeTiles.Add(pos);
+                            if (edge.HasFlag(ZoneEdge.ChunkEast)) eastEdgeTiles.Add(pos);
+                            if (edge.HasFlag(ZoneEdge.ChunkSouth)) southEdgeTiles.Add(pos);
+                            if (edge.HasFlag(ZoneEdge.ChunkWest)) westEdgeTiles.Add(pos);
+                        }
+                    }
+
+                    // Now check for valid connections with neighbor chunks
+                    // North neighbor
+                    if (worldY > 0 && northEdgeTiles.Count > 0)
+                    {
+                        var northChunk = GetChunk((worldX, (byte)(worldY - 1)));
+                        if (northChunk != null && HasMatchingEdges(chunk, northChunk, northEdgeTiles, Direction.North))
+                        {
+                            // Check what other directions we can reach from these northern tiles
+                            if (CanReachEdge(chunk, northEdgeTiles, ZoneEdge.ChunkEast))
+                                connections |= ChunkConnection.NorthEast;
+                            if (CanReachEdge(chunk, northEdgeTiles, ZoneEdge.ChunkWest))
+                                connections |= ChunkConnection.NorthWest;
+                            if (CanReachEdge(chunk, northEdgeTiles, ZoneEdge.ChunkSouth))
+                                connections |= ChunkConnection.NorthSouth;
+                        }
+                    }
                     
+                    // South neighbor
+                    if (worldY < Config.WORLD_SIZE - 1 && southEdgeTiles.Count > 0)
+                    {
+                        var southChunk = GetChunk((worldX, (byte)(worldY + 1)));
+                        if (southChunk != null && HasMatchingEdges(chunk, southChunk, southEdgeTiles, Direction.South))
+                        {
+                            // Check what other directions we can reach from these southern tiles
+                            if (CanReachEdge(chunk, southEdgeTiles, ZoneEdge.ChunkEast))
+                                connections |= ChunkConnection.SouthEast;
+                            if (CanReachEdge(chunk, southEdgeTiles, ZoneEdge.ChunkWest))
+                                connections |= ChunkConnection.SouthWest;
+                        }
+                    }
+
+                    // East neighbor
+                    if (worldX < Config.WORLD_SIZE - 1 && eastEdgeTiles.Count > 0)
+                    {
+                        var eastChunk = GetChunk(((byte)(worldX + 1), worldY));
+                        if (eastChunk != null && HasMatchingEdges(chunk, eastChunk, eastEdgeTiles, Direction.East))
+                        {
+                            // Check what other directions we can reach from these eastern tiles
+                            if (CanReachEdge(chunk, eastEdgeTiles, ZoneEdge.ChunkWest))
+                                connections |= ChunkConnection.EastWest;
+                        }
+                    }
+                    
+                    _chunkGraph[(worldX, worldY)] = connections;
                 }
             }
         }
-        
+
+        // Helper to check if tiles on one edge can reach another edge through zones
+        private static bool CanReachEdge(Chunk chunk, List<(byte x, byte y)> startTiles, ZoneEdge targetEdge)
+        {
+            foreach (var zone in chunk.GetZones())
+            {
+                // If this zone contains any of our start tiles and has the target edge type
+                if (zone.TilePositions.Intersect(startTiles).Any() &&
+                    zone.Edges.Any(e => e.Value.HasFlag(targetEdge)))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // Helper to check if edge tiles match up between chunks
+        private static bool HasMatchingEdges(Chunk chunk1, Chunk chunk2, List<(byte x, byte y)> edgeTiles, Direction direction)
+        {
+            // Convert edge tiles to corresponding positions in neighbor chunk
+            var neighborPositions = edgeTiles.Select(pos => GetNeighborPosition(pos, direction));
+
+            // Check if any of these positions are walkable in both chunks
+            return neighborPositions.Any(pos =>
+                TileManager.IsWalkable(chunk1.GetTile(pos.x, pos.y).properties) &&
+                TileManager.IsWalkable(chunk2.GetTile(pos.x, pos.y).properties));
+        }
+
+        // Helper to get position in neighbor chunk from a position in this chunk
+        private static (byte x, byte y) GetNeighborPosition((byte x, byte y) pos, Direction direction)
+        {
+            return direction switch
+            {
+                Direction.North => (pos.x, (byte)(pos.y - 1)),
+                Direction.East => ((byte)(pos.x + 1), pos.y),
+                Direction.South => (pos.x, (byte)(pos.y + 1)),
+                Direction.West => ((byte)(pos.x - 1), pos.y),
+                _ => pos
+            };
+        }
+
+
+
 
         private static void GenerateChunkTerrain(Chunk chunk)
         {
