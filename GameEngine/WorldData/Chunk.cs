@@ -56,6 +56,12 @@ public class Chunk(byte x, byte y)
         }
         return null;
     }
+
+    // Entity data
+    private readonly byte[] TileVolume = new byte[Config.CHUNK_SIZE * Config.CHUNK_SIZE];
+    public bool CanFitEntity(byte x, byte y, byte volume) => TileVolume[ConvertTo1D(x, y)] + volume <= Config.MAX_TILE_VOLUME;
+    
+
 }
 
 [Flags]

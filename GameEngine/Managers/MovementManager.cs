@@ -61,7 +61,7 @@ public class MovementManager : BaseManager
         }
     }
 
-    private readonly ConcurrentDictionary<Guid, MovementData> _movingEntities = [];
+    private readonly ConcurrentDictionary<int, MovementData> _movingEntities = [];
 
     public override void Destroy()
     {
@@ -133,7 +133,7 @@ public class MovementManager : BaseManager
 
     private void MoveEntities(double deltaTime)
     {
-        List<Guid> toRemove = [];
+        List<int> toRemove = [];
         Parallel.ForEach(_movingEntities, kvp =>
         {
             

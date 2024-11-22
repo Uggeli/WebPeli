@@ -54,7 +54,7 @@ public readonly record struct ChunkCreated : IEvent
 // For teleporting entities, Enitypositions are in local coordinates
 public readonly record struct MoveEntityRequest : IEvent 
 {
-    public required Guid EntityId { get; init; }
+    public required int EntityId { get; init; }
     public required Position FromPosition { get; init; }  // Current position
     public required Position ToPosition { get; init; }    // Target position
     public required MovementType MovementType { get; init; }
@@ -63,7 +63,7 @@ public readonly record struct MoveEntityRequest : IEvent
 
 public readonly record struct PathfindingRequest : IEvent
 {
-    public required Guid EntityId { get; init; }
+    public required int EntityId { get; init; }
     public required float StartX { get; init; }
     public required float StartY { get; init; }
     public required float TargetX { get; init; }
@@ -76,7 +76,7 @@ public readonly record struct PathfindingRequest : IEvent
 // In world coordinates (world_size * chunk_size)
 public readonly record struct FindPathAndMoveEntity : IEvent
 {
-    public required Guid EntityId { get; init; }
+    public required int EntityId { get; init; }
     public required int StartX { get; init; }
     public required int StartY { get; init; }
     public required int TargetX { get; init; }
@@ -95,19 +95,19 @@ public enum SystemType
 
 public readonly record struct RegisterToSystem : IEvent
 {
-    public  Guid EntityId { get; init; }
+    public  int EntityId { get; init; }
     public SystemType SystemType { get; init; } // Type of the system to register to
 }
 
 public readonly record struct UnregisterFromSystem : IEvent
 {
-    public  Guid EntityId { get; init; }
+    public  int EntityId { get; init; }
     public SystemType SystemType { get; init; } // Type of the system to unregister from
 }
 
 public readonly record struct DeathEvent : IEvent
 {
-    public Guid EntityId { get; init; }
+    public int EntityId { get; init; }
     // Entitys life is over, but is that the end? stay tuned for the next episode of Dragon Ball Z 
     
 }
@@ -126,23 +126,22 @@ public enum ThresholdType
 }
 public readonly record struct EntityThresholdReached : IEvent
 {
-    public required Guid EntityId { get; init; }
+    public required int EntityId { get; init; }
     public required ThresholdType ThresholdType { get; init; }
     public required ThresholdSeverity Severity { get; init; }
 }
 
-public record ConsumeFood(Guid EntityId, byte Amount) : IEvent;
-public record ConsumeDrink(Guid EntityId, byte Amount) : IEvent;
-public record Rest(Guid EntityId, byte Amount) : IEvent;
+public record ConsumeFood(int EntityId, byte Amount) : IEvent;
+public record ConsumeDrink(int EntityId, byte Amount) : IEvent;
+public record Rest(int EntityId, byte Amount) : IEvent;
 public record CreateEntity : IEvent
 {
     public required EntityCapabilities[] Capabilities { get; init; }
-    public Guid EntityId { get; init; }
 }
 
 public record RemoveEntity : IEvent
 {
-    public Guid EntityId { get; init; }
+    public int EntityId { get; init; }
     // EntityManager catches this and removes the entity and sends
     // UnregisterFromSystem to all systems that entity has interfaces for
 }

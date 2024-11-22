@@ -83,7 +83,7 @@ public static class World
     // private static readonly int _worldGridSize = Config.WORLD_SIZE * Config.WORLD_SIZE;
     // private static readonly int _chunkSize = Config.CHUNK_SIZE * Config.CHUNK_SIZE;
     private static ConcurrentDictionary<(byte X, byte Y), Chunk> _chunks = [];
-    private static ConcurrentDictionary<Guid, EntityState> _entityStates = [];
+    private static ConcurrentDictionary<int, EntityState> _entityStates = [];
     private static Dictionary<(int x, int y), ChunkConnection> _chunkGraph = [];
 
 
@@ -137,27 +137,27 @@ public static class World
     }
 
     // Accessors, Entity data
-    public static EntityState? GetEntityState(Guid entityId)
+    public static EntityState? GetEntityState(int entityId)
     {
         return _entityStates.TryGetValue(entityId, out var state) ? state : null;
     }
 
-    public static void SetEntityState(Guid entityId, EntityState state)
+    public static void SetEntityState(int entityId, EntityState state)
     {
         _entityStates[entityId] = state;
     }
 
-    public static void RemoveEntityState(Guid entityId)
+    public static void RemoveEntityState(int entityId)
     {
         _entityStates.TryRemove(entityId, out _);
     }
 
-    public static void AddEntity(Guid id)
+    public static void AddEntity(int id)
     {
         // TODO
     }
 
-    public static void RemoveEntity(Guid id)
+    public static void RemoveEntity(int id)
     {
         // TODO
     }

@@ -27,14 +27,13 @@ public static class EntityCapabilitiesExtensions
 
 public readonly record struct EntityRecord
 {
-    public readonly required Guid EntityId { get; init; }
     public readonly required EntityCapabilities[] Capabilities { get; init; }
 }
 
 public class EntityRegister : BaseManager
 {
     // Handles entity creation and deletion
-    private Dictionary<Guid, EntityRecord> _entities = [];
+    private Dictionary<int, EntityRecord> _entities = [];
 
 
     public override void Destroy()
@@ -69,7 +68,7 @@ public class EntityRegister : BaseManager
         EventManager.RegisterListener<RemoveEntity>(this); // For Removing Entity
     }
 
-    private static void NotifySystems(Guid entityId, EntityCapabilities[] capabilities, bool remove = false)
+    private static void NotifySystems(int entityId, EntityCapabilities[] capabilities, bool remove = false)
     {
         foreach (var capability in capabilities)
         {
@@ -86,13 +85,13 @@ public class EntityRegister : BaseManager
 
     void HandleCreateEntity(CreateEntity createEntity)
     {
-        _entities.Add(createEntity.EntityId, new EntityRecord
+        var newEntityID = Util.IDManager.GetEntityId();
+        _entities.Add(newEntityID, new EntityRecord
         {
-            EntityId = createEntity.EntityId,
             Capabilities = createEntity.Capabilities
         });
-        World.AddEntity(createEntity.EntityId);
-        NotifySystems(createEntity.EntityId, createEntity.Capabilities);
+        World.AddEntity(newEntityID);
+        NotifySystems(newEntityID, createEntity.Capabilities);
     }
 
     void HandleDeathEvent(DeathEvent deathevent)
@@ -107,6 +106,7 @@ public class EntityRegister : BaseManager
             NotifySystems(removeEntity.EntityId, entity.Capabilities, true);
             _entities.Remove(removeEntity.EntityId);
         }
+        Util.IDManager.ReturnEntityId(removeEntity.EntityId);
         World.RemoveEntity(removeEntity.EntityId);
         
     }
