@@ -7,6 +7,10 @@
   Goal: Get Entities moving
 
 ## High priority
+- Add entityhandling
+- Add movement handling
+- Add collision handling
+- Add multitile entity support
 - Test pathfinding
 
 ## Low priority
