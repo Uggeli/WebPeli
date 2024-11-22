@@ -6,7 +6,7 @@ namespace WebPeli.GameEngine.Managers;
 //Placeholder for Ai stuff
 public class AiManager : BaseManager
 {
-    List<Guid> _entities = [];
+    List<int> _entities = [];
     public override void Init()
     {
         EventManager.RegisterListener<RegisterToSystem>(this);
