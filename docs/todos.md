@@ -1,18 +1,13 @@
-# WebPeli Development TODOs
+# WebPeli Development TODOs:
 
 
 
 
 # Milestone: Basic stuff
-- Done refactor client side for easy debugging
-- Rewrote whole fucking mapping system
-
-
-
-
+  Goal: Get Entities moving
 
 ## High priority
-- Get pathfinding stuff working
+- Test pathfinding
 
 ## Low priority
 - add shutdown thingies for server that terminates all websocket connections and shutdowns all systems and managers in orderly manner
@@ -40,3 +35,10 @@
   - Basic build pipeline
   - Initial server architecture
   - WebSocket connection handling
+
+- Done refactor client side for easy debugging
+- Rewrote whole fucking mapping system
+- Get pathfinding stuff working
+
+## Done milestones:
+- NONE 😢
