@@ -9,16 +9,17 @@ public class GameEngineService : BackgroundService
     private readonly List<BaseManager> managers = [];
     private readonly List<BaseManager> systems = [];
 
-    public GameEngineService(ILogger<GameEngineService> logger, ViewportManager viewportManager)
+    public GameEngineService(ILogger<GameEngineService> logger, ViewportManager viewportManager, EntityRegister entityRegister)
     {
         _logger = logger;
         // Build world
         var startTime = Environment.TickCount;
+        _logger.LogInformation("Generating world... this might take a while");
         World.GenerateWorld();
         _logger.LogInformation($"World generation took {Environment.TickCount - startTime}ms");
 
         // Initialize managers
-        managers.Add(new EntityRegister());
+        managers.Add(entityRegister);
         managers.Add(new MapManager());
         // managers.Add(new ViewportManager());
         managers.Add(viewportManager);
@@ -36,11 +37,10 @@ public class GameEngineService : BackgroundService
         int num_entities = 1;
         for (int i = 0; i < num_entities; i++)
         {
-            Guid entityId = Guid.NewGuid();
-            managers[0].HandleMessage(new CreateEntity{EntityId = entityId, Capabilities = [EntityCapabilities.MetabolismSystem,
-                                                                                            EntityCapabilities.MovementSystem,
-                                                                                            EntityCapabilities.RenderingSystem,
-                                                                                            EntityCapabilities.AiSystem]});
+            managers[0].HandleMessage(new CreateEntity{Capabilities = [EntityCapabilities.MetabolismSystem,
+                                                                        EntityCapabilities.MovementSystem,
+                                                                        EntityCapabilities.RenderingSystem,
+                                                                        EntityCapabilities.AiSystem]});
 
         }
 

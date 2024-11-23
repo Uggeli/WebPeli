@@ -30,9 +30,10 @@ public readonly record struct EntityRecord
     public readonly required EntityCapabilities[] Capabilities { get; init; }
 }
 
-public class EntityRegister : BaseManager
+public class EntityRegister(Logger<EntityRegister> logger) : BaseManager
 {
     // Handles entity creation and deletion
+    Logger<EntityRegister> _logger = logger;
     private Dictionary<int, EntityRecord> _entities = [];
 
 

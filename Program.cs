@@ -6,6 +6,7 @@ using WebPeli.GameEngine.Managers;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSingleton<ViewportManager>();
+builder.Services.AddSingleton<EntityRegister>();
 
 // Start the engine
 builder.Services.AddHostedService<GameEngineService>();
