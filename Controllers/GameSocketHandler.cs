@@ -103,7 +103,7 @@ public class GameSocketHandler(ILogger<GameSocketHandler> logger) : ControllerBa
         }
     }
 
-    private async Task HandleViewportRequest(WebSocket webSocket, byte[] payload)
+    private static async Task HandleViewportRequest(WebSocket webSocket, byte[] payload)
     {
         if (!MessageProtocol.TryDecodeViewportRequest(payload.AsSpan(), out var cameraX, out var cameraY, 
             out var width, out var height))
@@ -150,7 +150,7 @@ public class GameSocketHandler(ILogger<GameSocketHandler> logger) : ControllerBa
             CancellationToken.None);
     }
     
-    private async Task SendError(WebSocket webSocket, string message)
+    private static async Task SendError(WebSocket webSocket, string message)
     {
         var errorMessage = MessageProtocol.EncodeError(message);
         await webSocket.SendAsync(
