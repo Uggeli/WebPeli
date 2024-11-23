@@ -34,8 +34,8 @@ readonly struct LocalTilePos : IEquatable<LocalTilePos>
 
 public readonly struct Position
 {
-    public int X { get; init; }
-    public int Y { get; init; }
+    public int X { get; init; }  // World coordinates
+    public int Y { get; init; }  // World coordinates
     public readonly (byte X, byte Y) ChunkPosition => (X: (byte)(X / Config.CHUNK_SIZE), Y: (byte)(Y / Config.CHUNK_SIZE));
     public readonly (byte X, byte Y) TilePosition => (X: (byte)(X % Config.CHUNK_SIZE), Y: (byte)(Y % Config.CHUNK_SIZE));
     public static Position operator +(Position a, Position b)
@@ -70,9 +70,10 @@ public enum CurrentAction : byte
     Attacking,
 }
 
-public class EntityState(Position position, CurrentAction currentAction, Direction direction)
+public class EntityState(IEnumerable<Position> position, CurrentAction currentAction, Direction direction, byte entityVolume = 200)
 {
-    public Position Position { get; set; } = position;
+    public byte EntityVolume { get; set; } = entityVolume;  // 200 is default volume
+    public IEnumerable<Position> Position { get; set; } = position;
     public CurrentAction CurrentAction { get; set; } = currentAction;
     public Direction Direction { get; set; } = direction;
 }
@@ -152,14 +153,87 @@ public static class World
         _entityStates.TryRemove(entityId, out _);
     }
 
-    public static void AddEntity(int id)
+    public static void AddEntity(int id, EntityState? state = null)
     {
-        // TODO
+        if (_entityStates.ContainsKey(id)) return;
+
+        if (state != null)
+        {
+            foreach (var pos in state.Position)  // Check if all positions are valid
+            {
+                var chunk = GetChunk(pos.ChunkPosition);
+                if (chunk == null || !chunk.CanAddEntity(pos, state.EntityVolume)) return;
+            }
+
+            foreach (var pos in state.Position)
+            {
+                var chunk = GetChunk(pos.ChunkPosition);
+                chunk?.AddEntity(id, pos, state.EntityVolume);
+            }
+            _entityStates[id] = state;
+        }
+
+        else
+        {
+            var spawnPoints = FindRandomSpawnPoint();
+            if (!spawnPoints.Any()) return;
+
+            var freshState = new EntityState(spawnPoints, CurrentAction.Idle, Direction.South);
+            foreach (var pos in spawnPoints)
+            {
+                var chunk = GetChunk(pos.ChunkPosition);
+                chunk?.AddEntity(id, pos, freshState.EntityVolume);
+            }
+            _entityStates[id] = freshState;
+        }
+    }
+
+    private static List<Position> FindRandomSpawnPoint(byte entitySize = 1)
+    {
+        
+        var chunk = GetChunk(((byte)Tools.Random.Next(Config.WORLD_SIZE), (byte)Tools.Random.Next(Config.WORLD_SIZE)));
+        if (chunk == null) return [];
+
+        byte attempts = 0;
+
+        while (attempts < 10)
+        {
+            var x = (byte)Tools.Random.Next(Config.CHUNK_SIZE);
+            var y = (byte)Tools.Random.Next(Config.CHUNK_SIZE);
+            var pos = new Position { X = chunk.X * Config.CHUNK_SIZE + x, Y = chunk.Y * Config.CHUNK_SIZE + y };
+            List<Position> positions = [];
+            for (int dx = 0; dx < entitySize; dx++)
+            {
+                for (int dy = 0; dy < entitySize; dy++)
+                {
+                    var checkPos = pos + (dx, dy);
+                    if (!IsInWorldBounds(checkPos) || !IsInChunkBounds(checkPos) || !GetTileAt(checkPos).properties.HasFlag(TileProperties.Walkable))
+                    {
+                        attempts++;
+                        continue;
+                    }
+                    positions.Add(checkPos);
+                }
+            }
+
+            if (positions.Count == entitySize * entitySize)
+            {
+                return positions;
+            }
+        }
+        return [];
     }
 
     public static void RemoveEntity(int id)
     {
-        // TODO
+        if (!_entityStates.TryGetValue(id, out var state)) return;
+
+        foreach (var pos in state.Position)
+        {
+            var chunk = GetChunk(pos.ChunkPosition);
+            chunk?.RemoveEntity(id, pos, state.EntityVolume);
+        }
+        _entityStates.TryRemove(id, out _);
     }
 
 
@@ -379,7 +453,7 @@ public static class World
             }
         }
 
-        return Array.Empty<Position>();
+        return [];
     }
 
     // Helper for finding best endpoint in a chunk based on direction we're heading
