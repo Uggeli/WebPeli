@@ -6,7 +6,7 @@ using WebPeli.GameEngine.WorldData;
 
 namespace WebPeli.GameEngine;
 
-readonly struct LocalTilePos : IEquatable<LocalTilePos>
+public readonly struct LocalTilePos : IEquatable<LocalTilePos>
 {
     public byte ChunkX { get; init; }
     public byte ChunkY { get; init; }
@@ -36,8 +36,8 @@ public readonly struct Position
 {
     public int X { get; init; }  // World coordinates
     public int Y { get; init; }  // World coordinates
-    public readonly (byte X, byte Y) ChunkPosition => (X: (byte)(X / Config.CHUNK_SIZE), Y: (byte)(Y / Config.CHUNK_SIZE));
-    public readonly (byte X, byte Y) TilePosition => (X: (byte)(X % Config.CHUNK_SIZE), Y: (byte)(Y % Config.CHUNK_SIZE));
+    public readonly (byte X, byte Y) ChunkPosition => (X: (byte)(X / Config.CHUNK_SIZE_BYTE), Y: (byte)(Y / Config.CHUNK_SIZE_BYTE));
+    public readonly (byte X, byte Y) TilePosition => (X: (byte)(X % Config.CHUNK_SIZE_BYTE), Y: (byte)(Y % Config.CHUNK_SIZE_BYTE));
     public static Position operator +(Position a, Position b)
     {
         return new Position { X = a.X + b.X, Y = a.Y + b.Y };
@@ -61,6 +61,16 @@ public readonly struct Position
         return obj != null && obj is Position pos && X == pos.X && Y == pos.Y;
     }
     public override int GetHashCode() => HashCode.Combine(X, Y);
+    public Direction LookAt(Position target)
+    {
+        var dx = target.X - X;
+        var dy = target.Y - Y;
+        if (Math.Abs(dx) > Math.Abs(dy))
+        {
+            return dx > 0 ? Direction.Right : Direction.Left;
+        }
+        return dy > 0 ? Direction.Down : Direction.Up;
+    }
 }
 
 public enum CurrentAction : byte
@@ -70,10 +80,10 @@ public enum CurrentAction : byte
     Attacking,
 }
 
-public class EntityState(IEnumerable<Position> position, CurrentAction currentAction, Direction direction, byte entityVolume = 200)
+public class EntityState(Position[] position, CurrentAction currentAction, Direction direction, byte entityVolume = 200)
 {
     public byte EntityVolume { get; set; } = entityVolume;  // 200 is default volume
-    public IEnumerable<Position> Position { get; set; } = position;
+    public Position[] Position { get; set; } = position;
     public CurrentAction CurrentAction { get; set; } = currentAction;
     public Direction Direction { get; set; } = direction;
 }
@@ -82,7 +92,7 @@ public static class World
 {
 
     // private static readonly int _worldGridSize = Config.WORLD_SIZE * Config.WORLD_SIZE;
-    // private static readonly int _chunkSize = Config.CHUNK_SIZE * Config.CHUNK_SIZE;
+    // private static readonly int _chunkSize = Config.CHUNK_SIZE_BYTE * Config.CHUNK_SIZE_BYTE;
     private static ConcurrentDictionary<(byte X, byte Y), Chunk> _chunks = [];
     private static ConcurrentDictionary<int, EntityState> _entityStates = [];
     private static Dictionary<(int x, int y), ChunkConnection> _chunkGraph = [];
@@ -137,6 +147,11 @@ public static class World
         return GetChunk(pos.ChunkPosition);
     }
 
+    public static void SetChunk((byte X, byte Y) pos, Chunk chunk)
+    {
+        _chunks[pos] = chunk;
+    }
+
     // Accessors, Entity data
     public static EntityState? GetEntityState(int entityId)
     {
@@ -178,7 +193,7 @@ public static class World
             var spawnPoints = FindRandomSpawnPoint();
             if (!spawnPoints.Any()) return;
 
-            var freshState = new EntityState(spawnPoints, CurrentAction.Idle, Direction.South);
+            var freshState = new EntityState([.. spawnPoints], CurrentAction.Idle, Direction.South);
             foreach (var pos in spawnPoints)
             {
                 var chunk = GetChunk(pos.ChunkPosition);
@@ -198,9 +213,9 @@ public static class World
 
         while (attempts < 10)
         {
-            var x = (byte)Tools.Random.Next(Config.CHUNK_SIZE);
-            var y = (byte)Tools.Random.Next(Config.CHUNK_SIZE);
-            var pos = new Position { X = chunk.X * Config.CHUNK_SIZE + x, Y = chunk.Y * Config.CHUNK_SIZE + y };
+            var x = (byte)Tools.Random.Next(Config.CHUNK_SIZE_BYTE);
+            var y = (byte)Tools.Random.Next(Config.CHUNK_SIZE_BYTE);
+            var pos = new Position { X = chunk.X * Config.CHUNK_SIZE_BYTE + x, Y = chunk.Y * Config.CHUNK_SIZE_BYTE + y };
             List<Position> positions = [];
             for (int dx = 0; dx < entitySize; dx++)
             {
@@ -239,7 +254,7 @@ public static class World
 
     // Bounds checking
     public static bool IsInChunkBounds(byte X, byte Y) =>
-        X >= 0 && X < Config.CHUNK_SIZE && Y >= 0 && Y < Config.CHUNK_SIZE;
+        X >= 0 && X < Config.CHUNK_SIZE_BYTE && Y >= 0 && Y < Config.CHUNK_SIZE_BYTE;
 
     public static bool IsInChunkBounds(Position pos) =>
         IsInChunkBounds(pos.TilePosition.X, pos.TilePosition.Y);
@@ -271,16 +286,17 @@ public static class World
         return [.. neighbours];
     }
 
-    private static (byte x, byte y) GetNeighborPosition((byte x, byte y) pos, Direction direction)
+    private static (int x, int y) GetNeighborPosition((int x, int y) pos, Direction direction)
     {
-        return direction switch
+        var value = direction switch
         {
-            Direction.North => (pos.x, (byte)(pos.y - 1)),
-            Direction.East => ((byte)(pos.x + 1), pos.y),
-            Direction.South => (pos.x, (byte)(pos.y + 1)),
-            Direction.West => ((byte)(pos.x - 1), pos.y),
+            Direction.North => (pos.x, pos.y - 1),
+            Direction.East => (pos.x + 1, pos.y),
+            Direction.South => (pos.x, pos.y + 1),
+            Direction.West => (pos.x - 1, pos.y),
             _ => pos
         };
+        return value;
     }
 
     private static List<Zone> GetZoneNeighbours(Position pos)
@@ -292,16 +308,16 @@ public static class World
     }
     private static Position LocalToWorld(LocalTilePos local) => new()
     {
-        X = (local.ChunkX * Config.CHUNK_SIZE) + local.X,
-        Y = (local.ChunkY * Config.CHUNK_SIZE) + local.Y
+        X = (local.ChunkX * Config.CHUNK_SIZE_BYTE) + local.X,
+        Y = (local.ChunkY * Config.CHUNK_SIZE_BYTE) + local.Y
     };
 
     private static LocalTilePos WorldToLocal(Position pos) => new()
     {
-        ChunkX = (byte)(pos.X / Config.CHUNK_SIZE),
-        ChunkY = (byte)(pos.Y / Config.CHUNK_SIZE),
-        X = (byte)(pos.X % Config.CHUNK_SIZE),
-        Y = (byte)(pos.Y % Config.CHUNK_SIZE)
+        ChunkX = (byte)(pos.X / Config.CHUNK_SIZE_BYTE),
+        ChunkY = (byte)(pos.Y / Config.CHUNK_SIZE_BYTE),
+        X = (byte)(pos.X % Config.CHUNK_SIZE_BYTE),
+        Y = (byte)(pos.Y % Config.CHUNK_SIZE_BYTE)
     };
 
     public static Position[] GetPath(Position worldStart, Position worldEnd)
@@ -311,19 +327,18 @@ public static class World
 
         // Get first two chunks and new endpoint
         var (chunkPath, chunkEnd) = FindPathChunkLevel(localStart, localEnd);
-        if (chunkPath.Length == 0) return Array.Empty<Position>();
+        if (chunkPath.Length == 0) return [];
 
         // Get first two zones and refined endpoint
         var chunks = chunkPath.Take(2).ToArray();
         var (zonePath, zoneEnd) = FindZonePath(localStart, chunkEnd, chunks);
-        if (zonePath.Length == 0) return Array.Empty<Position>();
+        if (zonePath.Length == 0) return [];
 
         // Final tile-level path
         var tilePath = FindTilePath(localStart, zoneEnd, zonePath);
 
-        // Convert back to world coordinates
-        var convertedPath = new Position [0];
-        return convertedPath;
+        // Tilepath is in world coordinates
+        return tilePath;
     }
 
     private static (LocalTilePos[], LocalTilePos) FindPathChunkLevel(LocalTilePos start, LocalTilePos end)
@@ -351,17 +366,22 @@ public static class World
 
         var firstTwoChunks = path.Take(2).ToArray();
         var endChunk = firstTwoChunks[1];
+
         var newEndpoint = PickEndpointInChunk(endChunk, end);
 
         return (firstTwoChunks.Select(p => new LocalTilePos { ChunkX = p.X, ChunkY = p.Y }).ToArray(),
                 newEndpoint);
     }
 
-    private static (Zone[], LocalTilePos) FindZonePath(LocalTilePos start, LocalTilePos chunkEnd,
+    public static (Zone[], LocalTilePos) FindZonePath(LocalTilePos start, LocalTilePos chunkEnd,
                                                       LocalTilePos[] chunks)
     {
-        var startChunk = GetChunk((chunks[0].ChunkX, chunks[0].ChunkY));
-        var endChunk = GetChunk((chunks[1].ChunkX, chunks[1].ChunkY));
+        Chunk? startChunk = GetChunk((chunks[0].ChunkX, chunks[0].ChunkY));
+        Chunk? endChunk;
+        if (chunks.Length == 1)
+            endChunk = GetChunk((chunks[0].ChunkX, chunks[0].ChunkY));
+        else
+            endChunk = GetChunk((chunks[1].ChunkX, chunks[1].ChunkY));
         if (startChunk == null || endChunk == null)
             return ([], default);
 
@@ -372,8 +392,8 @@ public static class World
         var startZone = zones.First(z => z.TilePositions.Contains((start.X, start.Y)));
 
         // Look for valid path through zones using edges
-        var connection = _chunkGraph[(chunks[0].ChunkX, chunks[0].ChunkY)];
-        var direction = GetConnectionDirection(chunks[0], chunks[1]);
+        var connection = _chunkGraph[(startChunk.X, startChunk.Y)];
+        var direction = GetConnectionDirection(startChunk, endChunk);
 
         // Get zones that can reach the boundary in the right direction
         var endZones = startZone.Edges.Values
@@ -401,8 +421,8 @@ public static class World
             {
                 searchSpace.Add(new Position
                 {
-                    X = (zone.ChunkPosition.X * Config.CHUNK_SIZE) + x,
-                    Y = (zone.ChunkPosition.Y * Config.CHUNK_SIZE) + y
+                    X = (zone.ChunkPosition.X * Config.CHUNK_SIZE_BYTE) + x,
+                    Y = (zone.ChunkPosition.Y * Config.CHUNK_SIZE_BYTE) + y
                 });
             }
         }
@@ -415,6 +435,9 @@ public static class World
 
         var worldStart = LocalToWorld(start);
         var worldEnd = LocalToWorld(end);
+
+        if (!searchSpace.Contains(worldStart) || !searchSpace.Contains(worldEnd))
+            return [];
 
         openSet.Enqueue(worldStart, 0);
         gScore[worldStart] = 0;
@@ -464,8 +487,8 @@ public static class World
         {
             ChunkX = chunk.X,
             ChunkY = chunk.Y,
-            X = Config.CHUNK_SIZE / 2,
-            Y = Config.CHUNK_SIZE / 2
+            X = Config.CHUNK_SIZE_BYTE / 2,
+            Y = Config.CHUNK_SIZE_BYTE / 2
         };
     }
 
@@ -504,6 +527,16 @@ public static class World
         return Direction.Up;
     }
 
+    private static Direction GetConnectionDirection(Chunk from, Chunk to)
+    {
+        if (to.X > from.X) return Direction.Right;
+        if (to.X < from.X) return Direction.Left;
+        if (to.Y > from.Y) return Direction.Down;
+        return Direction.Up;
+    }
+
+
+
     private static bool HasMatchingEdge(ZoneEdge edge, Direction direction) =>
         direction switch
         {
@@ -534,7 +567,12 @@ public static class World
     {
         var startChunk = GetChunk(start);
         var endChunk = GetChunk(end);
-        if (startChunk == null || endChunk == null) return [];
+        if (startChunk == null || endChunk == null)
+        {
+            System.Console.WriteLine("Start or end chunk not found");
+            return [];
+        } 
+            
 
         Queue<(int X, int Y)> openSet = new();
         HashSet<(int X, int Y)> closedSet = [];
@@ -604,7 +642,7 @@ public static class World
     {
         WorldGenerator.GenerateWorld();
     }
-    private static class WorldGenerator
+    public static class WorldGenerator
     {
         // Core elevation thresholds for basic terrain types
         private static readonly float WATER_THRESHOLD = -0.3f;
@@ -626,9 +664,9 @@ public static class World
             var realChunk = new Chunk(0, 0);
 
             // Set a test pattern using actual CHUNK_SIZE
-            for (byte x = 0; x < Config.CHUNK_SIZE; x++)
+            for (byte x = 0; x < Config.CHUNK_SIZE_BYTE; x++)
             {
-                for (byte y = 0; y < Config.CHUNK_SIZE; y++)
+                for (byte y = 0; y < Config.CHUNK_SIZE_BYTE; y++)
                 {
                     // Let's use a simpler pattern that will make issues obvious
                     byte value = (byte)((x + y) % 4); // Or any other pattern that's easy to spot
@@ -641,9 +679,9 @@ public static class World
             byte[][] positionsToCheck =
             [
                 [0, 0],
-                [(byte)(Config.CHUNK_SIZE-1), 0],
-                [0, (byte)(Config.CHUNK_SIZE-1)],
-                [(byte)(Config.CHUNK_SIZE-1), (byte)(Config.CHUNK_SIZE-1)],
+                [(byte)(Config.CHUNK_SIZE_BYTE-1), 0],
+                [0, (byte)(Config.CHUNK_SIZE_BYTE-1)],
+                [(byte)(Config.CHUNK_SIZE_BYTE-1), (byte)(Config.CHUNK_SIZE_BYTE-1)],
                 // [64, 64],  // Middle-ish
                 // [32, 96],  // Random positions
                 // [96, 32]
@@ -664,9 +702,9 @@ public static class World
             foreach (var pos in positionsToCheck)
             {
                 byte x = pos[0], y = pos[1];
-                int index = x * Config.CHUNK_SIZE + y;
+                int index = x * Config.CHUNK_SIZE_BYTE + y;
                 Console.WriteLine($"Position ({x,3},{y,3}) -> 1D index: {index,5}" +
-                                (index < Config.CHUNK_SIZE * Config.CHUNK_SIZE ? "" : " OVERFLOW!"));
+                                (index < Config.CHUNK_SIZE_BYTE * Config.CHUNK_SIZE_BYTE ? "" : " OVERFLOW!"));
             }
 
             // Add this to the test
@@ -695,7 +733,7 @@ public static class World
         // Dummy chunk class just for testing
         private class DummyChunk
         {
-            public byte[,] MapData { get; } = new byte[Config.CHUNK_SIZE, Config.CHUNK_SIZE];
+            public byte[,] MapData { get; } = new byte[Config.CHUNK_SIZE_BYTE, Config.CHUNK_SIZE_BYTE];
             public byte X { get; }
             public byte Y { get; }
 
@@ -725,12 +763,12 @@ public static class World
                     var realChunk = new Chunk(x, y);
 
                     // Generate terrain data for both
-                    for (byte localX = 0; localX < Config.CHUNK_SIZE; localX++)
+                    for (byte localX = 0; localX < Config.CHUNK_SIZE_BYTE; localX++)
                     {
-                        for (byte localY = 0; localY < Config.CHUNK_SIZE; localY++)
+                        for (byte localY = 0; localY < Config.CHUNK_SIZE_BYTE; localY++)
                         {
-                            float worldX = x * Config.CHUNK_SIZE + localX;
-                            float worldY = y * Config.CHUNK_SIZE + localY;
+                            float worldX = x * Config.CHUNK_SIZE_BYTE + localX;
+                            float worldY = y * Config.CHUNK_SIZE_BYTE + localY;
 
                             // Generate terrain value
                             float elevation = EnhancedPerlinNoise.GenerateTerrain(worldX * baseScale, worldY * baseScale);
@@ -753,7 +791,7 @@ public static class World
             {
                 for (byte worldY = 0; worldY < Config.WORLD_SIZE; worldY++)
                 {
-                    for (byte chunkTileY = 0; chunkTileY < Config.CHUNK_SIZE; chunkTileY++)
+                    for (byte chunkTileY = 0; chunkTileY < Config.CHUNK_SIZE_BYTE; chunkTileY++)
                     {
                         for (byte worldX = 0; worldX < Config.WORLD_SIZE; worldX++)
                         {
@@ -761,14 +799,14 @@ public static class World
                             var realChunk = _chunks[(worldX, worldY)];
 
                             // Write dummy chunk data
-                            for (byte chunkTileX = 0; chunkTileX < Config.CHUNK_SIZE; chunkTileX++)
+                            for (byte chunkTileX = 0; chunkTileX < Config.CHUNK_SIZE_BYTE; chunkTileX++)
                             {
                                 dummyWriter.Write(dummyChunk.GetTile(chunkTileX, chunkTileY));
                             }
                             dummyWriter.Write(" ");
 
                             // Write real chunk data
-                            for (byte chunkTileX = 0; chunkTileX < Config.CHUNK_SIZE; chunkTileX++)
+                            for (byte chunkTileX = 0; chunkTileX < Config.CHUNK_SIZE_BYTE; chunkTileX++)
                             {
                                 realWriter.Write(realChunk.GetTile(chunkTileX, chunkTileY).material);
                             }
@@ -798,7 +836,7 @@ public static class World
             for (byte worldY = 0; worldY < Config.WORLD_SIZE; worldY++)
             {
                 // For each row of chunks, we need to write CHUNK_SIZE lines
-                for (byte chunkTileY = 0; chunkTileY < Config.CHUNK_SIZE; chunkTileY++)
+                for (byte chunkTileY = 0; chunkTileY < Config.CHUNK_SIZE_BYTE; chunkTileY++)
                 {
                     // Write all chunks in this world row
                     for (byte worldX = 0; worldX < Config.WORLD_SIZE; worldX++)
@@ -806,7 +844,7 @@ public static class World
                         var chunk = _chunks[(worldX, worldY)];
 
                         // Write one row of this chunk
-                        for (byte chunkTileX = 0; chunkTileX < Config.CHUNK_SIZE; chunkTileX++)
+                        for (byte chunkTileX = 0; chunkTileX < Config.CHUNK_SIZE_BYTE; chunkTileX++)
                         {
                             writer.Write(chunk.GetTile(chunkTileX, chunkTileY).material);
                         }
@@ -997,6 +1035,33 @@ public static class World
             }
 
             return ((byte)material, properties);
+        }
+
+        public static void DrawChunk(Chunk chunk)
+        {
+            for (byte y = 0; y < Config.CHUNK_SIZE_BYTE; y++)
+            {
+                for (byte x = 0; x < Config.CHUNK_SIZE_BYTE; x++)
+                {
+                    var (material, _, properties) = chunk.GetTile(x, y);
+                    var glyph = material switch
+                    {
+                        (byte)TileMaterial.Water => '~',
+                        (byte)TileMaterial.Sand => '.',
+                        (byte)TileMaterial.Dirt => ',',
+                        (byte)TileMaterial.Stone => '#',
+                        _ => '?'
+                    };
+                    if (!properties.HasFlag(TileProperties.Walkable))
+                    {
+                        glyph = 'X';
+                    }
+
+                    Console.Write(glyph);
+                    
+                }
+                Console.WriteLine();
+            }
         }
     }
 }
