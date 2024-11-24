@@ -64,10 +64,12 @@ public readonly record struct MoveEntityRequest : IEvent
 public readonly record struct PathfindingRequest : IEvent
 {
     public required int EntityId { get; init; }
-    public required float StartX { get; init; }
-    public required float StartY { get; init; }
-    public required float TargetX { get; init; }
-    public required float TargetY { get; init; }
+    // public required float StartX { get; init; }
+    // public required float StartY { get; init; }
+    // public required float TargetX { get; init; }
+    // public required float TargetY { get; init; }
+    public required Position FromPosition { get; init; }
+    public required Position ToPosition { get; init; }
     public required Guid CallbackId { get; init; }
 }
 
@@ -77,10 +79,12 @@ public readonly record struct PathfindingRequest : IEvent
 public readonly record struct FindPathAndMoveEntity : IEvent
 {
     public required int EntityId { get; init; }
-    public required int StartX { get; init; }
-    public required int StartY { get; init; }
-    public required int TargetX { get; init; }
-    public required int TargetY { get; init; }
+    // public required int StartX { get; init; }
+    // public required int StartY { get; init; }
+    // public required int TargetX { get; init; }
+    // public required int TargetY { get; init; }
+    public required Position FromPosition { get; init; }
+    public required Position ToPosition { get; init; }
     public required MovementType MovementType { get; init; }
 }
 
