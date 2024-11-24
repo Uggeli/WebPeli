@@ -6,7 +6,9 @@ static class Config
     public const int SCREENHEIGHT = 600;
     public const int TILE_SIZE = 32; // pixels
     public const byte MAX_TILE_VOLUME = 255;
-    public const byte CHUNK_SIZE = 128;
+    public const byte CHUNK_SIZE = 64;
+    public const byte CHUNK_SIZE_BYTE = CHUNK_SIZE - 1;
+
     public const byte WORLD_SIZE = 3; // world size = 2^WORLD_SIZE chunks
 
     // Mutable static fields
@@ -35,5 +37,10 @@ static class Config
     public const byte HUNGER_RATE = 2;
     public const byte THIRST_RATE = 2;
     public const byte FATIGUE_RATE = 2;
+
+
+
+    // Debugging
+    public static bool DebugMode = false;
 }
 
