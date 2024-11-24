@@ -157,3 +157,8 @@ public static class CoordinateSystem
     }
 }
 
+public static class Tools
+{
+    public readonly static Random Random = new();
+}
+

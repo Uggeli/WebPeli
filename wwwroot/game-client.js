@@ -10,6 +10,10 @@ const MessageType = {
     Error: 0xFF
 };
 
+
+
+
+
 class GameClient {
     constructor(url) {
         this.url = url;

@@ -8,7 +8,7 @@ namespace WebPeli.GameEngine.EntitySystem.Interfaces;
 
 public class MetabolismSystem : BaseManager
 {
-    private Dictionary<Guid, int> _entities = [];
+    private Dictionary<int, int> _entities = [];
     // Threshold bits - could make these byte flags if we want to be explicit
     private const int HUNGER_MILD = 1 << 0;     // 0b_0000_0001
     private const int HUNGER_SEVERE = 1 << 1;     // 0b_0000_0010
@@ -155,7 +155,7 @@ public class MetabolismSystem : BaseManager
         }
     }
 
-    private static void EmitThresholdEvents(Guid entityId, int state, int criticalFlag, int severeFlag, int mildFlag, ThresholdType type)
+    private static void EmitThresholdEvents(int entityId, int state, int criticalFlag, int severeFlag, int mildFlag, ThresholdType type)
     {
         if ((state & criticalFlag) != 0)
         {
@@ -171,7 +171,7 @@ public class MetabolismSystem : BaseManager
         }
     }
 
-    private static void EvaluateState(Guid EntityId, int State)
+    private static void EvaluateState(int EntityId, int State)
     {
         // Check if entity is dead
         if ((State & (HUNGER_DEATH | THIRST_DEATH | FATIGUE_DEATH)) != 0)

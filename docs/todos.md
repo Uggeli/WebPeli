@@ -10,12 +10,10 @@
 - Add entityhandling
 - Add movement handling
 - Add collision handling
-- Add multitile entity support
 - Test pathfinding
 
 ## Low priority
 - add shutdown thingies for server that terminates all websocket connections and shutdowns all systems and managers in orderly manner
-- everything should use new id system
 - move enums to file of their own
 
 ## Done stuff
@@ -43,6 +41,16 @@
 - Done refactor client side for easy debugging
 - Rewrote whole fucking mapping system
 - Get pathfinding stuff working
+- everything should use new id system
+- Add multitile entity support
+
+
+# Milestone: Entities starve and find food, the great famine milestone
+ Goal: Entities starve and find food
+
+
+      
+
 
 ## Done milestones:
 - NONE 😢

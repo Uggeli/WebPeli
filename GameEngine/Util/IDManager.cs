@@ -3,6 +3,9 @@ namespace WebPeli.GameEngine.Util;
 
 public static class IDManager
 {
+    // TODO: this shit always retun 0
+    private static int _lastEntityId = 0;
+    private static int _lastZoneId = 0;
     private static ConcurrentBag<int> _entityIds = [];
     private static ConcurrentBag<int> _zoneIds = [];
     public static int GetEntityId()
@@ -11,7 +14,9 @@ public static class IDManager
         {
             return id;
         }
-        return _entityIds.Count;
+        if (_lastEntityId == int.MaxValue) throw new OverflowException("Entity ID pool exhausted");
+
+        return Interlocked.Increment(ref _lastEntityId);
     }
 
     public static void ReturnEntityId(int id)
@@ -25,7 +30,8 @@ public static class IDManager
         {
             return id;
         }
-        return _zoneIds.Count;
+        if (_lastZoneId == int.MaxValue) throw new OverflowException("Zone ID pool exhausted");
+        return Interlocked.Increment(ref _lastZoneId);
     }
 
     public static void ReturnZoneId(int id)

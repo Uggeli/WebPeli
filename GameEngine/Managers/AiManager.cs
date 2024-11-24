@@ -61,18 +61,19 @@ public class AiManager : BaseManager
 
             // Generate random target within world bounds
             // Using floats since entity positions are in world coordinates
-            Random random = new Random();
-            var target_x = random.Next(0, worldSizeInTiles);
-            var target_y = random.Next(0, worldSizeInTiles);
+            
+            var target_x = Tools.Random.Next(0, worldSizeInTiles - 1);
+            var target_y = Tools.Random.Next(0, worldSizeInTiles - 1);
+
+            var currentPos = state.Position.First();
+            Position targetPos = new() { X = target_x, Y = target_y}; 
 
             // Emit pathfinding request with world coordinates
             EventManager.Emit(new FindPathAndMoveEntity
             {
                 EntityId = entity,
-                StartX = state.Position.X,
-                StartY = state.Position.Y,
-                TargetX = target_x,
-                TargetY = target_y,
+                FromPosition = currentPos,
+                ToPosition = targetPos,
                 MovementType = MovementType.Walk
             });
         }

@@ -34,7 +34,7 @@ public class ViewportManager : BaseManager
     {
         if (evt is ViewportRequest req)
         {
-            _logger.LogInformation(
+            _logger.LogDebug(
                 "Viewport request: Camera({X:F2}, {Y:F2}), Viewport({W:F2}, {H:F2})",
                 req.CameraX, req.CameraY, req.ViewportWidth, req.ViewportHeight
             );
@@ -50,7 +50,7 @@ public class ViewportManager : BaseManager
                     req.WorldHeight
                 );
 
-                _logger.LogInformation(
+                _logger.LogDebug(
                     "Sending viewport data: {Size} bytes for area at ({X:F2}, {Y:F2})",
                     viewportData.EncodedData.Length, req.CameraX, req.CameraY
                 );

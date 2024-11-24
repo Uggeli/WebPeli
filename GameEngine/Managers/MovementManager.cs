@@ -34,19 +34,18 @@ public enum MovementType : byte
 public class MovementManager : BaseManager
 {
 
-    internal class MovementData(int currentX, int currentY, (int, int)[] path, MovementType movementType)
+    internal class MovementData(Position current, Position[] path, MovementType movementType)
     {
-        public int CurrentX { get; set; } = currentX;
-        public int CurrentY { get; set; } = currentY;
-        public (int, int)[] Path { get; init; } = path;
+        public Position CurrentPosition {get; set;} = current;
+        public Position[] Path { get; init; } = path;
         public MovementType MovementType { get; init; } = movementType;
-        private int CurrentMoveIndex { get; set; } = 1;
+        private int CurrentMoveIndex { get; set; } = 0;
 
-        public (int, int) GetNextMove()
+        public Position GetNextMove()
         {
             if (CurrentMoveIndex >= Path.Length)
             {
-                return (CurrentX, CurrentY);
+                return CurrentPosition;
             }
             var nextMove = Path[CurrentMoveIndex];
             CurrentMoveIndex++;
@@ -56,8 +55,7 @@ public class MovementManager : BaseManager
         public void UpdateCurrentPosition()
         {
             var nextMove = Path[CurrentMoveIndex];
-            CurrentX = nextMove.Item1;
-            CurrentY = nextMove.Item2;
+            CurrentPosition = nextMove;
         }
     }
 
@@ -122,8 +120,35 @@ public class MovementManager : BaseManager
 
     private void HandlePathAndMove(FindPathAndMoveEntity request)
     {
-        System.Console.WriteLine("Handling path and move");
+        // System.Console.WriteLine("Handling path and move");
+        int EntityId = request.EntityId;
+        Position fromPosition = request.FromPosition;
+        Position toPosition = request.ToPosition;
 
+        var path = World.GetPath(fromPosition, toPosition);
+        if (path == null || path.Length == 0)
+        {
+            // System.Console.WriteLine("Path not found");
+            return;
+        }
+
+        var movementData = new MovementData(fromPosition, path, request.MovementType);
+        var oldState = World.GetEntityState(EntityId);
+        EntityState newState;
+        if (oldState == null)
+        {
+            newState = new EntityState([fromPosition], CurrentAction.Moving, fromPosition.LookAt(path[1]));           
+        }
+        else
+        {
+            oldState.Position = [fromPosition];
+            oldState.CurrentAction = CurrentAction.Moving;
+            oldState.Direction = fromPosition.LookAt(path[1]);
+            newState = oldState;
+        }
+
+        World.SetEntityState(EntityId, newState);
+        _movingEntities.TryAdd(EntityId, movementData);
     }
 
     private void HandleEntityMove(MoveEntityRequest request)

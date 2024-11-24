@@ -22,7 +22,7 @@ public class Chunk(byte x, byte y)
     public (byte material, TileSurface surface, TileProperties properties) GetTile(byte x, byte y) => (Material[ConvertTo1D(x, y)], Surface[ConvertTo1D(x, y)], Properties[ConvertTo1D(x, y)]);
     public (byte material, TileSurface surface, TileProperties properties) GetTile(int x, int y)
     {
-        if (x < 0 || x >= Config.CHUNK_SIZE || y < 0 || y >= Config.CHUNK_SIZE)
+        if (x < 0 || x >= Config.CHUNK_SIZE_BYTE || y < 0 || y >= Config.CHUNK_SIZE_BYTE)
         {
             return (0, TileSurface.None, TileProperties.None);
         }
@@ -42,6 +42,14 @@ public class Chunk(byte x, byte y)
     // Zone data
     private readonly Dictionary<int, Zone> _Zones = [];
     public void AddZone(Zone zone) => _Zones[zone.Id] = zone;
+    public void SetZones(IEnumerable<Zone> zones)
+    {
+        _Zones.Clear();
+        foreach (var zone in zones)
+        {
+            _Zones[zone.Id] = zone;
+        }
+    }
     public void RemoveZone(int id) => _Zones.Remove(id);
     public Zone GetZone(int id) => _Zones[id];
     public IEnumerable<Zone> GetZones() => _Zones.Values;
@@ -58,12 +66,132 @@ public class Chunk(byte x, byte y)
     }
 
     // Entity data
-    private readonly byte[] TileVolume = new byte[Config.CHUNK_SIZE * Config.CHUNK_SIZE];
+    private readonly byte[] TileVolume = new byte[Config.CHUNK_SIZE_BYTE * Config.CHUNK_SIZE_BYTE];
+    private readonly Dictionary<(byte x, byte y),List<int>> _Entities = [];  // pos within chunk, entity ids
+    public IEnumerable<int> GetEntities(byte x, byte y) => _Entities[(x, y)];
     public bool CanFitEntity(byte x, byte y, byte volume) => TileVolume[ConvertTo1D(x, y)] + volume <= Config.MAX_TILE_VOLUME;
-    
+    /// <summary>
+    /// Checks if an entity can be added to the chunk.
+    /// </summary>
+    /// <param name="position"></param>
+    /// <param name="volume"></param>
+    /// <returns></returns>
+    public bool CanAddEntity(IEnumerable<Position> position, byte volume)
+    {
+        foreach (var pos in position)
+        {
+            if (pos.ChunkPosition != (X, Y)) continue;
+            if (!CanFitEntity(pos.TilePosition.X, pos.TilePosition.Y, volume))
+                return false;
+        }
+        return true;
+    }
 
+    public bool CanAddEntity(Position pos, byte volume) => CanFitEntity(pos.TilePosition.X, pos.TilePosition.Y, volume);
+
+    /// <summary>
+    /// Adds an entity to the chunk. Does not check if entity can fit.
+    /// </summary>
+    /// <param name="entityId"></param>
+    /// <param name="position"></param>
+    /// <param name="volume"></param>
+    public void AddEntity(int entityId, IEnumerable<Position> position, byte volume)
+    {
+        foreach (var pos in position)
+        {
+            if (pos.ChunkPosition != (X, Y)) continue;
+            TileVolume[ConvertTo1D(pos.TilePosition.X, pos.TilePosition.Y)] += volume;
+            
+            if (!_Entities.ContainsKey((pos.TilePosition.X, pos.TilePosition.Y)))
+            {
+                _Entities[(pos.TilePosition.X, pos.TilePosition.Y)] = [];
+            }
+            _Entities[(pos.TilePosition.X, pos.TilePosition.Y)].Add(entityId);
+        }
+    }
+
+    /// <summary>
+    /// Adds an entity to the chunk. Does not check if entity can fit.
+    /// </summary>
+    /// <param name="entityId"></param>
+    /// <param name="position"></param>
+    /// <param name="volume"></param>
+    public void AddEntity(int entityId, Position position, byte volume)
+    {
+        if (position.ChunkPosition != (X, Y)) return;
+        TileVolume[ConvertTo1D(position.TilePosition.X, position.TilePosition.Y)] += volume;
+        
+        if (!_Entities.ContainsKey((position.TilePosition.X, position.TilePosition.Y)))
+        {
+            _Entities[(position.TilePosition.X, position.TilePosition.Y)] = [];
+        }
+        _Entities[(position.TilePosition.X, position.TilePosition.Y)].Add(entityId);
+    }
+
+
+    /// <summary>
+    /// Tries to add an entity to the chunk. Returns true if entity was added successfully, false otherwise.
+    /// </summary>
+    /// <param name="entityId"></param>
+    /// <param name="position"></param>
+    /// <param name="volume"></param>
+    /// <returns></returns>
+    public bool TryToAddEntity(int entityId, IEnumerable<Position> position, byte volume)
+    {
+        // First check if entity can fit
+        if (!CanAddEntity(position, volume))
+            return false;
+    
+        // Add entity to tiles
+        foreach (var pos in position)
+        {
+            if (pos.ChunkPosition != (X, Y)) continue;
+            TileVolume[ConvertTo1D(pos.TilePosition.X, pos.TilePosition.Y)] += volume;
+            
+            if (!_Entities.ContainsKey((pos.TilePosition.X, pos.TilePosition.Y)))
+            {
+                _Entities[(pos.TilePosition.X, pos.TilePosition.Y)] = [];
+            }
+            _Entities[(pos.TilePosition.X, pos.TilePosition.Y)].Add(entityId);
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Removes an entity from the chunk.
+    /// </summary>
+    /// <param name="entityId"></param>
+    /// <param name="position"></param>
+    /// <param name="volume"></param>
+    public void RemoveEntity(int entityId, IEnumerable<Position> position, byte volume)
+    {
+        foreach (var pos in position)
+        {
+            if (pos.ChunkPosition != (X, Y)) continue;
+            TileVolume[ConvertTo1D(pos.TilePosition.X, pos.TilePosition.Y)] -= volume;
+            _Entities[(pos.TilePosition.X, pos.TilePosition.Y)].Remove(entityId);
+        }
+    }
+
+    /// <summary>
+    /// Removes an entity from the chunk.
+    /// </summary>
+    /// <param name="entityId"></param>
+    /// <param name="position"></param>
+    /// <param name="volume"></param>
+    public void RemoveEntity(int entityId, Position position, byte volume)
+    {
+        if (position.ChunkPosition != (X, Y)) return;
+        TileVolume[ConvertTo1D(position.TilePosition.X, position.TilePosition.Y)] -= volume;
+        _Entities[(position.TilePosition.X, position.TilePosition.Y)].Remove(entityId);
+    }
 }
 
+
+
+/// <summary>
+/// Represents the connection between two chunks.
+/// </summary>
 [Flags]
 public enum ChunkConnection : byte
 {
@@ -92,7 +220,9 @@ public enum ChunkConnection : byte
 // 2. Surface <- whatever is on top of the material, rain, snow, blood, etc.
 // 3. Properties <- can we walk on it, is it solid, does it block light, etc.
 
-
+/// <summary>
+/// Represents the properties of a tile.
+/// </summary>
 [Flags]
 public enum TileProperties : byte
 {
@@ -225,6 +355,8 @@ public struct Zone(int id, byte chunkX, byte chunkY, IEnumerable<(byte X, byte Y
     public readonly Dictionary<(byte X, byte Y), ZoneEdge> Edges { get; init; } = edges;
     public readonly (byte X, byte Y) ChunkPosition { get; init; } = (chunkX, chunkY);
     public HashSet<(byte X, byte Y)> TilePositions { get; set; } = positions.ToHashSet();
+    public readonly void AddTile((byte X, byte Y) position) => TilePositions.Add(position);
+    public readonly void AddEdge((byte X, byte Y) position, ZoneEdge edge) => Edges[position] = edge;
 }
 
 [Flags]
@@ -247,10 +379,10 @@ public static class ZoneManager
 {
     public static void CreateZones(Chunk chunk)
     {
-        bool[,] visited = new bool[Config.CHUNK_SIZE, Config.CHUNK_SIZE];
-        for (byte y = 0; y < Config.CHUNK_SIZE; y++)
+        bool[,] visited = new bool[Config.CHUNK_SIZE_BYTE, Config.CHUNK_SIZE_BYTE];
+        for (byte y = 0; y < Config.CHUNK_SIZE_BYTE; y++)
         {
-            for (byte x = 0; x < Config.CHUNK_SIZE; x++)
+            for (byte x = 0; x < Config.CHUNK_SIZE_BYTE; x++)
             {
                 if (visited[x, y]) continue;
                 Zone? newZone = DiscoverZone(chunk, (x, y), ref visited);
@@ -260,12 +392,86 @@ public static class ZoneManager
                 }
             }
         }
+        if (Config.DebugMode)
+        {
+            World.WorldGenerator.DrawChunk(chunk);
+            DrawZones(chunk);
+            System.Console.WriteLine($"Chunk {chunk.X}, {chunk.Y} has {chunk.GetZones().Count()} zones");
+        }
+    }
+
+    public static void DrawZones(Chunk chunk)
+    {
+        for (byte y = 0; y < Config.CHUNK_SIZE_BYTE; y++)
+        {
+            for (byte x = 0; x < Config.CHUNK_SIZE_BYTE; x++)
+            {
+                var zone = chunk.GetZoneAt(x, y);
+                if (zone == null)
+                {
+                    Console.Write(" "); 
+                }
+                else
+                {
+                    var zoneTile = zone.Value.TilePositions.Contains((x, y));
+                    var zoneEdge = zone.Value.Edges.ContainsKey((x, y));
+                    char Glyph = ' ';
+                    if (zoneEdge)
+                    {
+                        var edge = zone.Value.Edges[(x, y)];
+                        if (edge.HasFlag(ZoneEdge.ChunkNorth))
+                        {
+                            Glyph = 'N';
+                        }
+                        if (edge.HasFlag(ZoneEdge.ChunkSouth))
+                        {
+                            Glyph = 'S';
+                        }
+                        if (edge.HasFlag(ZoneEdge.ChunkEast))
+                        {
+                            Glyph = 'E';
+                        }
+                        if (edge.HasFlag(ZoneEdge.ChunkWest))
+                        {
+                            Glyph = 'W';
+                        }
+
+                        if (edge.HasFlag(ZoneEdge.North))
+                        {
+                            Glyph = 'n';
+                        }
+                        if (edge.HasFlag(ZoneEdge.South))
+                        {
+                            Glyph = 's';
+                        }
+                        if (edge.HasFlag(ZoneEdge.East))
+                        {
+                            Glyph = 'e';
+                        }
+                        if (edge.HasFlag(ZoneEdge.West))
+                        {
+                            Glyph = 'w';
+                        }
+                    }
+                    else if (zoneTile)
+                    {
+                        Glyph = 'Z';
+                    }
+                    else
+                    {
+                        Glyph = ' ';
+                    }
+                    Console.Write(Glyph);
+                }
+            }
+            Console.WriteLine();
+        }
     }
 
     public static Zone? DiscoverZone(Chunk chunk, (byte x, byte y) startPos, ref bool[,] visited)
     {
         // Find tiles for zone
-        List<(byte, byte)> zoneTiles = [];
+        List<(byte, byte)> zoneTiles = []; // All walkable tiles in the zone
         Queue<(byte, byte)> openTiles = new();
         openTiles.Enqueue(startPos);
         Dictionary<(byte, byte), ZoneEdge> edges = [];
@@ -281,48 +487,50 @@ public static class ZoneManager
                 zoneTiles.Add((x, y));
             }
 
-            var neighbors = new (byte, byte)[]
+            var neighbors = new (int, int)[]
             {
-                (x, (byte)(y - 1)),
-                (x, (byte)(y + 1)),
-                ((byte)(x - 1), y),
-                ((byte)(x + 1), y)
+                (x, y - 1),
+                (x, y + 1),
+                (x - 1, y),
+                (x + 1, y)
             };
 
             foreach (var (nx, ny) in neighbors)
             {
-                if (!World.IsInWorldBounds(chunk.X * Config.CHUNK_SIZE + x, chunk.Y * Config.CHUNK_SIZE + y)) continue;
-                if (!World.IsInChunkBounds(nx, ny)) continue;
+                if (nx < 0 || nx >= Config.CHUNK_SIZE_BYTE || ny < 0 || ny >= Config.CHUNK_SIZE_BYTE) continue;
                 if (visited[nx, ny]) continue;
-                openTiles.Enqueue((nx, ny));
+                var (_, _, properties) = chunk.GetTile(nx, ny);
+                if (!TileManager.IsWalkable(properties)) continue;
+                openTiles.Enqueue(((byte, byte))(nx, ny));
             }
         }
         // Found nothing, eatshit
-        if (zoneTiles.Count == 0) return null;
+        if (zoneTiles.Count <= 1) return null;
 
         // Edgedetection
         foreach (var (x, y) in zoneTiles)
         {
             
-            var neighbors = new (byte, byte)[]
+            var neighbors = new (int, int)[]
             {
-                (x, (byte)(y - 1)),
-                (x, (byte)(y + 1)),
-                ((byte)(x - 1), y),
-                ((byte)(x + 1), y)
+                (x, y - 1),  // N
+                (x, y + 1), // S
+                (x - 1, y), // W
+                (x + 1, y) // E
             };
             ZoneEdge edge = ZoneEdge.None;
             foreach (var (nx, ny) in neighbors)
             {
-                if (!World.IsInWorldBounds(chunk.X * Config.CHUNK_SIZE + x, chunk.Y * Config.CHUNK_SIZE + y)) continue;
-                if (!World.IsInChunkBounds(nx, ny))
+                // if (!World.IsInWorldBounds(chunk.X * Config.CHUNK_SIZE_BYTE + x, chunk.Y * Config.CHUNK_SIZE_BYTE + y)) continue;
+                
+                // this neighbour is outside of chunk
+                if (nx < 0 || nx >= Config.CHUNK_SIZE_BYTE || ny < 0 || ny >= Config.CHUNK_SIZE_BYTE)
                 {
-                    // this neighbour is outside of chunk
                     if (nx < 0)
                     {
                         edge |= ZoneEdge.ChunkWest;
                     }
-                    else if (nx >= Config.CHUNK_SIZE)
+                    else if (nx >= Config.CHUNK_SIZE_BYTE)
                     {
                         edge |= ZoneEdge.ChunkEast;
                     }
@@ -330,31 +538,40 @@ public static class ZoneManager
                     {
                         edge |= ZoneEdge.ChunkNorth;
                     }
-                    else if (ny >= Config.CHUNK_SIZE)
+                    else if (ny >= Config.CHUNK_SIZE_BYTE)
                     {
                         edge |= ZoneEdge.ChunkSouth;
                     }
+                    continue;
                 }
-                else if (!zoneTiles.Contains((nx, ny)))
+                
+                // this neighbour is not part of the zone
+                if (!zoneTiles.Contains(((byte, byte))(nx, ny)))
                 {
-                    // this neighbour is not part of the zone
-                    if (nx < 0)
+                    if (nx < x)
                     {
                         edge |= ZoneEdge.West;
                     }
-                    else if (nx >= Config.CHUNK_SIZE)
+                    else if (nx > x)
                     {
                         edge |= ZoneEdge.East;
                     }
-                    else if (ny < 0)
+                    else if (ny < y)
                     {
                         edge |= ZoneEdge.North;
                     }
-                    else if (ny >= Config.CHUNK_SIZE)
+                    else if (ny > y)
                     {
                         edge |= ZoneEdge.South;
                     }
                 }
+
+
+
+
+
+
+
                 if (edge != ZoneEdge.None)
                 {
                     edges[(x, y)] = edge;
@@ -371,11 +588,11 @@ public static class ZoneManager
         // Remove zone from chunk
         chunk.RemoveZone(zone.Id);
         // Re-create zone
-        var visited = new bool[Config.CHUNK_SIZE, Config.CHUNK_SIZE];
+        var visited = new bool[Config.CHUNK_SIZE_BYTE, Config.CHUNK_SIZE_BYTE];
         // populate visited with zone tiles
-        for (byte y = 0; y < Config.CHUNK_SIZE; y++)
+        for (byte y = 0; y < Config.CHUNK_SIZE_BYTE; y++)
         {
-            for (byte x = 0; x < Config.CHUNK_SIZE; x++)
+            for (byte x = 0; x < Config.CHUNK_SIZE_BYTE; x++)
             {
                 if (zone.TilePositions.Contains((x, y))) continue;
                 visited[x, y] = true;
