@@ -8,11 +8,14 @@
 ## Low priority
 - add shutdown thingies for server that terminates all websocket connections and shutdowns all systems and managers in orderly manner
 - move enums to file of their own
+- add multitile entity pathfinding
 
 
+# Milestone: Flora and Vegetation
+ Goal: Add flora and vegetation to the game world
 
 # Milestone: Entities starve and find food, the great famine milestone
- Goal: Entities starve and find food
+ Goal: Entities starve and find food, impliment basic maslow's hierarchy of needs limitied to food and hunger for now
 
 ## High priority
 - Add food entities
