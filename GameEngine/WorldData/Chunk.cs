@@ -355,8 +355,7 @@ public struct Zone(int id, byte chunkX, byte chunkY, IEnumerable<(byte X, byte Y
     public readonly Dictionary<(byte X, byte Y), ZoneEdge> Edges { get; init; } = edges;
     public readonly (byte X, byte Y) ChunkPosition { get; init; } = (chunkX, chunkY);
     public HashSet<(byte X, byte Y)> TilePositions { get; set; } = positions.ToHashSet();
-    public readonly void AddTile((byte X, byte Y) position) => TilePositions.Add(position);
-    public readonly void AddEdge((byte X, byte Y) position, ZoneEdge edge) => Edges[position] = edge;
+    public override string ToString() => $"Zone {Id} at {ChunkPosition}";
 }
 
 [Flags]
@@ -467,6 +466,76 @@ public static class ZoneManager
             Console.WriteLine();
         }
     }
+
+    public static void DrawZone(Zone zone, Position? position = null)
+    {
+        for (byte y = 0; y < Config.CHUNK_SIZE_BYTE; y++)
+        {
+            for (byte x = 0; x < Config.CHUNK_SIZE_BYTE; x++)
+            {
+                var zoneTile = zone.TilePositions.Contains((x, y));
+                var zoneEdge = zone.Edges.ContainsKey((x, y));
+                char Glyph = ' ';
+                if (zoneEdge)
+                {
+                    var edge = zone.Edges[(x, y)];
+                    if (edge.HasFlag(ZoneEdge.ChunkNorth))
+                    {
+                        Glyph = 'N';
+                    }
+                    if (edge.HasFlag(ZoneEdge.ChunkSouth))
+                    {
+                        Glyph = 'S';
+                    }
+                    if (edge.HasFlag(ZoneEdge.ChunkEast))
+                    {
+                        Glyph = 'E';
+                    }
+                    if (edge.HasFlag(ZoneEdge.ChunkWest))
+                    {
+                        Glyph = 'W';
+                    }
+
+                    if (edge.HasFlag(ZoneEdge.North))
+                    {
+                        Glyph = 'n';
+                    }
+                    if (edge.HasFlag(ZoneEdge.South))
+                    {
+                        Glyph = 's';
+                    }
+                    if (edge.HasFlag(ZoneEdge.East))
+                    {
+                        Glyph = 'e';
+                    }
+                    if (edge.HasFlag(ZoneEdge.West))
+                    {
+                        Glyph = 'w';
+                    }
+                }
+                else if (zoneTile)
+                {
+                    Glyph = 'Z';
+                }
+                else
+                {
+                    Glyph = ' ';
+                }
+
+                if (position != null && position.Value.TilePosition == (x, y))
+                {
+                    Glyph = 'X';
+                }
+
+
+                Console.Write(Glyph);
+            }
+            Console.WriteLine();
+        }
+    }
+
+
+
 
     public static Zone? DiscoverZone(Chunk chunk, (byte x, byte y) startPos, ref bool[,] visited)
     {
