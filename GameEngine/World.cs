@@ -156,6 +156,7 @@ public static class World
     }
 
     // Accessors, Entity data
+
     public static EntityState? GetEntityState(int entityId)
     {
         return _entityStates.TryGetValue(entityId, out EntityState? state) ? state : null;
@@ -481,8 +482,8 @@ public static class World
             {
                 searchSpace.Add(new Position
                 {
-                    X = (zone.ChunkPosition.X * Config.CHUNK_SIZE_BYTE) + x,
-                    Y = (zone.ChunkPosition.Y * Config.CHUNK_SIZE_BYTE) + y
+                    X = (zone.ChunkPosition.X * Config.CHUNK_SIZE) + x,
+                    Y = (zone.ChunkPosition.Y * Config.CHUNK_SIZE) + y
                 });
             }
         }

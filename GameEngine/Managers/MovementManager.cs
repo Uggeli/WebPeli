@@ -127,7 +127,7 @@ public class MovementManager : BaseManager
         Position toPosition = request.ToPosition;
 
         var path = World.GetPath(fromPosition, toPosition);
-        if (path == null || path.Length == 0)
+        if (path == null || path.Length <= 1)
         {
             EventManager.Emit(new EntityMovementFailed{EntityId = EntityId});
 
@@ -137,9 +137,6 @@ public class MovementManager : BaseManager
             }
             return;
         }
-
-
-
 
         var movementData = new MovementData(fromPosition, path, request.MovementType);
         var oldState = World.GetEntityState(EntityId);
