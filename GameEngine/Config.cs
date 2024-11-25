@@ -9,38 +9,18 @@ static class Config
     public const byte CHUNK_SIZE = 128;
     public const byte CHUNK_SIZE_BYTE = CHUNK_SIZE - 1;
 
-    public const byte WORLD_SIZE = 3; // world size = 2^WORLD_SIZE chunks
+    public const byte WORLD_SIZE = 1; // world size = 2^WORLD_SIZE chunks
 
-    // Mutable static fields
-    private static float _cameraX;
-    private static float _cameraY;
-
-    // Public accessors for camera position
-    public static float CameraX => _cameraX;
-    public static float CameraY => _cameraY;
-
-    // Event to notify when camera position changes
-    public static event Action? OnCameraPositionChanged;
-
-    public static void SetCameraPosition(float x, float y)
-    {
-        bool changed = x != _cameraX || y != _cameraY;
-        _cameraX = x;
-        _cameraY = y;
-        if (changed)
-        {
-            OnCameraPositionChanged?.Invoke();
-        }
-    }
 
     // Systems configuration
     public const byte HUNGER_RATE = 2;
     public const byte THIRST_RATE = 2;
     public const byte FATIGUE_RATE = 2;
 
-
+    public const int UpdateLoop = 1000; // ms
 
     // Debugging
     public static bool DebugMode = false;
+    public static bool DebugPathfinding = true;
 }
 

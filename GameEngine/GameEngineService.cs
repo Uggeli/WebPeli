@@ -34,7 +34,7 @@ public class GameEngineService : BackgroundService
         InitSystems();
 
         // Add placeholder entities
-        int num_entities = 1;
+        int num_entities = 15;
         for (int i = 0; i < num_entities; i++)
         {
             managers[0].HandleMessage(new CreateEntity{Capabilities = [EntityCapabilities.MetabolismSystem,
@@ -106,7 +106,8 @@ public class GameEngineService : BackgroundService
 
 
             var processingTime = Environment.TickCount - startTick;
-            await Task.Delay(Math.Max(16 - processingTime, 0), stoppingToken);
+            await Task.Delay(Math.Max(Config.UpdateLoop - processingTime, 0), stoppingToken);
+            
         }
     }
 }

@@ -7,9 +7,7 @@
   Goal: Get Entities moving
 
 ## High priority
-- Add entityhandling
-- Add movement handling
-- Add collision handling
+
 - Test pathfinding
 
 ## Low priority
@@ -42,11 +40,25 @@
 - Rewrote whole fucking mapping system
 - Get pathfinding stuff working
 - everything should use new id system
-- Add multitile entity support
+- added multitile entity support, -partially done
+- Add entityhandling
+- Add movement handling
+- Add collision handling
 
 
 # Milestone: Entities starve and find food, the great famine milestone
  Goal: Entities starve and find food
+
+## High priority
+- Add food entities
+- Add hunger to entities
+- Add food consumption
+- Add food spawning
+- Add food consumption
+
+## Low priority
+- Separete entity state to different entries in world.cs
+
 
 
       

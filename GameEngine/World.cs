@@ -30,6 +30,8 @@ public readonly struct LocalTilePos : IEquatable<LocalTilePos>
 
     public static bool operator !=(LocalTilePos left, LocalTilePos right) =>
         !left.Equals(right);
+
+    public override string ToString() => $"Chunk ({ChunkX}, {ChunkY}), Local ({X}, {Y})";
 }
 
 public readonly struct Position
@@ -223,7 +225,7 @@ public static class World
                 for (int dy = 0; dy < entitySize; dy++)
                 {
                     Position checkPos = pos + (dx, dy);
-                    if (!IsInWorldBounds(checkPos) || !IsInChunkBounds(checkPos) || !GetTileAt(checkPos).properties.HasFlag(TileProperties.Walkable))
+                    if (!chunk.CanAddEntity(checkPos, 200) || !IsInWorldBounds(checkPos) || !IsInChunkBounds(checkPos) || !GetTileAt(checkPos).properties.HasFlag(TileProperties.Walkable))
                     {
                         attempts++;
                         continue;
@@ -353,28 +355,50 @@ public static class World
 
     public static Position[] GetPath(Position worldStart, Position worldEnd)
     {
+        // long paths tend to be incorrect in longrun and long paths take longer to run 
+        if (Config.DebugPathfinding)
+        {
+            Console.WriteLine($"Starting pathfinding from {worldStart} to {worldEnd}");
+        }
+
         LocalTilePos localStart = WorldToLocal(worldStart);
         LocalTilePos localEnd = WorldToLocal(worldEnd);
 
+        if (Config.DebugPathfinding)
+        {
+            Console.WriteLine($"Local start: {localStart}, Local end: {localEnd}");
+        }
+
         // Get first two chunks and new endpoint
         (LocalTilePos[] chunkPath, LocalTilePos chunkEnd) = FindPathChunkLevel(localStart, localEnd);
-        if (chunkPath.Length == 0) return [];
+        if (chunkPath.Length == 0)
+        {
+            if (Config.DebugPathfinding)
+            {
+                Console.WriteLine("No path found at chunk level");
+            }
+            return [];
+        }
+
+        if (Config.DebugPathfinding)
+        {
+            Console.WriteLine($"Chunk path: {string.Join(", ", chunkPath.Select(c => c.ToString()))}, Chunk end: {chunkEnd}");
+        }
 
         // Get first two zones and refined endpoint
         LocalTilePos[] chunks = chunkPath.Take(2).ToArray();
-        (Zone[] zonePath, LocalTilePos zoneEnd) = FindZonePath(localStart, chunkEnd, chunks);
-        if (zonePath.Length == 0) return [];
+        (HashSet<Position> SearchSpace, Position zoneEnd) = FindZonePath(localStart, localEnd, chunkEnd, chunks);
+
 
         // Final tile-level path
-        Position[] tilePath = FindTilePath(localStart, zoneEnd, zonePath);
-
+        Position[] tilePath = FindTilePath(worldStart, zoneEnd, SearchSpace);
         // Tilepath is in world coordinates
         return tilePath;
     }
 
     private static (LocalTilePos[], LocalTilePos) FindPathChunkLevel(LocalTilePos start, LocalTilePos end)
     {
-        List<(byte X, byte Y)> path = new List<(byte X, byte Y)>();
+        List<(byte X, byte Y)> path = [];
         (byte ChunkX, byte ChunkY) current = (start.ChunkX, start.ChunkY);
         (byte ChunkX, byte ChunkY) target = (end.ChunkX, end.ChunkY);
 
@@ -404,8 +428,10 @@ public static class World
                 newEndpoint);
     }
 
-    public static (Zone[], LocalTilePos) FindZonePath(LocalTilePos start, LocalTilePos chunkEnd,
-                                                      LocalTilePos[] chunks)
+    public static (HashSet<Position> searchSpace, Position newEndpos) FindZonePath(LocalTilePos start,
+                                                                                   LocalTilePos end,
+                                                                                   LocalTilePos chunkEnd,
+                                                                                   LocalTilePos[] chunks)
     {
         Chunk? startChunk = GetChunk((chunks[0].ChunkX, chunks[0].ChunkY));
         Chunk? endChunk;
@@ -433,20 +459,23 @@ public static class World
             .Distinct()
             .ToList();
 
-        if (!endZones.Any()) return ([], default);
+        if (endZones.Count == 0) return ([], default);
 
         // Pick closest end zone and suitable endpoint in it
         Zone endZone = PickBestEndZone(endZones, chunkEnd);
-        LocalTilePos newEnd = PickEndpointInZone(endZone, chunkEnd);
+        Position newEnd;
+        if (!endZone.TilePositions.Contains((end.X, end.Y)))
+        {
+            newEnd = PickEndpointInZone(endZone, chunkEnd);
+        }
+        else
+        {
+            newEnd = LocalToWorld(end);
+        }
 
-        return (new[] { startZone, endZone }, newEnd);
-    }
-
-    private static Position[] FindTilePath(LocalTilePos start, LocalTilePos end, Zone[] zones)
-    {
         // Create search space from both zones
-        HashSet<Position> searchSpace = new HashSet<Position>();
-        foreach (Zone zone in zones)
+        HashSet<Position> searchSpace = [];
+        foreach (Zone zone in new[] { startZone, endZone })
         {
             foreach ((byte x, byte y) in zone.TilePositions)
             {
@@ -457,26 +486,44 @@ public static class World
                 });
             }
         }
+        return (searchSpace, newEnd);
+    }
 
+    private static Position[] FindTilePath(Position start, Position end, HashSet<Position> searchSpace)
+    {
         // Simple A* through the combined space
-        PriorityQueue<Position, float> openSet = new PriorityQueue<Position, float>();
-        HashSet<Position> closedSet = new HashSet<Position>();
-        Dictionary<Position, Position> cameFrom = new Dictionary<Position, Position>();
-        Dictionary<Position, float> gScore = new Dictionary<Position, float>();
+        PriorityQueue<Position, float> openSet = new();
+        HashSet<Position> closedSet = [];
+        Dictionary<Position, Position> cameFrom = [];
+        Dictionary<Position, float> gScore = [];
 
-        Position worldStart = LocalToWorld(start);
-        Position worldEnd = LocalToWorld(end);
-
-        if (!searchSpace.Contains(worldStart) || !searchSpace.Contains(worldEnd))
+        if (!searchSpace.Contains(start))
+        {
+            if (Config.DebugPathfinding)
+            {
+                Console.WriteLine("Start was not in search space");
+                Console.WriteLine($"Start: {start}");
+            }
             return [];
+        }
 
-        openSet.Enqueue(worldStart, 0);
-        gScore[worldStart] = 0;
+        if (!searchSpace.Contains(end))
+        {
+            if (Config.DebugPathfinding)
+            {
+                Console.WriteLine("End was not in search space");
+                Console.WriteLine($"End: {end}");
+            }
+            return [];
+        }
+
+        openSet.Enqueue(start, 0);
+        gScore[start] = 0;
 
         while (openSet.Count > 0)
         {
             Position current = openSet.Dequeue();
-            if (current == worldEnd)
+            if (current == end)
             {
                 return ReconstructPath(cameFrom, current);
             }
@@ -486,7 +533,7 @@ public static class World
             // Check neighbors (just cardinal directions for now)
             foreach ((int, int) delta in new[] { (1, 0), (-1, 0), (0, 1), (0, -1) })
             {
-                Position next = new Position
+                Position next = new()
                 {
                     X = current.X + delta.Item1,
                     Y = current.Y + delta.Item2
@@ -501,7 +548,7 @@ public static class World
                 {
                     cameFrom[next] = current;
                     gScore[next] = tentativeG;
-                    int h = Math.Abs(worldEnd.X - next.X) + Math.Abs(worldEnd.Y - next.Y);
+                    int h = Math.Abs(end.X - next.X) + Math.Abs(end.Y - next.Y);
                     openSet.Enqueue(next, tentativeG + h);
                 }
             }
@@ -523,27 +570,15 @@ public static class World
         };
     }
 
-    private static LocalTilePos PickEndpointInZone(Zone zone, LocalTilePos target)
-    {
-        // For now pick center of zone - could be smarter
-        var center = zone.TilePositions.Aggregate(
-            new { sumX = 0, sumY = 0, count = 0 },
-            (acc, pos) => new
-            {
-                sumX = acc.sumX + pos.X,
-                sumY = acc.sumY + pos.Y,
-                count = acc.count + 1
-            });
-
-        return new LocalTilePos
-        {
-            ChunkX = zone.ChunkPosition.X,
-            ChunkY = zone.ChunkPosition.Y,
-            X = (byte)(center.sumX / center.count),
-            Y = (byte)(center.sumY / center.count)
-        };
-    }
-
+private static Position PickEndpointInZone(Zone zone, LocalTilePos target) 
+{
+    // Just grab any walkable position from the zone
+    var (X, Y) = zone.TilePositions.First();
+    return new Position {
+        X = (zone.ChunkPosition.X * Config.CHUNK_SIZE_BYTE) + X,
+        Y = (zone.ChunkPosition.Y * Config.CHUNK_SIZE_BYTE) + Y
+    };
+}
     private static Zone PickBestEndZone(List<Zone> possibleZones, LocalTilePos target)
     {
         // For now just pick first one - could be smarter based on distance to target
@@ -607,8 +642,8 @@ public static class World
                 Console.WriteLine($"End: {end}");
             }
             return [];
-        } 
-            
+        }
+
         Queue<(int X, int Y)> openSet = new();
         HashSet<(int X, int Y)> closedSet = [];
         Dictionary<(int X, int Y), (int X, int Y)> cameFrom = [];
@@ -1099,7 +1134,7 @@ public static class World
                     }
 
                     Console.Write(glyph);
-                    
+
                 }
                 Console.WriteLine();
             }

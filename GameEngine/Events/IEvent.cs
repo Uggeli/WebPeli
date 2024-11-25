@@ -89,6 +89,19 @@ public readonly record struct FindPathAndMoveEntity : IEvent
 }
 
 
+// Raised when entity has moved to target position
+public readonly record struct EntityMovementSucceeded : IEvent
+{
+    public required int EntityId { get; init; }
+}
+
+// Raised when entity has failed to move to target position, Typically world.cs would raise this
+public readonly record struct EntityMovementFailed : IEvent
+{
+    public required int EntityId { get; init; }
+}
+
+
 public enum SystemType
 {
     MetabolismSystem,

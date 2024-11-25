@@ -39,7 +39,7 @@ public class MovementManager : BaseManager
         public Position CurrentPosition {get; set;} = current;
         public Position[] Path { get; init; } = path;
         public MovementType MovementType { get; init; } = movementType;
-        private int CurrentMoveIndex { get; set; } = 0;
+        public int CurrentMoveIndex { get; set; } = 1; // Skip first position, it's the current position
 
         public Position GetNextMove()
         {
@@ -48,7 +48,6 @@ public class MovementManager : BaseManager
                 return CurrentPosition;
             }
             var nextMove = Path[CurrentMoveIndex];
-            CurrentMoveIndex++;
             return nextMove;
         }
 
@@ -56,6 +55,8 @@ public class MovementManager : BaseManager
         {
             var nextMove = Path[CurrentMoveIndex];
             CurrentPosition = nextMove;
+            CurrentMoveIndex++;
+            CurrentMoveIndex = Math.Min(CurrentMoveIndex, Path.Length - 1);
         }
     }
 
@@ -110,7 +111,7 @@ public class MovementManager : BaseManager
         Parallel.ForEach(EventQueue, HandleMessage);
         EventQueue.Clear();
         // Later: add deltaTime to moving entities, now just use crude loop limiter
-        if (_tickCounter++ >= 5)
+        if (_tickCounter++ >= 1)
         {
             _tickCounter = 0;
             MoveEntities(deltaTime);
@@ -128,9 +129,17 @@ public class MovementManager : BaseManager
         var path = World.GetPath(fromPosition, toPosition);
         if (path == null || path.Length == 0)
         {
-            // System.Console.WriteLine("Path not found");
+            EventManager.Emit(new EntityMovementFailed{EntityId = EntityId});
+
+            if (Config.DebugPathfinding)
+            {
+                Console.WriteLine($"Failed to find path from {fromPosition} to {toPosition}");
+            }
             return;
         }
+
+
+
 
         var movementData = new MovementData(fromPosition, path, request.MovementType);
         var oldState = World.GetEntityState(EntityId);
@@ -158,10 +167,47 @@ public class MovementManager : BaseManager
 
     private void MoveEntities(double deltaTime)
     {
-        List<int> toRemove = [];
+        if (Config.DebugPathfinding)
+        {
+            // Console.WriteLine("Moving entities");
+            Console.WriteLine($"Moving {_movingEntities.Count} entities");
+        }
+
+
+        ConcurrentBag<int> toRemove = [];
         Parallel.ForEach(_movingEntities, kvp =>
         {
-            
+            var entityId = kvp.Key;
+            var movementData = kvp.Value;
+            var nextMove = movementData.GetNextMove();
+            var currentPos = movementData.CurrentPosition;
+            movementData.UpdateCurrentPosition();
+
+
+            if (Config.DebugPathfinding)
+            {
+                Console.WriteLine($"Entity {entityId} moving to {nextMove} from {movementData.CurrentPosition}");
+                Console.WriteLine($"Entity {entityId} path : {movementData.CurrentMoveIndex}/{movementData.Path.Length}");
+            }
+
+            if (nextMove == currentPos)
+            {
+                // Entity has reached target position
+                if (Config.DebugPathfinding)
+                {
+                    Console.WriteLine($"Entity {entityId} reached target position");
+                }
+                World.SetEntityState(entityId, new EntityState([nextMove], CurrentAction.Idle, nextMove.LookAt(movementData.CurrentPosition)));
+                toRemove.Add(entityId);
+                EventManager.Emit(new EntityMovementSucceeded{EntityId = entityId});
+                return;
+            }
+            World.MoveEntity(entityId, [nextMove]);
+
+            if (Config.DebugPathfinding)
+            {
+                Console.WriteLine($"Entity {entityId} moved to {nextMove} from {movementData.CurrentPosition}");
+            }
         });
 
         foreach (var entityId in toRemove)

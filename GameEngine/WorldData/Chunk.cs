@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 namespace WebPeli.GameEngine.WorldData;
 
 public class Chunk(byte x, byte y)
@@ -37,7 +39,7 @@ public class Chunk(byte x, byte y)
     public void SetTileProperties(byte x, byte y, TileProperties properties) => Properties[ConvertTo1D(x, y)] = properties;
 
     // Zone data
-    private readonly Dictionary<int, Zone> _Zones = [];
+    private readonly ConcurrentDictionary<int, Zone> _Zones = [];
     public void AddZone(Zone zone) => _Zones[zone.Id] = zone;
     public void SetZones(IEnumerable<Zone> zones)
     {
@@ -47,7 +49,7 @@ public class Chunk(byte x, byte y)
             _Zones[zone.Id] = zone;
         }
     }
-    public void RemoveZone(int id) => _Zones.Remove(id);
+    public void RemoveZone(int id) => _Zones.TryRemove(id, out _);
     public Zone GetZone(int id) => _Zones[id];
     public IEnumerable<Zone> GetZones() => _Zones.Values;
     public Zone? GetZoneAt(byte x, byte y)
@@ -63,8 +65,8 @@ public class Chunk(byte x, byte y)
     }
 
     // Entity data
-    private readonly byte[] TileVolume = new byte[Config.CHUNK_SIZE_BYTE * Config.CHUNK_SIZE_BYTE];
-    private readonly Dictionary<(byte x, byte y),List<int>> _Entities = [];  // pos within chunk, entity ids
+    private readonly byte[] TileVolume = new byte[Config.CHUNK_SIZE * Config.CHUNK_SIZE];
+    private readonly ConcurrentDictionary<(byte x, byte y),List<int>> _Entities = [];  // pos within chunk, entity ids
     public IEnumerable<int> GetEntities(byte x, byte y) => _Entities[(x, y)];
     public bool CanFitEntity(byte x, byte y, byte volume) => TileVolume[ConvertTo1D(x, y)] + volume <= Config.MAX_TILE_VOLUME;
     /// <summary>
@@ -116,6 +118,7 @@ public class Chunk(byte x, byte y)
     public void AddEntity(int entityId, Position position, byte volume)
     {
         if (position.ChunkPosition != (X, Y)) return;
+
         TileVolume[ConvertTo1D(position.TilePosition.X, position.TilePosition.Y)] += volume;
         
         if (!_Entities.ContainsKey((position.TilePosition.X, position.TilePosition.Y)))

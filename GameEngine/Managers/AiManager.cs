@@ -52,7 +52,7 @@ public class AiManager : BaseManager
         foreach (var entity in _entities)
         {
             EntityState? state = World.GetEntityState(entity);
-            if (state == null) continue;
+            if (state == null || state.CurrentAction != CurrentAction.Idle) continue;
 
             // Placeholder for AI logic
 
