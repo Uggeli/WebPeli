@@ -31,27 +31,20 @@ internal static partial class World
         _chunks[chunkPos].SetTile(X, Y, material, surface, properties);
     }
 
-    public static byte[,] GetTilesInArea(Position center, int width, int height)
+    public static (byte material, TileSurface surface, TileProperties props)[] GetTilesInArea(Position topLeft, int width, int height)
     {
-        byte[,] tiles = new byte[width, height];
+        var tiles = new (byte material, TileSurface surface, TileProperties props)[width * height];
         for (int x = 0; x < width; x++)
         {
             for (int y = 0; y < height; y++)
             {
-                Position pos = center + (x - width / 2, y - height / 2);
-                tiles[x, y] = GetTileAt(pos).material;
+                Position pos = topLeft + (x, y);
+                tiles[y * width + x] = GetTileAt(pos);
             }
         }
-        return tiles;
+        return tiles;        
     }
 
-    public static byte[,] GetTilesInArea(float cameraX, float cameraY, float viewportWidth, float viewportHeight, float? worldWidth = null, float? worldHeight = null)
-    {
-        int width = (int)viewportWidth;
-        int height = (int)viewportHeight;
-        Position center = new() { X = (int)cameraX, Y = (int)cameraY };
-        return GetTilesInArea(center, width, height);
-    }
 
     public static Chunk? GetChunk((byte X, byte Y) pos)
     {

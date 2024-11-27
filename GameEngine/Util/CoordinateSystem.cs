@@ -5,13 +5,6 @@ public static class Tools
     public readonly static Random Random = new();
 }
 
-public enum CurrentAction : byte
-{
-    Idle,
-    Moving,
-    Attacking,
-}
-
 public enum Direction : byte
 {
     Up = 0,

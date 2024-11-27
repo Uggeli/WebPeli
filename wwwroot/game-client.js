@@ -113,13 +113,35 @@ class GameClient {
     // Handle viewport data from server
     handleViewportData(payload) {
         const view = new DataView(payload.buffer, payload.byteOffset, payload.length);
-        const width = view.getUint16(0, true);
-        const height = view.getUint16(2, true);
+        let offset = 0;
         
-        // Create grid array
-        const grid = new Uint8Array(width * height);
+        // Read dimensions
+        const width = payload[offset++];
+        const height = payload[offset++];
+        
+        // Create grid array for tiles
+        const tiles = new Array(width * height);
         for (let i = 0; i < width * height; i++) {
-            grid[i] = payload[4 + i];
+            tiles[i] = {
+                material: payload[offset++],
+                surface: payload[offset++],
+                properties: payload[offset++]
+            };
+        }
+        
+        // Read entities until we hit the end of the payload
+        const entities = [];
+        while (offset < payload.length) {
+            const entity = {
+                x: payload[offset++],
+                y: payload[offset++],
+                id: view.getInt32(offset, true), // true for little-endian
+                action: payload[offset + 4],
+                type: payload[offset + 5],
+                direction: payload[offset + 6]
+            };
+            offset += 7; // 4 for id + 3 for action/type/direction
+            entities.push(entity);
         }
         
         // If we have a callback registered, send the data
@@ -127,7 +149,8 @@ class GameClient {
             this.viewportCallback({
                 width,
                 height,
-                grid
+                tiles,
+                entities
             });
         }
     }
@@ -158,10 +181,10 @@ class GameClient {
         view.setUint16(1, 16, true); // payload length, little-endian
         
         // Write payload
-        view.setFloat32(3, cameraX, true);
-        view.setFloat32(7, cameraY, true);
-        view.setFloat32(11, width, true);
-        view.setFloat32(15, height, true);
+        view.setInt32(3, cameraX, true);
+        view.setInt32(7, cameraY, true);
+        view.setInt32(11, width, true);
+        view.setInt32(15, height, true);
         
         // Send to server
         this.ws.send(buffer);

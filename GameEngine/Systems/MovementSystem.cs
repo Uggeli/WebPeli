@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using WebPeli.GameEngine.Managers;
 using WebPeli.GameEngine.Util;
+using WebPeli.GameEngine.World;
 
 namespace WebPeli.GameEngine.Systems;
 
@@ -10,11 +11,11 @@ namespace WebPeli.GameEngine.Systems;
 public class MovementSystem : BaseManager
 {
 
-    internal class MovementData(Position current, Position[] path, MovementType movementType)
+    internal class MovementData(Position current, Position[] path, EntityAction movementType)
     {
         public Position CurrentPosition {get; set;} = current;
         public Position[] Path { get; init; } = path;
-        public MovementType MovementType { get; init; } = movementType;
+        public EntityAction MovementType { get; init; } = movementType;
         public int CurrentMoveIndex { get; set; } = 1; // Skip first position, it's the current position
 
         public Position GetNextMove()
@@ -102,7 +103,7 @@ public class MovementSystem : BaseManager
         Position fromPosition = request.FromPosition;
         Position toPosition = request.ToPosition;
 
-        var path = World.GetPath(fromPosition, toPosition);
+        var path = WorldApi.GetPath(fromPosition, toPosition);
         if (path == null || path.Length <= 1)
         {
             EventManager.Emit(new EntityMovementFailed{EntityId = EntityId});
@@ -113,24 +114,9 @@ public class MovementSystem : BaseManager
             }
             return;
         }
-
         var movementData = new MovementData(fromPosition, path, request.MovementType);
-        var oldState = World.GetEntityState(EntityId);
-        EntityState newState;
-        if (oldState == null)
-        {
-            newState = new EntityState([fromPosition], CurrentAction.Moving, fromPosition.LookAt(path[1]));           
-        }
-        else
-        {
-            oldState.Position = [fromPosition];
-            oldState.CurrentAction = CurrentAction.Moving;
-            oldState.Direction = fromPosition.LookAt(path[1]);
-            newState = oldState;
-        }
-
-        World.SetEntityState(EntityId, newState);
         _movingEntities.TryAdd(EntityId, movementData);
+        WorldApi.SetEntityAction(EntityId, request.MovementType);
     }
 
     private void HandleEntityMove(MoveEntityRequest request)
@@ -156,7 +142,6 @@ public class MovementSystem : BaseManager
             var currentPos = movementData.CurrentPosition;
             movementData.UpdateCurrentPosition();
 
-
             if (Config.DebugPathfinding)
             {
                 Console.WriteLine($"Entity {entityId} moving to {nextMove} from {movementData.CurrentPosition}");
@@ -170,13 +155,12 @@ public class MovementSystem : BaseManager
                 {
                     Console.WriteLine($"Entity {entityId} reached target position");
                 }
-                World.SetEntityState(entityId, new EntityState([nextMove], CurrentAction.Idle, nextMove.LookAt(movementData.CurrentPosition)));
+                
                 toRemove.Add(entityId);
                 EventManager.Emit(new EntityMovementSucceeded{EntityId = entityId});
                 return;
             }
-            World.MoveEntity(entityId, [nextMove]);
-
+            WorldApi.TryMoveEntity(entityId, [nextMove]);
             if (Config.DebugPathfinding)
             {
                 Console.WriteLine($"Entity {entityId} moved to {nextMove} from {movementData.CurrentPosition}");

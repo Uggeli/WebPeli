@@ -9,17 +9,50 @@ namespace WebPeli.GameEngine.World;
 /// </summary>
 public static class WorldApi
 {
-    // Basic Entity Physical Access
-
+    # region Entity Management
     public static void AddEntity(int id, Position[] positions, byte volume = 200)
     {
         World.EntityManager.AddEntity(id, positions, volume);
     }
-
+    public static void RemoveEntity(int id)
+    {
+        World.EntityManager.RemoveEntity(id);
+    }
     public static Position[] GetEntityPositions(int id) 
     {
         return World.EntityManager.GetEntityPositions(id);
     }
+
+    public static void SetEntityAction(int id, EntityAction action)
+    {
+        World.EntityManager.SetEntityAction(id, action);
+    }
+
+    public static void SetEntityType(int id, EntityType type)
+    {
+        World.EntityManager.SetEntityType(id, type);
+    }
+
+    public static void SetEntityFacing(int id, Direction facing)
+    {
+        World.EntityManager.SetEntityFacing(id, facing);
+    }
+
+    public static EntityAction GetEntityAction(int id)
+    {
+        return World.EntityManager.GetEntityAction(id);
+    }
+
+    public static EntityType GetEntityType(int id)
+    {
+        return World.EntityManager.GetEntityType(id);
+    }
+
+    public static Direction GetEntityFacing(int id)
+    {
+        return World.EntityManager.GetEntityFacing(id);
+    }
+    # endregion
 
     public static bool CanEntityFit(Position[] positions, byte volume)
     {
@@ -46,14 +79,16 @@ public static class WorldApi
     }
 
  
-    // Viewport/Rendering
-    public static byte[,] GetTilesInArea(Position center, int width, int height)
+    # region World Queries
+    public static (byte material, TileSurface surface, TileProperties props)[] GetTilesInArea(Position topLeft, int width, int height)
     {
-        return World.GetTilesInArea(center, width, height);
+        return World.GetTilesInArea(topLeft, width, height);
     }
 
-
-    // Resource/Interaction Queries
+    public static Dictionary<Position, (int entityId, EntityAction, EntityType, Direction)[]> GetEntitiesInArea(Position topLeft, int width, int height)
+    {
+        return World.EntityManager.GetEntitiesInArea(topLeft, width, height);
+    }
     public static (byte material, TileSurface surface, TileProperties props) GetTileInfo(Position pos)
     {
         return World.GetTileAt(pos);
@@ -83,6 +118,7 @@ public static class WorldApi
         }
         return found;
     }
+    # endregion
 
     // Physical State Changes
     public static bool TryMoveEntity(int id, Position[] newPositions)

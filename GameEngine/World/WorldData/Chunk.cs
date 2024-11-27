@@ -68,7 +68,7 @@ public class Chunk(byte x, byte y)
     // Entity data
     private readonly byte[] TileVolume = new byte[Config.CHUNK_SIZE * Config.CHUNK_SIZE];
     private readonly ConcurrentDictionary<(byte x, byte y),List<int>> _Entities = [];  // pos within chunk, entity ids
-    public IEnumerable<int> GetEntities(byte x, byte y) => _Entities[(x, y)];
+    public IEnumerable<int> GetEntitiesAt(byte x, byte y) => _Entities.TryGetValue((x, y), out List<int>? entities) ? entities : [];
     public bool CanFitEntity(byte x, byte y, byte volume) => TileVolume[ConvertTo1D(x, y)] + volume <= Config.MAX_TILE_VOLUME;
     /// <summary>
     /// Checks if an entity can be added to the chunk.
@@ -169,7 +169,7 @@ public class Chunk(byte x, byte y)
             entities.Remove(entityId);
         }
     }
-
+    
     public Position[] GetEntityPositions(int entityId)
     {
         var positions = new List<Position>();
@@ -182,4 +182,5 @@ public class Chunk(byte x, byte y)
         }
         return positions.ToArray();
     }
+    
 }

@@ -2,6 +2,7 @@ using System.Net.WebSockets;
 using Microsoft.AspNetCore.Mvc;
 using WebPeli.GameEngine;
 using WebPeli.GameEngine.Managers;
+using WebPeli.GameEngine.Util;
 using WebPeli.Network;
 
 namespace WebPeli.Network;
@@ -119,32 +120,22 @@ public class GameSocketHandler(ILogger<GameSocketHandler> logger) : ControllerBa
         var callbackId = EventManager.RegisterCallback((ViewportDataBinary data) => {
             tcs.SetResult(data);
         });
+        
 
         // Request viewport data
-        EventManager.Emit(new ViewportRequest {
-            CameraX = cameraX,
-            CameraY = cameraY,
-            ViewportWidth = width,
-            ViewportHeight = height,
-            CallbackId = callbackId
+        EventManager.EmitPriority(new ViewportRequest {
+            CallbackId = callbackId,
+            TopLeft = new Position(cameraX, cameraY),
+            Width = width,
+            Height = height
         });
 
         // Wait for response
         var viewportData = await tcs.Task;
-        
-        // Get tile data from viewport data
-        var (tileWidth, tileHeight) = viewportData.GetDimensions();
-        var tileGrid = new byte[tileWidth, tileHeight];
-        var tileData = viewportData.EncodedData.Span.Slice(4); // Skip dimensions
-        
-        for (int y = 0; y < tileHeight; y++)
-            for (int x = 0; x < tileWidth; x++)
-                tileGrid[x, y] = tileData[y * tileWidth + x];
 
         // Encode and send response
-        var response = MessageProtocol.EncodeViewportData(tileGrid);
         await webSocket.SendAsync(
-            new ArraySegment<byte>(response),
+            new ArraySegment<byte>(viewportData.EncodedData.ToArray()),
             WebSocketMessageType.Binary,
             true,
             CancellationToken.None);

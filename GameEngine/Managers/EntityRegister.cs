@@ -1,3 +1,5 @@
+using WebPeli.GameEngine.World;
+
 namespace WebPeli.GameEngine.Managers;
 
 [Flags]
@@ -91,7 +93,6 @@ public class EntityRegister(ILogger<EntityRegister> logger) : BaseManager
         {
             Capabilities = createEntity.Capabilities
         });
-        World.AddEntity(newEntityID);
         NotifySystems(newEntityID, createEntity.Capabilities);
     }
 
@@ -107,9 +108,7 @@ public class EntityRegister(ILogger<EntityRegister> logger) : BaseManager
             NotifySystems(removeEntity.EntityId, entity.Capabilities, true);
             _entities.Remove(removeEntity.EntityId);
         }
-        Util.IDManager.ReturnEntityId(removeEntity.EntityId);
-        World.RemoveEntity(removeEntity.EntityId);
-        
+        Util.IDManager.ReturnEntityId(removeEntity.EntityId);       
     }
 
 }

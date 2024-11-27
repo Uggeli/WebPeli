@@ -29,12 +29,9 @@ public record TextureData
 
 public record ViewportRequest : IEvent
 {
-    public float CameraX { get; init; }
-    public float CameraY { get; init; }
-    public float ViewportWidth { get; init; }
-    public float ViewportHeight { get; init; }
-    public float? WorldWidth { get; init; }
-    public float? WorldHeight { get; init; }
+    public required Position TopLeft { get; init; }
+    public required int Width { get; init; }
+    public required int Height { get; init; }
     public Guid CallbackId { get; init; }
 }
 
@@ -85,7 +82,7 @@ public readonly record struct FindPathAndMoveEntity : IEvent
     // public required int TargetY { get; init; }
     public required Position FromPosition { get; init; }
     public required Position ToPosition { get; init; }
-    public required MovementType MovementType { get; init; }
+    public required EntityAction MovementType { get; init; }
 }
 
 
@@ -194,6 +191,10 @@ public enum EntityAction : int
     Resting = 1 << 13,
 }
 
+/// <summary>
+/// What Entity is
+/// </summary>
+
 [Flags]
 public enum EntityType : int
 {
@@ -202,3 +203,5 @@ public enum EntityType : int
     Resource = 1 << 1,  // This thing can be harvested
     Structure = 1 << 2,  // This thing is a building
 }
+
+

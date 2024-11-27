@@ -16,6 +16,9 @@ internal static partial class World
         private static ConcurrentDictionary<int, HashSet<(byte ChunkX, byte ChunkY)>> _entityChunks = [];
         // Just track volume per entity (we get positions from chunks)
         private static ConcurrentDictionary<int, byte> _entityVolumes = [];
+        private static ConcurrentDictionary<int, EntityAction> _entityActions = [];
+        private static ConcurrentDictionary<int, EntityType> _entityTypes = [];
+        private static ConcurrentDictionary<int, Direction> _entityFacing = [];
 
         public static void AddEntity(int id, Position[] positions, byte volume = 200)
         {
@@ -41,6 +44,36 @@ internal static partial class World
             // Track which chunks this entity occupies
             _entityChunks[id] = chunks;
             _entityVolumes[id] = volume;
+        }
+
+        public static void SetEntityAction(int id, EntityAction action)
+        {
+            _entityActions[id] = action;
+        }
+
+        public static void SetEntityType(int id, EntityType type)
+        {
+            _entityTypes[id] = type;
+        }
+
+        public static void SetEntityFacing(int id, Direction facing)
+        {
+            _entityFacing[id] = facing;
+        }
+
+        public static EntityAction GetEntityAction(int id)
+        {
+            return _entityActions.TryGetValue(id, out EntityAction action) ? action : EntityAction.None;
+        }
+
+        public static EntityType GetEntityType(int id)
+        {
+            return _entityTypes.TryGetValue(id, out EntityType type) ? type : EntityType.None;
+        }
+
+        public static Direction GetEntityFacing(int id)
+        {
+            return _entityFacing.TryGetValue(id, out Direction facing) ? facing : Direction.Down;
         }
 
         public static bool MoveEntity(int id, Position[] newPositions)
@@ -172,7 +205,29 @@ internal static partial class World
             return [.. positions];
         }
 
-        public 
+        public static Dictionary<Position, (int entityId, EntityAction, EntityType, Direction)[]> GetEntitiesInArea(Position topLeft, int width, int height)
+        {
+            var entities = new Dictionary<Position, (int entityId, EntityAction, EntityType, Direction)[]>();
+            for (int x = 0; x < width; x++)
+            {
+                for (int y = 0; y < height; y++)
+                {
+                    Position pos = topLeft + (x, y);
+                    var chunk = GetChunk(pos.ChunkPosition);
+                    if (chunk == null) continue;
+                    List<(int, EntityAction, EntityType, Direction)> entitiesInTile = [];
+                    foreach (var entityId in chunk.GetEntitiesAt(pos.TilePosition.X, pos.TilePosition.Y))
+                    {
+                        entitiesInTile.Add((entityId, GetEntityAction(entityId), GetEntityType(entityId), GetEntityFacing(entityId)));
+                    }
+                    if (entitiesInTile.Count > 0)
+                    {
+                        entities[pos] = [.. entitiesInTile];
+                    }
+                }
+            }
+            return entities;
+        }
 
     }
 }
