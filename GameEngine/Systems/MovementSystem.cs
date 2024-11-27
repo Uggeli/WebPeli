@@ -1,37 +1,13 @@
 using System.Collections.Concurrent;
-using System.Numerics;
-using WebPeli.GameEngine.EntitySystem;
+using WebPeli.GameEngine.Managers;
+using WebPeli.GameEngine.Util;
 
-namespace WebPeli.GameEngine.Managers;
+namespace WebPeli.GameEngine.Systems;
 
 // TODO: move static stuff to World class
-public enum Direction : byte
-{
-    Up = 0,
-    North = Up,
-    Right = 1,
-    East = Right,
-    Down = 2,
-    South = Down,
-    Left = 3,
-    West = Left,
-    None = 4
-}
-// Movement system:
-// Ai checks available moves and then selects move it wants to perform and sends MoveEntityRequest to MovementManager
-// MovementManager checks if the move is valid and then moves the entity and sends event to AnimationManager
-// Move takes time and entity can't move again until the move is completed
-public enum MovementType : byte
-{
-    Walk = 0,
-    Run = 1,
-    Sneak = 2,
-    jump = 3,
-    climb = 4,
-    swim = 5,
-}
 
-public class MovementManager : BaseManager
+
+public class MovementSystem : BaseManager
 {
 
     internal class MovementData(Position current, Position[] path, MovementType movementType)

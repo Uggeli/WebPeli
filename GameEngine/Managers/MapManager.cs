@@ -1,5 +1,3 @@
-using WebPeli.GameEngine.EntitySystem;
-
 namespace WebPeli.GameEngine.Managers;
 
 public class MapManager : BaseManager

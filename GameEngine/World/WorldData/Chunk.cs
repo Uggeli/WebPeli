@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
+using WebPeli.GameEngine.Util;
 
-namespace WebPeli.GameEngine.WorldData;
+namespace WebPeli.GameEngine.World.WorldData;
 
 public class Chunk(byte x, byte y)
 {
@@ -17,7 +18,7 @@ public class Chunk(byte x, byte y)
     private readonly byte[] Material = new byte[Config.CHUNK_SIZE * Config.CHUNK_SIZE];
     private readonly TileSurface[] Surface = new TileSurface[Config.CHUNK_SIZE * Config.CHUNK_SIZE];
     private static int ConvertTo1D(byte x, byte y) => y * Config.CHUNK_SIZE + x;
-    private static (byte, byte) ConvertTo2D(byte i) => ((byte)(i / Config.CHUNK_SIZE), (byte)(i % Config.CHUNK_SIZE));
+    // private static (byte, byte) ConvertTo2D(byte i) => ((byte)(i / Config.CHUNK_SIZE), (byte)(i % Config.CHUNK_SIZE)); 
     public (byte material, TileSurface surface, TileProperties properties) GetTile(byte x, byte y) => (Material[ConvertTo1D(x, y)], Surface[ConvertTo1D(x, y)], Properties[ConvertTo1D(x, y)]);
     public (byte material, TileSurface surface, TileProperties properties) GetTile(int x, int y)
     {
@@ -161,28 +162,24 @@ public class Chunk(byte x, byte y)
     /// Removes an entity from the chunk.
     /// </summary>
     /// <param name="entityId"></param>
-    /// <param name="position"></param>
-    /// <param name="volume"></param>
-    public void RemoveEntity(int entityId, IEnumerable<Position> position, byte volume)
+    public void RemoveEntity(int entityId)
     {
-        foreach (var pos in position)
+        foreach (var entities in _Entities.Values)
         {
-            if (pos.ChunkPosition != (X, Y)) continue;
-            TileVolume[ConvertTo1D(pos.TilePosition.X, pos.TilePosition.Y)] -= volume;
-            _Entities[(pos.TilePosition.X, pos.TilePosition.Y)].Remove(entityId);
+            entities.Remove(entityId);
         }
     }
 
-    /// <summary>
-    /// Removes an entity from the chunk.
-    /// </summary>
-    /// <param name="entityId"></param>
-    /// <param name="position"></param>
-    /// <param name="volume"></param>
-    public void RemoveEntity(int entityId, Position position, byte volume)
+    public Position[] GetEntityPositions(int entityId)
     {
-        if (position.ChunkPosition != (X, Y)) return;
-        TileVolume[ConvertTo1D(position.TilePosition.X, position.TilePosition.Y)] -= volume;
-        _Entities[(position.TilePosition.X, position.TilePosition.Y)].Remove(entityId);
+        var positions = new List<Position>();
+        foreach (var (pos, entities) in _Entities)
+        {
+            if (entities.Contains(entityId))
+            {
+                positions.Add(new Position ((X, Y), pos));
+            }
+        }
+        return positions.ToArray();
     }
 }

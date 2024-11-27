@@ -1,5 +1,5 @@
-using WebPeli.GameEngine.EntitySystem;
 using WebPeli.GameEngine.Managers;
+using WebPeli.GameEngine.Util;
 
 namespace WebPeli.GameEngine;
 
@@ -102,7 +102,7 @@ public readonly record struct EntityMovementFailed : IEvent
 }
 
 
-public enum SystemType
+public enum SystemType : byte
 {
     MetabolismSystem,
     MovementSystem,
@@ -128,14 +128,14 @@ public readonly record struct DeathEvent : IEvent
     // Entitys life is over, but is that the end? stay tuned for the next episode of Dragon Ball Z 
     
 }
-public enum ThresholdSeverity
+public enum ThresholdSeverity : byte
 {
     Mild,
     Severe,
     Critical
 }
 
-public enum ThresholdType
+public enum ThresholdType : byte
 {
     Hunger,
     Thirst,
@@ -161,4 +161,44 @@ public record RemoveEntity : IEvent
     public int EntityId { get; init; }
     // EntityManager catches this and removes the entity and sends
     // UnregisterFromSystem to all systems that entity has interfaces for
+}
+
+
+
+/// <summary>
+/// What Entity is doing
+/// </summary>
+[Flags]
+public enum EntityAction : int
+{
+    None = 0,
+    Idle = 1 << 0,
+
+    // Movement
+    Walking = 1 << 1,
+    Running = 1 << 2,
+    Sneaking = 1 << 3,
+    Jumping = 1 << 4,
+    Climbing = 1 << 5,
+
+    // Manipulation
+    PickingUp = 1 << 6,
+    Dropping = 1 << 7,
+    Pushing = 1 << 8,
+    Pulling = 1 << 9,
+    Carrying = 1 << 10,
+
+    // Metabolism
+    Eating = 1 << 11,
+    Drinking = 1 << 12,
+    Resting = 1 << 13,
+}
+
+[Flags]
+public enum EntityType : int
+{
+    None = 0,
+    Living = 1 << 0,  // This thing breathes
+    Resource = 1 << 1,  // This thing can be harvested
+    Structure = 1 << 2,  // This thing is a building
 }

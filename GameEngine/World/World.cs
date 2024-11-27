@@ -1,0 +1,90 @@
+using System.Collections.Concurrent;
+using WebPeli.GameEngine.Util;
+using WebPeli.GameEngine.World.WorldData;
+
+namespace WebPeli.GameEngine.World;
+
+
+internal static partial class World
+{
+
+    // private static readonly int _worldGridSize = Config.WORLD_SIZE * Config.WORLD_SIZE;
+    // private static readonly int _chunkSize = Config.CHUNK_SIZE_BYTE * Config.CHUNK_SIZE_BYTE;
+    private static ConcurrentDictionary<(byte X, byte Y), Chunk> _chunks = [];
+    private static Dictionary<(int x, int y), ChunkConnection> _chunkGraph = [];
+
+
+    // Accessors, Map data
+    public static (byte material, TileSurface surface, TileProperties properties) GetTileAt(Position pos)
+    {
+        (byte X, byte Y) chunkPos = pos.ChunkPosition;
+        if (!IsInWorldBounds(pos)) return (0, TileSurface.None, TileProperties.None);
+        (byte X, byte Y) = pos.TilePosition;
+        if (!IsInChunkBounds(X, Y)) return (0, TileSurface.None, TileProperties.None);
+        return _chunks[chunkPos].GetTile(X, Y);
+    }
+
+    public static void SetTileAt(Position pos, byte material, TileSurface surface, TileProperties properties)
+    {
+        (byte X, byte Y) chunkPos = pos.ChunkPosition;
+        (byte X, byte Y) = pos.TilePosition;
+        _chunks[chunkPos].SetTile(X, Y, material, surface, properties);
+    }
+
+    public static byte[,] GetTilesInArea(Position center, int width, int height)
+    {
+        byte[,] tiles = new byte[width, height];
+        for (int x = 0; x < width; x++)
+        {
+            for (int y = 0; y < height; y++)
+            {
+                Position pos = center + (x - width / 2, y - height / 2);
+                tiles[x, y] = GetTileAt(pos).material;
+            }
+        }
+        return tiles;
+    }
+
+    public static byte[,] GetTilesInArea(float cameraX, float cameraY, float viewportWidth, float viewportHeight, float? worldWidth = null, float? worldHeight = null)
+    {
+        int width = (int)viewportWidth;
+        int height = (int)viewportHeight;
+        Position center = new() { X = (int)cameraX, Y = (int)cameraY };
+        return GetTilesInArea(center, width, height);
+    }
+
+    public static Chunk? GetChunk((byte X, byte Y) pos)
+    {
+        return _chunks.TryGetValue(pos, out Chunk? c) ? c : null;
+    }
+
+    public static Chunk? GetChunk(Position pos)
+    {
+        return GetChunk(pos.ChunkPosition);
+    }
+
+    public static void SetChunk((byte X, byte Y) pos, Chunk chunk)
+    {
+        _chunks[pos] = chunk;
+    }
+
+    // Bounds checking
+    public static bool IsInChunkBounds(byte X, byte Y) =>
+        X >= 0 && X < Config.CHUNK_SIZE_BYTE && Y >= 0 && Y < Config.CHUNK_SIZE_BYTE;
+
+    public static bool IsInChunkBounds(Position pos) =>
+        IsInChunkBounds(pos.TilePosition.X, pos.TilePosition.Y);
+
+    public static bool IsInWorldBounds(int X, int Y) =>
+        X >= 0 && X < Config.WORLD_SIZE && Y >= 0 && Y < Config.WORLD_SIZE;
+
+    public static bool IsInWorldBounds(Position pos) => IsInWorldBounds(pos.ChunkPosition.X, pos.ChunkPosition.Y);
+
+    // World generation
+    public static void GenerateWorld()
+    {
+        WorldGenerator.GenerateWorld();
+    }
+}
+
+

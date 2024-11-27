@@ -1,4 +1,4 @@
-namespace WebPeli.GameEngine.WorldData;
+namespace WebPeli.GameEngine.World.WorldData;
 
 // Zone is a collection of tiles that are connected to each other and have some kind of edge
 // Zone can be used to determine if a tile is part of a room, a cave, a building, etc.
