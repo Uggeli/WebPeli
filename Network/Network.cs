@@ -61,18 +61,19 @@ public static class MessageProtocol
         return true;
     }
 
-    public static bool TryDecodeViewportRequest(ReadOnlySpan<byte> payload, out int cameraX, out int cameraY, out int width, out int height)
+    public static bool TryDecodeViewportRequest(ReadOnlySpan<byte> payload, out int cameraX, out int cameraY, out byte width, out byte height)
     {
         // Defaults
-        cameraX = cameraY = width = height = 0;
+        cameraX = cameraY = 0;
+        width = height = 0;
 
-        if (payload.Length < 16)
+        if (payload.Length < 10) // 4 + 4 + 1 + 1
             return false;
 
         cameraX = BinaryPrimitives.ReadInt32LittleEndian(payload);
         cameraY = BinaryPrimitives.ReadInt32LittleEndian(payload[4..]);
-        width = BinaryPrimitives.ReadInt32LittleEndian(payload[8..]);
-        height = BinaryPrimitives.ReadInt32LittleEndian(payload[12..]);
+        width = payload[8];
+        height = payload[9];
 
         return true;
     }

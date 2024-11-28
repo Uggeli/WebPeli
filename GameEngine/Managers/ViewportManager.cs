@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Buffers.Binary;
 using WebPeli.GameEngine.Util;
 using WebPeli.GameEngine.World;
+using WebPeli.Network;
 
 namespace WebPeli.GameEngine.Managers;
 
@@ -63,20 +64,25 @@ public class ViewportManager : BaseManager
         int totalEntities = entities.Sum(kvp => kvp.Value.Length);
 
         // Calculate total size needed
-        int headerSize = 2; // width + height (1 byte each)
+        const int PROTOCOL_HEADER_SIZE = 3; // 1 byte type + 2 bytes length
+        const int PAYLOAD_HEADER_SIZE = 2; // width + height (1 byte each)
         int tileDataSize = width * height * 3; // 3 bytes per tile
         int entityDataSize = totalEntities * 9; // 9 bytes per entity
-        int totalSize = headerSize + tileDataSize + entityDataSize;
+        int totalSize = PROTOCOL_HEADER_SIZE + PAYLOAD_HEADER_SIZE + tileDataSize + entityDataSize;
 
         var buffer = _arrayPool.Rent(totalSize);
         var span = buffer.AsSpan(0, totalSize);
 
-        // Write header
-        span[0] = (byte)width;
-        span[1] = (byte)height;
+        // Write protocol header
+        span[0] = (byte)MessageType.ViewportData;
+        BinaryPrimitives.WriteUInt16LittleEndian(span.Slice(1), (ushort)(totalSize - PROTOCOL_HEADER_SIZE));
+
+        // Write payload header
+        int offset = PROTOCOL_HEADER_SIZE;
+        span[offset++] = (byte)width;
+        span[offset++] = (byte)height;
 
         // Write tile data
-        int offset = 2;
         for (int i = 0; i < tileGrid.Length; i++)
         {
             span[offset++] = tileGrid[i].material;
@@ -84,19 +90,7 @@ public class ViewportManager : BaseManager
             span[offset++] = (byte)tileGrid[i].props;
         }
 
-        // Message format:
-        // [Width: 1 byte]
-        // [Height: 1 byte]
-        // [Tile Data: width*height*3]
-        // [Entity Data: foreach entity]
-        //   [X: 1 byte]
-        //   [Y: 1 byte] 
-        //   [EntityId: 4 bytes]
-        //   [Action: 1 byte]
-        //   [Type: 1 byte]
-        //   [Direction: 1 byte]
-        
-        // Write entity data directly (no count needed)
+        // Write entity data
         foreach (var (pos, entitiesAtPos) in entities)
         {
             foreach (var (entityId, action, type, direction) in entitiesAtPos)
