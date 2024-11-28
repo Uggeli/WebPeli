@@ -14,6 +14,11 @@ public static class WorldApi
     {
         World.EntityManager.AddEntity(id, positions, volume);
     }
+    public static void AddEntity(int id, byte volume = 200)
+    {
+        World.EntityManager.AddEntity(id, volume);
+    }
+
     public static void RemoveEntity(int id)
     {
         World.EntityManager.RemoveEntity(id);

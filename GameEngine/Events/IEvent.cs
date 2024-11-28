@@ -1,3 +1,4 @@
+using System.Net.WebSockets;
 using WebPeli.GameEngine.Managers;
 using WebPeli.GameEngine.Util;
 
@@ -33,6 +34,8 @@ public record ViewportRequest : IEvent
     public required int Width { get; init; }
     public required int Height { get; init; }
     public Guid CallbackId { get; init; }
+    public required WebSocket Socket { get; init; }
+    public required Guid ConnectionId { get; init; }
 }
 
 public readonly record struct TerrainCollisionRequest : IEvent
@@ -67,7 +70,7 @@ public readonly record struct PathfindingRequest : IEvent
     // public required float TargetY { get; init; }
     public required Position FromPosition { get; init; }
     public required Position ToPosition { get; init; }
-    public required Guid CallbackId { get; init; }
+    public Guid CallbackId { get; init; }
 }
 
 // MovementManager handles this event and finds path for entity
@@ -151,6 +154,7 @@ public record Rest(int EntityId, byte Amount) : IEvent;
 public record CreateEntity : IEvent
 {
     public required EntityCapabilities[] Capabilities { get; init; }
+    public Position[]? Positions { get; init; }
 }
 
 public record RemoveEntity : IEvent

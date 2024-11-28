@@ -7,8 +7,9 @@ using WebPeli.Network;
 
 namespace WebPeli.Network;
 
-public class GameSocketHandler(ILogger<GameSocketHandler> logger) : ControllerBase
+public class GameSocketHandler(ILogger<GameSocketHandler> logger, ViewportManager viewportManager) : ControllerBase
 {
+    private readonly ViewportManager _viewportManager = viewportManager;
     private readonly ILogger<GameSocketHandler> _logger = logger;
     private const int MaxMessageSize = 64 * 1024; // 64KB
 
@@ -27,6 +28,7 @@ public class GameSocketHandler(ILogger<GameSocketHandler> logger) : ControllerBa
     
     private async Task HandleWebSocketConnection(WebSocket webSocket)
     {
+        var connectionId = Guid.NewGuid();
         var buffer = new byte[MaxMessageSize];
         var receiveBuffer = new List<byte>();
         
@@ -52,7 +54,7 @@ public class GameSocketHandler(ILogger<GameSocketHandler> logger) : ControllerBa
                 // If we have a complete message
                 if (result.EndOfMessage)
                 {
-                    await HandleMessage(webSocket, receiveBuffer.ToArray());
+                    await HandleMessage(webSocket, receiveBuffer.ToArray(), connectionId);
                     receiveBuffer.Clear();
                 }
             }
@@ -68,9 +70,13 @@ public class GameSocketHandler(ILogger<GameSocketHandler> logger) : ControllerBa
                     CancellationToken.None);
             }
         }
+        finally
+        {
+            _viewportManager.RemoveSubscription(connectionId);
+        }
     }
     
-    private async Task HandleMessage(WebSocket webSocket, byte[] messageData)
+    private async Task HandleMessage(WebSocket webSocket, byte[] messageData, Guid connectionId)
     {
         try
         {
@@ -84,7 +90,7 @@ public class GameSocketHandler(ILogger<GameSocketHandler> logger) : ControllerBa
             switch (type)
             {
                 case MessageType.ViewportRequest:
-                    await HandleViewportRequest(webSocket, payloadBytes);
+                    await HandleViewportRequest(webSocket, payloadBytes, connectionId);
                     break;
                     
                 case MessageType.CellInfo:
@@ -104,7 +110,7 @@ public class GameSocketHandler(ILogger<GameSocketHandler> logger) : ControllerBa
         }
     }
 
-    private static async Task HandleViewportRequest(WebSocket webSocket, byte[] payload)
+    private static async Task HandleViewportRequest(WebSocket webSocket, byte[] payload, Guid connectionId)
     {
         if (!MessageProtocol.TryDecodeViewportRequest(payload.AsSpan(), out var cameraX, out var cameraY, 
             out var width, out var height))
@@ -127,7 +133,9 @@ public class GameSocketHandler(ILogger<GameSocketHandler> logger) : ControllerBa
             CallbackId = callbackId,
             TopLeft = new Position(cameraX, cameraY),
             Width = width,
-            Height = height
+            Height = height,
+            Socket = webSocket,
+            ConnectionId = connectionId
         });
 
         // Wait for response

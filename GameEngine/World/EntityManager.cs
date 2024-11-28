@@ -133,7 +133,7 @@ internal static partial class World
             AddEntity(id, [..positions], volume);
         }
 
-        private static List<Position> FindRandomSpawnPoint(byte entitySize = 1)
+        private static List<Position> FindRandomSpawnPoint(byte volume, byte entitySize = 1)
         {
 
             Chunk? chunk = GetChunk(((byte)Tools.Random.Next(Config.WORLD_SIZE), (byte)Tools.Random.Next(Config.WORLD_SIZE)));
@@ -152,7 +152,7 @@ internal static partial class World
                     for (int dy = 0; dy < entitySize; dy++)
                     {
                         Position checkPos = pos + (dx, dy);
-                        if (!chunk.CanAddEntity(checkPos, 200) || !IsInWorldBounds(checkPos) || !IsInChunkBounds(checkPos) || !GetTileAt(checkPos).properties.HasFlag(TileProperties.Walkable))
+                        if (!chunk.CanAddEntity(checkPos, volume) || !IsInWorldBounds(checkPos) || !IsInChunkBounds(checkPos) || !GetTileAt(checkPos).properties.HasFlag(TileProperties.Walkable))
                         {
                             attempts++;
                             continue;

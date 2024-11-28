@@ -1,5 +1,6 @@
 using System.Numerics;
 using WebPeli.GameEngine.Util;
+using WebPeli.GameEngine.World;
 
 namespace WebPeli.GameEngine.Managers;
 //Placeholder for Ai stuff
@@ -50,7 +51,24 @@ public class AiManager : BaseManager
         base.Update(deltaTime);
         foreach (var entity in _entities)
         {
-            
+            var EntityAction = WorldApi.GetEntityAction(entity);
+            if (EntityAction != EntityAction.None) continue;
+
+            // Move to random direction
+            var currentEntityPosition = WorldApi.GetEntityPositions(entity)[0];
+
+            var newPosX = Tools.Random.Next(0, Config.WORLD_SIZE * Config.CHUNK_SIZE);
+            var newPosY = Tools.Random.Next(0, Config.WORLD_SIZE * Config.CHUNK_SIZE);
+
+            var MovementEvent = new FindPathAndMoveEntity
+            {
+                EntityId = entity,
+                FromPosition = currentEntityPosition,
+                ToPosition = new Position(newPosX, newPosY),
+                MovementType = EntityAction.Walking
+            };
+
+            EventManager.Emit(MovementEvent);
         }
     }
 }

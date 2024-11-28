@@ -144,7 +144,7 @@ public class MovementSystem : BaseManager
 
             if (Config.DebugPathfinding)
             {
-                Console.WriteLine($"Entity {entityId} moving to {nextMove} from {movementData.CurrentPosition}");
+                Console.WriteLine($"Entity {entityId} moving to {nextMove} from {currentPos}");
                 Console.WriteLine($"Entity {entityId} path : {movementData.CurrentMoveIndex}/{movementData.Path.Length}");
             }
 
@@ -160,10 +160,22 @@ public class MovementSystem : BaseManager
                 EventManager.Emit(new EntityMovementSucceeded{EntityId = entityId});
                 return;
             }
-            WorldApi.TryMoveEntity(entityId, [nextMove]);
+
+            if (!WorldApi.TryMoveEntity(entityId, [nextMove]))
+            {
+                // Entity could not move to next position
+                if (Config.DebugPathfinding)
+                {
+                    Console.WriteLine($"Entity {entityId} could not move to {nextMove} from {currentPos}");
+                }
+                toRemove.Add(entityId);
+                EventManager.Emit(new EntityMovementFailed{EntityId = entityId});
+                return;
+            }
+            WorldApi.SetEntityFacing(entityId, currentPos.LookAt(nextMove));
             if (Config.DebugPathfinding)
             {
-                Console.WriteLine($"Entity {entityId} moved to {nextMove} from {movementData.CurrentPosition}");
+                Console.WriteLine($"Entity {entityId} moved to {nextMove} from {currentPos}");
             }
         });
 

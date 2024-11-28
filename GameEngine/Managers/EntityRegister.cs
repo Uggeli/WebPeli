@@ -1,3 +1,4 @@
+using WebPeli.GameEngine.Util;
 using WebPeli.GameEngine.World;
 
 namespace WebPeli.GameEngine.Managers;
@@ -93,6 +94,15 @@ public class EntityRegister(ILogger<EntityRegister> logger) : BaseManager
         {
             Capabilities = createEntity.Capabilities
         });
+        Position[]? positions = createEntity.Positions;
+        if (positions != null)
+        {
+            WorldApi.AddEntity(newEntityID, positions);
+        }
+        else
+        {
+            WorldApi.AddEntity(newEntityID);
+        }
         NotifySystems(newEntityID, createEntity.Capabilities);
     }
 

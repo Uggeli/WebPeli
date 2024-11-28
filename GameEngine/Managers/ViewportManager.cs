@@ -1,5 +1,7 @@
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Collections.Concurrent;
+using System.Net.WebSockets;
 using WebPeli.GameEngine.Util;
 using WebPeli.GameEngine.World;
 using WebPeli.Network;
@@ -21,8 +23,18 @@ public readonly record struct ViewportDataBinary
 // Specialized manager for handling viewport requests
 public class ViewportManager : BaseManager
 {
+    private readonly ConcurrentDictionary<Guid, ViewportSubscription> _activeViewports = [];
     private readonly ArrayPool<byte> _arrayPool;
     private readonly ILogger<ViewportManager> _logger;
+
+    public class ViewportSubscription
+    {
+        public required WebSocket Socket { get; set; }
+        public Position TopLeft { get; set; }
+        public int Width { get; set; }
+        public int Height { get; set; }
+        public byte[]? LastUpdate { get; set; }  // Store last sent data for change detection
+    }
 
     public ViewportManager(ILogger<ViewportManager> logger)
     {
@@ -36,21 +48,92 @@ public class ViewportManager : BaseManager
         if (evt is ViewportRequest req)
         {
             _logger.LogDebug(
-                "Received viewport request for area at ({X:F2}, {Y:F2})",
+                "Viewport request for area at ({X}, {Y})",
                 req.TopLeft.X, req.TopLeft.Y
             );
 
             try
             {
+                // Create or update subscription
+                var subscription = new ViewportSubscription
+                {
+                    Socket = req.Socket,
+                    TopLeft = new Position { X = req.TopLeft.X, Y = req.TopLeft.Y },
+                    Width = req.Width,
+                    Height = req.Height
+                };
+
+                _activeViewports.AddOrUpdate(req.ConnectionId, subscription, (_, _) => subscription);
+
+                // Send initial data
                 var viewportData = GetViewportDataBinary(
-                    req.TopLeft, req.Width, req.Height
+                    subscription.TopLeft,
+                    subscription.Width,
+                    subscription.Height
                 );
+
+                subscription.LastUpdate = viewportData.EncodedData.ToArray();
+                
                 EventManager.EmitCallback(req.CallbackId, viewportData);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing viewport request");
                 throw;
+            }
+        }
+    }
+
+    private static bool HasChanged(byte[]? oldData, ReadOnlySpan<byte> newData)
+    {
+        if (oldData == null) return true;
+        if (oldData.Length != newData.Length) return true;
+        
+        return !newData.SequenceEqual(oldData);
+    }
+
+    public void RemoveSubscription(Guid connectionId)
+    {
+        _activeViewports.TryRemove(connectionId, out _);
+    }
+
+    public override void Update(double deltaTime)
+    {
+        base.Update(deltaTime);
+
+        // Process updates for all active viewports
+        foreach (var kvp in _activeViewports)
+        {
+            var sub = kvp.Value;
+            
+            // Skip if socket is closed
+            if (sub.Socket.State != WebSocketState.Open)
+            {
+                _activeViewports.TryRemove(kvp.Key, out _);
+                continue;
+            }
+
+            try
+            {
+                var newData = GetViewportDataBinary(sub.TopLeft, sub.Width, sub.Height);
+                
+                // Only send if data changed
+                if (HasChanged(sub.LastUpdate, newData.EncodedData.Span))
+                {
+                    sub.LastUpdate = newData.EncodedData.ToArray();
+                    
+                    // Send update
+                    sub.Socket.SendAsync(
+                        new ArraySegment<byte>(sub.LastUpdate),
+                        WebSocketMessageType.Binary,
+                        true,
+                        CancellationToken.None);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending viewport update");
+                _activeViewports.TryRemove(kvp.Key, out _);
             }
         }
     }
@@ -75,7 +158,7 @@ public class ViewportManager : BaseManager
 
         // Write protocol header
         span[0] = (byte)MessageType.ViewportData;
-        BinaryPrimitives.WriteUInt16LittleEndian(span.Slice(1), (ushort)(totalSize - PROTOCOL_HEADER_SIZE));
+        BinaryPrimitives.WriteUInt16LittleEndian(span[1..], (ushort)(totalSize - PROTOCOL_HEADER_SIZE));
 
         // Write payload header
         int offset = PROTOCOL_HEADER_SIZE;
