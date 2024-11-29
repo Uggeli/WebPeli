@@ -42,7 +42,7 @@ internal static partial class World
                 tiles[y * width + x] = GetTileAt(pos);
             }
         }
-        return tiles;        
+        return tiles;
     }
 
 
@@ -62,14 +62,19 @@ internal static partial class World
     }
 
     // Bounds checking
-    public static bool IsInChunkBounds(byte X, byte Y) =>
-        X >= 0 && X < Config.CHUNK_SIZE_BYTE && Y >= 0 && Y < Config.CHUNK_SIZE_BYTE;
+    public static bool IsInChunkBounds(byte x, byte y) =>
+        x < Config.CHUNK_SIZE && y < Config.CHUNK_SIZE;
+
+    public static bool IsInChunkBounds(int x, int y) =>
+        x >= 0 && x < Config.CHUNK_SIZE &&
+        y >= 0 && y < Config.CHUNK_SIZE;
 
     public static bool IsInChunkBounds(Position pos) =>
         IsInChunkBounds(pos.TilePosition.X, pos.TilePosition.Y);
 
-    public static bool IsInWorldBounds(int X, int Y) =>
-        X >= 0 && X < Config.WORLD_SIZE && Y >= 0 && Y < Config.WORLD_SIZE;
+    public static bool IsInWorldBounds(int x, int y) =>
+        x >= 0 && x < Config.WORLD_SIZE &&
+        y >= 0 && y < Config.WORLD_SIZE;
 
     public static bool IsInWorldBounds(Position pos) => IsInWorldBounds(pos.ChunkPosition.X, pos.ChunkPosition.Y);
 

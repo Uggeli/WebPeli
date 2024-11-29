@@ -22,7 +22,7 @@ public class Chunk(byte x, byte y)
     public (byte material, TileSurface surface, TileProperties properties) GetTile(byte x, byte y) => (Material[ConvertTo1D(x, y)], Surface[ConvertTo1D(x, y)], Properties[ConvertTo1D(x, y)]);
     public (byte material, TileSurface surface, TileProperties properties) GetTile(int x, int y)
     {
-        if (x < 0 || x >= Config.CHUNK_SIZE_BYTE || y < 0 || y >= Config.CHUNK_SIZE_BYTE)
+        if (!World.IsInChunkBounds(x, y))
         {
             return (0, TileSurface.None, TileProperties.None);
         }

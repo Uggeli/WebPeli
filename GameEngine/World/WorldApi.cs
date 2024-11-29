@@ -14,9 +14,12 @@ public static class WorldApi
     {
         World.EntityManager.AddEntity(id, positions, volume);
     }
-    public static void AddEntity(int id, byte volume = 200)
+    /// <summary>
+    /// Add an entity to the world at the specified position. Returns true if successful.
+    /// </summary>
+    public static bool AddEntity(int id, byte volume = 200)
     {
-        World.EntityManager.AddEntity(id, volume);
+        return World.EntityManager.AddEntity(id, volume);
     }
 
     public static void RemoveEntity(int id)

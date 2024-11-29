@@ -52,45 +52,81 @@ internal static partial class World
 
         public static Position[] GetPath(Position worldStart, Position worldEnd)
         {
-            // long paths tend to be incorrect in longrun and long paths take longer to run 
             if (Config.DebugPathfinding)
             {
-                Console.WriteLine($"Starting pathfinding from {worldStart} to {worldEnd}");
+                Console.WriteLine("=== PATHFINDING START ===");
+                Console.WriteLine($"From {worldStart} to {worldEnd}");
             }
 
-            LocalTilePos localStart = WorldToLocal(worldStart);
-            LocalTilePos localEnd = WorldToLocal(worldEnd);
-
-            if (Config.DebugPathfinding)
+            try
             {
-                Console.WriteLine($"Local start: {localStart}, Local end: {localEnd}");
-            }
+                LocalTilePos localStart = WorldToLocal(worldStart);
+                LocalTilePos localEnd = WorldToLocal(worldEnd);
 
-            // Get first two chunks and new endpoint
-            (LocalTilePos[] chunkPath, LocalTilePos chunkEnd) = FindPathChunkLevel(localStart, localEnd);
-            if (chunkPath.Length == 0)
+                if (Config.DebugPathfinding)
+                {
+                    Console.WriteLine("\n=== CHUNK LEVEL PATHFINDING ===");
+                    Console.WriteLine($"Local start: {localStart}, Local end: {localEnd}");
+                }
+
+                (LocalTilePos[] chunkPath, LocalTilePos chunkEnd) = FindPathChunkLevel(localStart, localEnd);
+                if (chunkPath.Length == 0)
+                {
+                    if (Config.DebugPathfinding)
+                    {
+                        Console.WriteLine("ERROR: No path found at chunk level");
+                        Console.WriteLine("=== PATHFINDING END ===\n");
+                    }
+                    return [];
+                }
+
+                if (Config.DebugPathfinding)
+                {
+                    Console.WriteLine($"Found chunk path: {string.Join(", ", chunkPath.Select(c => c.ToString()))}");
+                    Console.WriteLine($"Chunk endpoint: {chunkEnd}");
+                    Console.WriteLine("\n=== ZONE LEVEL PATHFINDING ===");
+                }
+
+                LocalTilePos[] chunks = chunkPath.Take(2).ToArray();
+                (HashSet<Position> SearchSpace, Position zoneEnd) = FindZonePath(localStart, localEnd, chunkEnd, chunks);
+
+                if (SearchSpace.Count == 0)
+                {
+                    if (Config.DebugPathfinding)
+                    {
+                        Console.WriteLine("ERROR: No valid zones found");
+                        Console.WriteLine("=== PATHFINDING END ===\n");
+                    }
+                    return [];
+                }
+
+                if (Config.DebugPathfinding)
+                {
+                    Console.WriteLine($"Search space size: {SearchSpace.Count}");
+                    Console.WriteLine($"Zone endpoint: {zoneEnd}");
+                    Console.WriteLine("\n=== TILE LEVEL PATHFINDING ===");
+                }
+
+                Position[] tilePath = FindTilePath(worldStart, zoneEnd, SearchSpace);
+
+                if (Config.DebugPathfinding)
+                {
+                    Console.WriteLine($"Final path length: {tilePath.Length}");
+                    Console.WriteLine("=== PATHFINDING END ===\n");
+                }
+
+                return tilePath;
+            }
+            catch (Exception ex)
             {
                 if (Config.DebugPathfinding)
                 {
-                    Console.WriteLine("No path found at chunk level");
+                    Console.WriteLine($"ERROR: Pathfinding failed with exception: {ex.Message}");
+                    Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                    Console.WriteLine("=== PATHFINDING END ===\n");
                 }
-                return [];
+                throw;
             }
-
-            if (Config.DebugPathfinding)
-            {
-                Console.WriteLine($"Chunk path: {string.Join(", ", chunkPath.Select(c => c.ToString()))}, Chunk end: {chunkEnd}");
-            }
-
-            // Get first two zones and refined endpoint
-            LocalTilePos[] chunks = chunkPath.Take(2).ToArray();
-            (HashSet<Position> SearchSpace, Position zoneEnd) = FindZonePath(localStart, localEnd, chunkEnd, chunks);
-
-
-            // Final tile-level path
-            Position[] tilePath = FindTilePath(worldStart, zoneEnd, SearchSpace);
-            // Tilepath is in world coordinates
-            return tilePath;
         }
 
         private static (LocalTilePos[], LocalTilePos) FindPathChunkLevel(LocalTilePos start, LocalTilePos end)
@@ -386,7 +422,7 @@ internal static partial class World
 
         private static (byte X, byte Y)[] ReconstructChunkPath(Dictionary<(int X, int Y), (int X, int Y)> cameFrom, (int X, int Y) current)
         {
-            List<(byte X, byte Y)> path = new List<(byte X, byte Y)>();
+            List<(byte X, byte Y)> path = [];
             while (cameFrom.TryGetValue(current, out (int X, int Y) previous))
             {
                 path.Add(((byte X, byte Y))(current.X, current.Y));
@@ -399,14 +435,14 @@ internal static partial class World
 
         private static Position[] ReconstructPath(Dictionary<Position, Position> cameFrom, Position current)
         {
-            List<Position> path = new List<Position> { current };
+            List<Position> path = [current];
             while (cameFrom.TryGetValue(current, out Position previous))
             {
                 path.Add(previous);
                 current = previous;
             }
             path.Reverse();
-            return path.ToArray();
+            return [.. path];
         }
     }
 }

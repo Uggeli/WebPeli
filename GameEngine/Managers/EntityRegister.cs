@@ -101,7 +101,12 @@ public class EntityRegister(ILogger<EntityRegister> logger) : BaseManager
         }
         else
         {
-            WorldApi.AddEntity(newEntityID);
+            if (!WorldApi.AddEntity(newEntityID))
+            {
+                IDManager.ReturnEntityId(newEntityID);
+                _entities.Remove(newEntityID);
+                return;
+            }
         }
         NotifySystems(newEntityID, createEntity.Capabilities);
     }

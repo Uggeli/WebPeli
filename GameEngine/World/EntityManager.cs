@@ -125,12 +125,13 @@ internal static partial class World
             return true;
         }
 
-        public static void AddEntity(int id, byte volume = 200)
+        public static bool AddEntity(int id, byte volume = 200)
         {
             List<Position> positions = FindRandomSpawnPoint(volume);
-            if (positions.Count == 0) return;
+            if (positions.Count == 0) return false;
 
             AddEntity(id, [..positions], volume);
+            return true;
         }
 
         private static List<Position> FindRandomSpawnPoint(byte volume, byte entitySize = 1)

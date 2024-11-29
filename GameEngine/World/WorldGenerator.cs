@@ -21,6 +21,7 @@ internal static partial class World
             // TestChunkAccess();
         }
         // Test method to expose the issue
+        # region Testing
         private static void TestChunkAccess()
         {
             DummyChunk dummyChunk = new DummyChunk(0, 0);
@@ -149,38 +150,36 @@ internal static partial class World
             }
 
             // Write both to files for comparison
-            using (StreamWriter dummyWriter = new StreamWriter("mapdata_dummy.txt", false))
-            using (StreamWriter realWriter = new StreamWriter("mapdata_real.txt", false))
+            using StreamWriter dummyWriter = new("mapdata_dummy.txt", false);
+            using StreamWriter realWriter = new("mapdata_real.txt", false);
+            for (byte worldY = 0; worldY < Config.WORLD_SIZE; worldY++)
             {
-                for (byte worldY = 0; worldY < Config.WORLD_SIZE; worldY++)
+                for (byte chunkTileY = 0; chunkTileY < Config.CHUNK_SIZE_BYTE; chunkTileY++)
                 {
-                    for (byte chunkTileY = 0; chunkTileY < Config.CHUNK_SIZE_BYTE; chunkTileY++)
+                    for (byte worldX = 0; worldX < Config.WORLD_SIZE; worldX++)
                     {
-                        for (byte worldX = 0; worldX < Config.WORLD_SIZE; worldX++)
+                        DummyChunk dummyChunk = dummyChunks[(worldX, worldY)];
+                        Chunk realChunk = _chunks[(worldX, worldY)];
+
+                        // Write dummy chunk data
+                        for (byte chunkTileX = 0; chunkTileX < Config.CHUNK_SIZE_BYTE; chunkTileX++)
                         {
-                            DummyChunk dummyChunk = dummyChunks[(worldX, worldY)];
-                            Chunk realChunk = _chunks[(worldX, worldY)];
-
-                            // Write dummy chunk data
-                            for (byte chunkTileX = 0; chunkTileX < Config.CHUNK_SIZE_BYTE; chunkTileX++)
-                            {
-                                dummyWriter.Write(dummyChunk.GetTile(chunkTileX, chunkTileY));
-                            }
-                            dummyWriter.Write(" ");
-
-                            // Write real chunk data
-                            for (byte chunkTileX = 0; chunkTileX < Config.CHUNK_SIZE_BYTE; chunkTileX++)
-                            {
-                                realWriter.Write(realChunk.GetTile(chunkTileX, chunkTileY).material);
-                            }
-                            realWriter.Write(" ");
+                            dummyWriter.Write(dummyChunk.GetTile(chunkTileX, chunkTileY));
                         }
-                        dummyWriter.WriteLine();
-                        realWriter.WriteLine();
+                        dummyWriter.Write(" ");
+
+                        // Write real chunk data
+                        for (byte chunkTileX = 0; chunkTileX < Config.CHUNK_SIZE_BYTE; chunkTileX++)
+                        {
+                            realWriter.Write(realChunk.GetTile(chunkTileX, chunkTileY).material);
+                        }
+                        realWriter.Write(" ");
                     }
                     dummyWriter.WriteLine();
                     realWriter.WriteLine();
                 }
+                dummyWriter.WriteLine();
+                realWriter.WriteLine();
             }
         }
 
@@ -218,7 +217,7 @@ internal static partial class World
                 writer.WriteLine(); // Separate chunks vertically
             }
         }
-
+        # endregion
         private static void GenerateChunks()
         {
             for (byte worldX = 0; worldX < Config.WORLD_SIZE; worldX++)
@@ -331,13 +330,53 @@ internal static partial class World
         // Helper to check if edge tiles match up between chunks
         private static bool HasMatchingEdges(Chunk chunk1, Chunk chunk2, List<(byte x, byte y)> edgeTiles, Direction direction)
         {
-            // Convert edge tiles to corresponding positions in neighbor chunk
-            IEnumerable<(int x, int y)> neighborPositions = edgeTiles.Select(pos => PathManager.GetNeighborPosition(pos, direction));
+            return edgeTiles.Select(pos =>
+            {
+                // Verify edge positions are actually on chunk boundaries
+                bool isValidEdge = direction switch
+                {
+                    Direction.North => pos.y == 0,
+                    Direction.South => pos.y == Config.CHUNK_SIZE - 1,
+                    Direction.East => pos.x == Config.CHUNK_SIZE - 1,
+                    Direction.West => pos.x == 0,
+                    _ => false
+                };
 
-            // Check if any of these positions are walkable in both chunks
-            return neighborPositions.Any(pos =>
-                TileManager.IsWalkable(chunk1.GetTile(pos.x, pos.y).properties) &&
-                TileManager.IsWalkable(chunk2.GetTile(pos.x, pos.y).properties));
+                if (!isValidEdge)
+                {
+                    #if DEBUG
+                    Console.WriteLine($"Warning: Invalid edge position ({pos.x},{pos.y}) for direction {direction}");
+                    #endif
+                    return false;
+                }
+
+                var (x, y) = GetOppositeEdge(pos, direction);
+                bool isMatch = TileManager.IsWalkable(chunk1.GetTile(pos.x, pos.y).properties) &&
+                              TileManager.IsWalkable(chunk2.GetTile(x, y).properties);
+
+                #if DEBUG
+                Console.WriteLine($"Checking edge: Chunk1({pos.x},{pos.y}) -> Chunk2({x},{y}) = {isMatch}");
+                #endif
+
+                return isMatch;
+            }).Any(isMatch => isMatch);
+        }
+
+        private static (byte x, byte y) GetOppositeEdge((byte x, byte y) pos, Direction direction)
+        {
+            // We assume the position is on the edge of the chunk
+            return direction switch
+            {
+                Direction.North => ((byte)(pos.x + (Config.CHUNK_SIZE - 1)), pos.y),
+                Direction.South => ((byte)(pos.x - (Config.CHUNK_SIZE - 1)), pos.y),
+                Direction.East => (pos.x, (byte)(pos.y - (Config.CHUNK_SIZE - 1))),
+                Direction.West => (pos.x, (byte)(pos.y + (Config.CHUNK_SIZE - 1))),
+                _ => pos
+            };
+
+
+
+
         }
 
         private static void GenerateChunkTerrain(Chunk chunk)
@@ -351,7 +390,11 @@ internal static partial class World
                 {
                     float worldX = chunk.X * Config.CHUNK_SIZE + localX;
                     float worldY = chunk.Y * Config.CHUNK_SIZE + localY;
-
+                    if (Config.GenerateFlatWorld)
+                    {
+                        chunk.SetTile(localX, localY, (byte)TileMaterial.Dirt, TileSurface.None, TileProperties.Walkable | TileProperties.Breakable);
+                        continue;
+                    }
                     // Generate base terrain elevation
                     float elevation = EnhancedPerlinNoise.GenerateTerrain(worldX * baseScale, worldY * baseScale);
                     (byte material, TileProperties properties) = DetermineTileType(elevation);

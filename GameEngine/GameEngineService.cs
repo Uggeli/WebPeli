@@ -36,7 +36,7 @@ public class GameEngineService : BackgroundService
         InitSystems();
 
         // Add placeholder entities
-        int num_entities = 1;
+        int num_entities = 10;
         for (int i = 0; i < num_entities; i++)
         {
             managers[0].HandleMessage(new CreateEntity{Capabilities = [EntityCapabilities.MetabolismSystem,
@@ -90,6 +90,7 @@ public class GameEngineService : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("GameEngineService is starting.");
+        await Task.Delay(1000, stoppingToken);
         while (!stoppingToken.IsCancellationRequested)
         {
             var startTick = Environment.TickCount;

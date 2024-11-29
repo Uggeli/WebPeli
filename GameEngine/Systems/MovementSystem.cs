@@ -132,9 +132,8 @@ public class MovementSystem : BaseManager
             Console.WriteLine($"Moving {_movingEntities.Count} entities");
         }
 
-
-        ConcurrentBag<int> toRemove = [];
-        Parallel.ForEach(_movingEntities, kvp =>
+        List<int> toRemove = [];
+        foreach (var kvp in _movingEntities)
         {
             var entityId = kvp.Key;
             var movementData = kvp.Value;
@@ -144,40 +143,42 @@ public class MovementSystem : BaseManager
 
             if (Config.DebugPathfinding)
             {
-                Console.WriteLine($"Entity {entityId} moving to {nextMove} from {currentPos}");
-                Console.WriteLine($"Entity {entityId} path : {movementData.CurrentMoveIndex}/{movementData.Path.Length}");
+            Console.WriteLine($"Entity {entityId} moving to {nextMove} from {currentPos}");
+            Console.WriteLine($"Entity {entityId} path : {movementData.CurrentMoveIndex}/{movementData.Path.Length}");
             }
 
             if (nextMove == currentPos)
             {
-                // Entity has reached target position
-                if (Config.DebugPathfinding)
-                {
-                    Console.WriteLine($"Entity {entityId} reached target position");
-                }
-                
-                toRemove.Add(entityId);
-                EventManager.Emit(new EntityMovementSucceeded{EntityId = entityId});
-                return;
+            // Entity has reached target position
+            if (Config.DebugPathfinding)
+            {
+                Console.WriteLine($"Entity {entityId} reached target position");
+            }
+            
+            toRemove.Add(entityId);
+            WorldApi.SetEntityAction(entityId, EntityAction.None);
+            EventManager.Emit(new EntityMovementSucceeded{EntityId = entityId});
+            continue;
             }
 
-            if (!WorldApi.TryMoveEntity(entityId, [nextMove]))
+            if (!WorldApi.TryMoveEntity(entityId, new[] { nextMove }))
             {
-                // Entity could not move to next position
-                if (Config.DebugPathfinding)
-                {
-                    Console.WriteLine($"Entity {entityId} could not move to {nextMove} from {currentPos}");
-                }
-                toRemove.Add(entityId);
-                EventManager.Emit(new EntityMovementFailed{EntityId = entityId});
-                return;
+            // Entity could not move to next position
+            if (Config.DebugPathfinding)
+            {
+                Console.WriteLine($"Entity {entityId} could not move to {nextMove} from {currentPos}");
+            }
+            toRemove.Add(entityId);
+            WorldApi.SetEntityAction(entityId, EntityAction.None);
+            EventManager.Emit(new EntityMovementFailed{EntityId = entityId});
+            continue;
             }
             WorldApi.SetEntityFacing(entityId, currentPos.LookAt(nextMove));
             if (Config.DebugPathfinding)
             {
-                Console.WriteLine($"Entity {entityId} moved to {nextMove} from {currentPos}");
+            Console.WriteLine($"Entity {entityId} moved to {nextMove} from {currentPos}");
             }
-        });
+        }
 
         foreach (var entityId in toRemove)
         {

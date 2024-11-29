@@ -47,7 +47,7 @@ class GameRenderer {
     }
 
     renderTile(x, y, material) {
-        const color = this.tileColors[material] || '#FF00FF';
+        const color = this.tileColors[material] || '#FF00FF'; // Magenta for unknown material
         this.ctx.fillStyle = color;
         this.ctx.fillRect(
             x * this.tileSize,
@@ -57,14 +57,48 @@ class GameRenderer {
         );
 
         // Keep the grid lines
-        this.ctx.strokeStyle = '#333333';
+        this.ctx.strokeStyle = '#333333'; // Dark gray
         this.ctx.strokeRect(
             x * this.tileSize,
             y * this.tileSize,
             this.tileSize,
             this.tileSize
         );
+
+        // Render chunk borders
+        let chunkSize = 8;
+        let chunkWidth = chunkSize * this.tileSize;
+        let chunkHeight = chunkSize * this.tileSize;
+        this.ctx.strokeStyle = '#FF0000';  // Red
+        this.ctx.lineWidth = 2;
+
+        if (x % chunkSize === 0) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(x * this.tileSize, y * this.tileSize);
+            this.ctx.lineTo(x * this.tileSize, y * this.tileSize + chunkHeight);
+            this.ctx.stroke();
+        }
+
+        if (y % chunkSize === 0) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(x * this.tileSize, y * this.tileSize);
+            this.ctx.lineTo(x * this.tileSize + chunkWidth, y * this.tileSize);
+            this.ctx.stroke();
+        }
+
+        // Render tile coordinates
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.font = '12px Arial';
+        this.ctx.fillText(
+            `${x},${y}`,
+            x * this.tileSize + 2,
+            y * this.tileSize + 12
+        );
     }
+
+    renderDebugInfo() {
+    }
+
 
     renderEntity(x, y, direction) {
         // Draw triangle pointing in direction
