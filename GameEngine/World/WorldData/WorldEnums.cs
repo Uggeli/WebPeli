@@ -1,4 +1,4 @@
-namespace WebPeli.GameEngine.WorldData;
+namespace WebPeli.GameEngine.World.WorldData;
 
 /// <summary>
 /// Represents the connection between two chunks.
@@ -7,12 +7,19 @@ namespace WebPeli.GameEngine.WorldData;
 public enum ChunkConnection : byte
 {
     None = 0,
-    NorthSouth = 1 << 0, // 1
-    NorthEast = 1 << 1,  // 2
-    NorthWest = 1 << 2,  // 4
-    SouthEast = 1 << 3,  // 8
-    SouthWest = 1 << 4,  // 16
-    EastWest = 1 << 5    // 32
+    NorthSouth = 1 << 0,  // 1 can go from north to south and vice versa
+    NorthEast  = 1 << 1,  // 2 can go from north to east and vice versa
+    NorthWest  = 1 << 2,  // 4 can go from north to west and vice versa
+    SouthEast  = 1 << 3,  // 8 can go from south to east and vice versa
+    SouthWest  = 1 << 4,  // 16 can go from south to west and vice versa
+    EastWest   = 1 << 5,  // 32 can go from east to west and vice versa
+    
+    // Common combinations
+    AllNorth = NorthSouth | NorthEast | NorthWest,     // 7  
+    AllSouth = NorthSouth | SouthEast | SouthWest,     // 25
+    AllEast = NorthEast | SouthEast | EastWest,        // 42
+    AllWest = NorthWest | SouthWest | EastWest,        // 52
+    All = AllNorth | AllSouth | EastWest               // 63
 }
 
 

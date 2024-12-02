@@ -1,4 +1,4 @@
-namespace WebPeli.GameEngine.WorldData;
+namespace WebPeli.GameEngine.World.WorldData;
 
 public static class TileManager
 {

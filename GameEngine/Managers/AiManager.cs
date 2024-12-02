@@ -1,6 +1,6 @@
 using System.Numerics;
-using WebPeli.GameEngine.EntitySystem;
 using WebPeli.GameEngine.Util;
+using WebPeli.GameEngine.World;
 
 namespace WebPeli.GameEngine.Managers;
 //Placeholder for Ai stuff
@@ -51,31 +51,24 @@ public class AiManager : BaseManager
         base.Update(deltaTime);
         foreach (var entity in _entities)
         {
-            EntityState? state = World.GetEntityState(entity);
-            if (state == null || state.CurrentAction != CurrentAction.Idle) continue;
+            var EntityAction = WorldApi.GetEntityAction(entity);
+            if (EntityAction != EntityAction.None) continue;
 
-            // Placeholder for AI logic
-
-            // Calculate total world size in tiles
-            int worldSizeInTiles = Config.WORLD_SIZE * Config.CHUNK_SIZE;
-
-            // Generate random target within world bounds
-            // Using floats since entity positions are in world coordinates
+            // Move to random direction
+            var currentEntityPosition = WorldApi.GetEntityPositions(entity)[0];
             
-            var target_x = Tools.Random.Next(0, worldSizeInTiles - 1);
-            var target_y = Tools.Random.Next(0, worldSizeInTiles - 1);
+            var newPosX = Tools.Random.Next(0, Config.WORLD_SIZE * Config.CHUNK_SIZE);
+            var newPosY = Tools.Random.Next(0, Config.WORLD_SIZE * Config.CHUNK_SIZE);
 
-            var currentPos = state.Position.First();
-            Position targetPos = new() { X = target_x, Y = target_y}; 
-
-            // Emit pathfinding request with world coordinates
-            EventManager.Emit(new FindPathAndMoveEntity
+            var MovementEvent = new FindPathAndMoveEntity
             {
                 EntityId = entity,
-                FromPosition = currentPos,
-                ToPosition = targetPos,
-                MovementType = MovementType.Walk
-            });
+                FromPosition = currentEntityPosition,
+                ToPosition = new Position(newPosX, newPosY),
+                MovementType = EntityAction.Walking
+            };
+
+            EventManager.Emit(MovementEvent);
         }
     }
 }

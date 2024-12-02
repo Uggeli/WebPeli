@@ -1,10 +1,6 @@
-using System.Reflection.Metadata;
-using System.Runtime.CompilerServices;
-using System.Runtime.Intrinsics;
-using System.Runtime.Intrinsics.X86;
 using WebPeli.GameEngine.Managers;
 
-namespace WebPeli.GameEngine.EntitySystem.Interfaces;
+namespace WebPeli.GameEngine.Systems;
 
 public class MetabolismSystem : BaseManager
 {

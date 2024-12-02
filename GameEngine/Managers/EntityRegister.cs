@@ -1,3 +1,6 @@
+using WebPeli.GameEngine.Util;
+using WebPeli.GameEngine.World;
+
 namespace WebPeli.GameEngine.Managers;
 
 [Flags]
@@ -91,7 +94,20 @@ public class EntityRegister(ILogger<EntityRegister> logger) : BaseManager
         {
             Capabilities = createEntity.Capabilities
         });
-        World.AddEntity(newEntityID);
+        Position[]? positions = createEntity.Positions;
+        if (positions != null)
+        {
+            WorldApi.AddEntity(newEntityID, positions);
+        }
+        else
+        {
+            if (!WorldApi.AddEntity(newEntityID))
+            {
+                IDManager.ReturnEntityId(newEntityID);
+                _entities.Remove(newEntityID);
+                return;
+            }
+        }
         NotifySystems(newEntityID, createEntity.Capabilities);
     }
 
@@ -107,9 +123,7 @@ public class EntityRegister(ILogger<EntityRegister> logger) : BaseManager
             NotifySystems(removeEntity.EntityId, entity.Capabilities, true);
             _entities.Remove(removeEntity.EntityId);
         }
-        Util.IDManager.ReturnEntityId(removeEntity.EntityId);
-        World.RemoveEntity(removeEntity.EntityId);
-        
+        Util.IDManager.ReturnEntityId(removeEntity.EntityId);       
     }
 
 }

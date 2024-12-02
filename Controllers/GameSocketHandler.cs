@@ -2,12 +2,14 @@ using System.Net.WebSockets;
 using Microsoft.AspNetCore.Mvc;
 using WebPeli.GameEngine;
 using WebPeli.GameEngine.Managers;
+using WebPeli.GameEngine.Util;
 using WebPeli.Network;
 
 namespace WebPeli.Network;
 
-public class GameSocketHandler(ILogger<GameSocketHandler> logger) : ControllerBase
+public class GameSocketHandler(ILogger<GameSocketHandler> logger, ViewportManager viewportManager) : ControllerBase
 {
+    private readonly ViewportManager _viewportManager = viewportManager;
     private readonly ILogger<GameSocketHandler> _logger = logger;
     private const int MaxMessageSize = 64 * 1024; // 64KB
 
@@ -26,6 +28,7 @@ public class GameSocketHandler(ILogger<GameSocketHandler> logger) : ControllerBa
     
     private async Task HandleWebSocketConnection(WebSocket webSocket)
     {
+        var connectionId = Guid.NewGuid();
         var buffer = new byte[MaxMessageSize];
         var receiveBuffer = new List<byte>();
         
@@ -51,7 +54,7 @@ public class GameSocketHandler(ILogger<GameSocketHandler> logger) : ControllerBa
                 // If we have a complete message
                 if (result.EndOfMessage)
                 {
-                    await HandleMessage(webSocket, receiveBuffer.ToArray());
+                    await HandleMessage(webSocket, receiveBuffer.ToArray(), connectionId);
                     receiveBuffer.Clear();
                 }
             }
@@ -67,9 +70,13 @@ public class GameSocketHandler(ILogger<GameSocketHandler> logger) : ControllerBa
                     CancellationToken.None);
             }
         }
+        finally
+        {
+            _viewportManager.RemoveSubscription(connectionId);
+        }
     }
     
-    private async Task HandleMessage(WebSocket webSocket, byte[] messageData)
+    private async Task HandleMessage(WebSocket webSocket, byte[] messageData, Guid connectionId)
     {
         try
         {
@@ -83,7 +90,7 @@ public class GameSocketHandler(ILogger<GameSocketHandler> logger) : ControllerBa
             switch (type)
             {
                 case MessageType.ViewportRequest:
-                    await HandleViewportRequest(webSocket, payloadBytes);
+                    await HandleViewportRequest(webSocket, payloadBytes, connectionId);
                     break;
                     
                 case MessageType.CellInfo:
@@ -103,7 +110,7 @@ public class GameSocketHandler(ILogger<GameSocketHandler> logger) : ControllerBa
         }
     }
 
-    private static async Task HandleViewportRequest(WebSocket webSocket, byte[] payload)
+    private static async Task HandleViewportRequest(WebSocket webSocket, byte[] payload, Guid connectionId)
     {
         if (!MessageProtocol.TryDecodeViewportRequest(payload.AsSpan(), out var cameraX, out var cameraY, 
             out var width, out var height))
@@ -119,32 +126,24 @@ public class GameSocketHandler(ILogger<GameSocketHandler> logger) : ControllerBa
         var callbackId = EventManager.RegisterCallback((ViewportDataBinary data) => {
             tcs.SetResult(data);
         });
+        
 
         // Request viewport data
-        EventManager.Emit(new ViewportRequest {
-            CameraX = cameraX,
-            CameraY = cameraY,
-            ViewportWidth = width,
-            ViewportHeight = height,
-            CallbackId = callbackId
+        EventManager.EmitPriority(new ViewportRequest {
+            CallbackId = callbackId,
+            TopLeft = new Position(cameraX, cameraY),
+            Width = width,
+            Height = height,
+            Socket = webSocket,
+            ConnectionId = connectionId
         });
 
         // Wait for response
         var viewportData = await tcs.Task;
-        
-        // Get tile data from viewport data
-        var (tileWidth, tileHeight) = viewportData.GetDimensions();
-        var tileGrid = new byte[tileWidth, tileHeight];
-        var tileData = viewportData.EncodedData.Span.Slice(4); // Skip dimensions
-        
-        for (int y = 0; y < tileHeight; y++)
-            for (int x = 0; x < tileWidth; x++)
-                tileGrid[x, y] = tileData[y * tileWidth + x];
 
         // Encode and send response
-        var response = MessageProtocol.EncodeViewportData(tileGrid);
         await webSocket.SendAsync(
-            new ArraySegment<byte>(response),
+            new ArraySegment<byte>(viewportData.EncodedData.ToArray()),
             WebSocketMessageType.Binary,
             true,
             CancellationToken.None);

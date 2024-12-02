@@ -1,44 +1,21 @@
 using System.Collections.Concurrent;
-using System.Numerics;
-using WebPeli.GameEngine.EntitySystem;
+using WebPeli.GameEngine.Managers;
+using WebPeli.GameEngine.Util;
+using WebPeli.GameEngine.World;
 
-namespace WebPeli.GameEngine.Managers;
+namespace WebPeli.GameEngine.Systems;
 
 // TODO: move static stuff to World class
-public enum Direction : byte
-{
-    Up = 0,
-    North = Up,
-    Right = 1,
-    East = Right,
-    Down = 2,
-    South = Down,
-    Left = 3,
-    West = Left,
-    None = 4
-}
-// Movement system:
-// Ai checks available moves and then selects move it wants to perform and sends MoveEntityRequest to MovementManager
-// MovementManager checks if the move is valid and then moves the entity and sends event to AnimationManager
-// Move takes time and entity can't move again until the move is completed
-public enum MovementType : byte
-{
-    Walk = 0,
-    Run = 1,
-    Sneak = 2,
-    jump = 3,
-    climb = 4,
-    swim = 5,
-}
 
-public class MovementManager : BaseManager
+
+public class MovementSystem : BaseManager
 {
 
-    internal class MovementData(Position current, Position[] path, MovementType movementType)
+    internal class MovementData(Position current, Position[] path, EntityAction movementType)
     {
         public Position CurrentPosition {get; set;} = current;
         public Position[] Path { get; init; } = path;
-        public MovementType MovementType { get; init; } = movementType;
+        public EntityAction MovementType { get; init; } = movementType;
         public int CurrentMoveIndex { get; set; } = 1; // Skip first position, it's the current position
 
         public Position GetNextMove()
@@ -108,14 +85,19 @@ public class MovementManager : BaseManager
     private int _tickCounter = 0;
     public override void Update(double deltaTime)
     {
+        var pathingTock = Environment.TickCount;
+        var amountRequests = EventQueue.Count;
         Parallel.ForEach(EventQueue, HandleMessage);
         EventQueue.Clear();
+        System.Console.WriteLine($"MovementSystem pathing took {Environment.TickCount - pathingTock} ms for {amountRequests} requests");
         // Later: add deltaTime to moving entities, now just use crude loop limiter
+        var tock = Environment.TickCount;
         if (_tickCounter++ >= 1)
         {
             _tickCounter = 0;
             MoveEntities(deltaTime);
         }
+        System.Console.WriteLine($"MovementSystem update took {Environment.TickCount - tock} ms");
 
     }
 
@@ -126,7 +108,7 @@ public class MovementManager : BaseManager
         Position fromPosition = request.FromPosition;
         Position toPosition = request.ToPosition;
 
-        var path = World.GetPath(fromPosition, toPosition);
+        var path = WorldApi.GetPath(fromPosition, toPosition);
         if (path == null || path.Length <= 1)
         {
             EventManager.Emit(new EntityMovementFailed{EntityId = EntityId});
@@ -137,24 +119,9 @@ public class MovementManager : BaseManager
             }
             return;
         }
-
         var movementData = new MovementData(fromPosition, path, request.MovementType);
-        var oldState = World.GetEntityState(EntityId);
-        EntityState newState;
-        if (oldState == null)
-        {
-            newState = new EntityState([fromPosition], CurrentAction.Moving, fromPosition.LookAt(path[1]));           
-        }
-        else
-        {
-            oldState.Position = [fromPosition];
-            oldState.CurrentAction = CurrentAction.Moving;
-            oldState.Direction = fromPosition.LookAt(path[1]);
-            newState = oldState;
-        }
-
-        World.SetEntityState(EntityId, newState);
         _movingEntities.TryAdd(EntityId, movementData);
+        WorldApi.SetEntityAction(EntityId, request.MovementType);
     }
 
     private void HandleEntityMove(MoveEntityRequest request)
@@ -170,9 +137,8 @@ public class MovementManager : BaseManager
             Console.WriteLine($"Moving {_movingEntities.Count} entities");
         }
 
-
-        ConcurrentBag<int> toRemove = [];
-        Parallel.ForEach(_movingEntities, kvp =>
+        List<int> toRemove = [];
+        foreach (var kvp in _movingEntities)
         {
             var entityId = kvp.Key;
             var movementData = kvp.Value;
@@ -180,38 +146,57 @@ public class MovementManager : BaseManager
             var currentPos = movementData.CurrentPosition;
             movementData.UpdateCurrentPosition();
 
-
             if (Config.DebugPathfinding)
             {
-                Console.WriteLine($"Entity {entityId} moving to {nextMove} from {movementData.CurrentPosition}");
-                Console.WriteLine($"Entity {entityId} path : {movementData.CurrentMoveIndex}/{movementData.Path.Length}");
+            Console.WriteLine($"Entity {entityId} moving to {nextMove} from {currentPos}");
+            Console.WriteLine($"Entity {entityId} path : {movementData.CurrentMoveIndex}/{movementData.Path.Length}");
             }
 
             if (nextMove == currentPos)
             {
-                // Entity has reached target position
-                if (Config.DebugPathfinding)
-                {
-                    Console.WriteLine($"Entity {entityId} reached target position");
-                }
-                World.SetEntityState(entityId, new EntityState([nextMove], CurrentAction.Idle, nextMove.LookAt(movementData.CurrentPosition)));
-                toRemove.Add(entityId);
-                EventManager.Emit(new EntityMovementSucceeded{EntityId = entityId});
-                return;
-            }
-            World.MoveEntity(entityId, [nextMove]);
-
+            // Entity has reached target position
             if (Config.DebugPathfinding)
             {
-                Console.WriteLine($"Entity {entityId} moved to {nextMove} from {movementData.CurrentPosition}");
+                Console.WriteLine($"Entity {entityId} reached target position");
             }
-        });
+            
+            toRemove.Add(entityId);
+            WorldApi.SetEntityAction(entityId, EntityAction.None);
+            EventManager.Emit(new EntityMovementSucceeded{EntityId = entityId});
+            continue;
+            }
+
+            if (!WorldApi.TryMoveEntity(entityId, [nextMove]))
+            {
+            // Entity could not move to next position
+            if (Config.DebugPathfinding)
+            {
+                Console.WriteLine($"Entity {entityId} could not move to {nextMove} from {currentPos}");
+            }
+            toRemove.Add(entityId);
+            WorldApi.SetEntityAction(entityId, EntityAction.None);
+            EventManager.Emit(new EntityMovementFailed{EntityId = entityId});
+            continue;
+            }
+            WorldApi.SetEntityFacing(entityId, currentPos.LookAt(nextMove));
+            if (Config.DebugPathfinding)
+            {
+            Console.WriteLine($"Entity {entityId} moved to {nextMove} from {currentPos}");
+            }
+        }
 
         foreach (var entityId in toRemove)
         {
             _movingEntities.TryRemove(entityId, out _);
         }
     }
+
+    private void ProcessEntityMovement()
+    {
+        
+    }
+
+
 
     public override void Init()
     {

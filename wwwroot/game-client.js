@@ -23,6 +23,7 @@ class GameClient {
         this.maxReconnectAttempts = 5;
         this.viewportCallback = null;
         this.errorCallback = null;
+        this.renderer = new GameRenderer(document.getElementById('gameCanvas'));
     }
 
     // Connect to server
@@ -106,6 +107,7 @@ class GameClient {
                 break;
                 
             default:
+                console.log('Received message:', type, payload);
                 console.error('Unknown message type:', type);
         }
     }
@@ -113,23 +115,35 @@ class GameClient {
     // Handle viewport data from server
     handleViewportData(payload) {
         const view = new DataView(payload.buffer, payload.byteOffset, payload.length);
-        const width = view.getUint16(0, true);
-        const height = view.getUint16(2, true);
-        
-        // Create grid array
-        const grid = new Uint8Array(width * height);
-        for (let i = 0; i < width * height; i++) {
-            grid[i] = payload[4 + i];
+        const width = payload[0];
+        const height = payload[1];
+        let offset = 2;
+
+        // Parse tiles
+        const tiles = new Array(width * height);
+        for(let i = 0; i < width * height; i++) {
+            tiles[i] = {
+                material: payload[offset++],
+                surface: payload[offset++],
+                properties: payload[offset++]
+            };
         }
-        
-        // If we have a callback registered, send the data
-        if (this.viewportCallback) {
-            this.viewportCallback({
-                width,
-                height,
-                grid
+
+        // Parse entities
+        const entities = [];
+        while(offset < payload.length) {
+            entities.push({
+                x: payload[offset++],
+                y: payload[offset++],
+                id: view.getInt32(offset, true),
+                action: payload[offset + 4],
+                type: payload[offset + 5],
+                direction: payload[offset + 6]
             });
+            offset += 7;
         }
+
+        this.renderer.render({ width, height, tiles, entities });
     }
     
     // Handle error messages
@@ -158,10 +172,10 @@ class GameClient {
         view.setUint16(1, 16, true); // payload length, little-endian
         
         // Write payload
-        view.setFloat32(3, cameraX, true);
-        view.setFloat32(7, cameraY, true);
-        view.setFloat32(11, width, true);
-        view.setFloat32(15, height, true);
+        view.setInt32(3, cameraX, true);
+        view.setInt32(7, cameraY, true);
+        view.setUint8(11, width, true);
+        view.setUint8(12, height, true);
         
         // Send to server
         this.ws.send(buffer);

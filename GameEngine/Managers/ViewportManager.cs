@@ -1,5 +1,10 @@
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Collections.Concurrent;
+using System.Net.WebSockets;
+using WebPeli.GameEngine.Util;
+using WebPeli.GameEngine.World;
+using WebPeli.Network;
 
 namespace WebPeli.GameEngine.Managers;
 
@@ -9,19 +14,27 @@ public readonly record struct ViewportDataBinary
     public required Memory<byte> EncodedData { get; init; }
 
     // Helper to get dimensions from encoded data
-    public (ushort Width, ushort Height) GetDimensions()
+    public (byte Width, byte Height) GetDimensions()
     {
-        var width = BinaryPrimitives.ReadUInt16LittleEndian(EncodedData.Span[0..2]);
-        var height = BinaryPrimitives.ReadUInt16LittleEndian(EncodedData.Span[2..4]);
-        return (width, height);
+        return (EncodedData.Span[0], EncodedData.Span[1]);
     }
 }
 
 // Specialized manager for handling viewport requests
 public class ViewportManager : BaseManager
 {
+    private readonly ConcurrentDictionary<Guid, ViewportSubscription> _activeViewports = [];
     private readonly ArrayPool<byte> _arrayPool;
     private readonly ILogger<ViewportManager> _logger;
+
+    public class ViewportSubscription
+    {
+        public required WebSocket Socket { get; set; }
+        public Position TopLeft { get; set; }
+        public int Width { get; set; }
+        public int Height { get; set; }
+        public byte[]? LastUpdate { get; set; }  // Store last sent data for change detection
+    }
 
     public ViewportManager(ILogger<ViewportManager> logger)
     {
@@ -35,26 +48,32 @@ public class ViewportManager : BaseManager
         if (evt is ViewportRequest req)
         {
             _logger.LogDebug(
-                "Viewport request: Camera({X:F2}, {Y:F2}), Viewport({W:F2}, {H:F2})",
-                req.CameraX, req.CameraY, req.ViewportWidth, req.ViewportHeight
+                "Viewport request for area at ({X}, {Y})",
+                req.TopLeft.X, req.TopLeft.Y
             );
 
             try
             {
+                // Create or update subscription
+                var subscription = new ViewportSubscription
+                {
+                    Socket = req.Socket,
+                    TopLeft = new Position { X = req.TopLeft.X, Y = req.TopLeft.Y },
+                    Width = req.Width,
+                    Height = req.Height
+                };
+
+                _activeViewports.AddOrUpdate(req.ConnectionId, subscription, (_, _) => subscription);
+
+                // Send initial data
                 var viewportData = GetViewportDataBinary(
-                    req.CameraX,
-                    req.CameraY,
-                    req.ViewportWidth,
-                    req.ViewportHeight,
-                    req.WorldWidth,
-                    req.WorldHeight
+                    subscription.TopLeft,
+                    subscription.Width,
+                    subscription.Height
                 );
 
-                _logger.LogDebug(
-                    "Sending viewport data: {Size} bytes for area at ({X:F2}, {Y:F2})",
-                    viewportData.EncodedData.Length, req.CameraX, req.CameraY
-                );
-
+                subscription.LastUpdate = viewportData.EncodedData.ToArray();
+                
                 EventManager.EmitCallback(req.CallbackId, viewportData);
             }
             catch (Exception ex)
@@ -65,66 +84,115 @@ public class ViewportManager : BaseManager
         }
     }
 
-    private ViewportDataBinary GetViewportDataBinary(float cameraX, float cameraY, float viewportWidth, float viewportHeight, float? worldWidth = null, float? worldHeight = null)
+    private static bool HasChanged(byte[]? oldData, ReadOnlySpan<byte> newData)
     {
-        var tileGrid = World.GetTilesInArea(
-            cameraX,
-            cameraY,
-            viewportWidth,
-            viewportHeight,
-            worldWidth,
-            worldHeight
-        );
+        if (oldData == null) return true;
+        if (oldData.Length != newData.Length) return true;
+        
+        return !newData.SequenceEqual(oldData);
+    }
 
-        var width = (ushort)tileGrid.GetLength(0);
-        var height = (ushort)tileGrid.GetLength(1);
+    public void RemoveSubscription(Guid connectionId)
+    {
+        _activeViewports.TryRemove(connectionId, out _);
+    }
 
-        // _logger.LogDebug($"Creating viewport data: {width}x{height}");
-        // System.Console.WriteLine($"Creating viewport data: {width}x{height}");
-        // System.Console.WriteLine($"Camera: {cameraX},{cameraY} Viewport: {viewportWidth}x{viewportHeight}");
+    public override void Update(double deltaTime)
+    {
+        base.Update(deltaTime);
 
-        // Calculate total size: 4 bytes header + tiles
-        var dataSize = 4 + (width * height);
-        var buffer = _arrayPool.Rent(dataSize);
-
-        // Write dimensions
-        BinaryPrimitives.WriteUInt16LittleEndian(buffer.AsSpan(0..2), width);
-        BinaryPrimitives.WriteUInt16LittleEndian(buffer.AsSpan(2..4), height);
-
-        // _logger.LogDebug($"Header bytes: [{string.Join(", ", buffer.AsSpan(0..4).ToArray())}]");
-        // System.Console.WriteLine($"Header bytes: [{string.Join(", ", buffer.AsSpan(0..4).ToArray())}]");
-
-        // Write tile data
-        var i = 4;
-        for (var y = 0; y < height; y++)
+        // Process updates for all active viewports
+        foreach (var kvp in _activeViewports)
         {
-            for (var x = 0; x < width; x++)
+            var sub = kvp.Value;
+            
+            // Skip if socket is closed
+            if (sub.Socket.State != WebSocketState.Open)
             {
-                buffer[i] = tileGrid[x, y];
-                if (x < 5 && y < 5)
+                _activeViewports.TryRemove(kvp.Key, out _);
+                continue;
+            }
+
+            try
+            {
+                var newData = GetViewportDataBinary(sub.TopLeft, sub.Width, sub.Height);
+                
+                // Only send if data changed
+                if (HasChanged(sub.LastUpdate, newData.EncodedData.Span))
                 {
-                    _logger.LogDebug($"Tile({x},{y}): material={buffer[i]}");
+                    sub.LastUpdate = newData.EncodedData.ToArray();
+                    
+                    // Send update
+                    sub.Socket.SendAsync(
+                        new ArraySegment<byte>(sub.LastUpdate),
+                        WebSocketMessageType.Binary,
+                        true,
+                        CancellationToken.None);
                 }
-                i++;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending viewport update");
+                _activeViewports.TryRemove(kvp.Key, out _);
             }
         }
-        // for (var x = 0; x < width; x++)
-        // {
-        //     for (var y = 0; y < height; y++)
-        //     {
-        //         buffer[i] = tileGrid[x, y];
-        //         if (x < 5 && y < 5)
-        //         {
-        //             // _logger.LogInformation($"Tile({x},{y}): material={buffer[i]}");
-        //         }
-        //         i++;
-        //     }
-        // }
+    }
 
+    private ViewportDataBinary GetViewportDataBinary(Position topLeft, int width, int height)
+    {
+        var tileGrid = WorldApi.GetTilesInArea(topLeft, width, height);
+        var entities = WorldApi.GetEntitiesInArea(topLeft, width, height);
+
+        // Calculate total entity count for buffer size
+        int totalEntities = entities.Sum(kvp => kvp.Value.Length);
+
+        // Calculate total size needed
+        const int PROTOCOL_HEADER_SIZE = 3; // 1 byte type + 2 bytes length
+        const int PAYLOAD_HEADER_SIZE = 2; // width + height (1 byte each)
+        int tileDataSize = width * height * 3; // 3 bytes per tile
+        int entityDataSize = totalEntities * 9; // 9 bytes per entity
+        int totalSize = PROTOCOL_HEADER_SIZE + PAYLOAD_HEADER_SIZE + tileDataSize + entityDataSize;
+
+        var buffer = _arrayPool.Rent(totalSize);
+        var span = buffer.AsSpan(0, totalSize);
+
+        // Write protocol header
+        span[0] = (byte)MessageType.ViewportData;
+        BinaryPrimitives.WriteUInt16LittleEndian(span[1..], (ushort)(totalSize - PROTOCOL_HEADER_SIZE));
+
+        // Write payload header
+        int offset = PROTOCOL_HEADER_SIZE;
+        span[offset++] = (byte)width;
+        span[offset++] = (byte)height;
+
+        // Write tile data
+        for (int i = 0; i < tileGrid.Length; i++)
+        {
+            span[offset++] = tileGrid[i].material;
+            span[offset++] = (byte)tileGrid[i].surface;
+            span[offset++] = (byte)tileGrid[i].props;
+        }
+
+        // Write entity data
+        foreach (var (pos, entitiesAtPos) in entities)
+        {
+            foreach (var (entityId, action, type, direction) in entitiesAtPos)
+            {
+                byte relX = (byte)(pos.X - topLeft.X);
+                byte relY = (byte)(pos.Y - topLeft.Y);
+                span[offset++] = relX;
+                span[offset++] = relY;
+                BinaryPrimitives.WriteInt32LittleEndian(span[offset..], entityId);
+                offset += 4;
+                span[offset++] = (byte)action;
+                span[offset++] = (byte)type;
+                span[offset++] = (byte)direction;
+            }
+        }
 
         return new ViewportDataBinary
         {
-            EncodedData = new Memory<byte>(buffer, 0, dataSize)
+            EncodedData = new Memory<byte>(buffer, 0, totalSize)
         };
     }
 

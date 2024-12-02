@@ -1,5 +1,7 @@
-using WebPeli.GameEngine.EntitySystem.Interfaces;
 using WebPeli.GameEngine.Managers;
+using WebPeli.GameEngine.Util;
+using WebPeli.GameEngine.Systems;
+using WebPeli.GameEngine.World;
 
 namespace WebPeli.GameEngine;
 
@@ -15,7 +17,7 @@ public class GameEngineService : BackgroundService
         // Build world
         var startTime = Environment.TickCount;
         _logger.LogInformation("Generating world... this might take a while");
-        World.GenerateWorld();
+        WorldApi.GenerateWorld();
         _logger.LogInformation($"World generation took {Environment.TickCount - startTime}ms");
 
         // Initialize managers
@@ -23,18 +25,18 @@ public class GameEngineService : BackgroundService
         managers.Add(new MapManager());
         // managers.Add(new ViewportManager());
         managers.Add(viewportManager);
-        managers.Add(new MovementManager());
         managers.Add(new AiManager());
 
 
         InitManagers();
 
         systems.Add(new MetabolismSystem());
+        systems.Add(new MovementSystem());
 
         InitSystems();
 
         // Add placeholder entities
-        int num_entities = 15;
+        int num_entities = 10_000;
         for (int i = 0; i < num_entities; i++)
         {
             managers[0].HandleMessage(new CreateEntity{Capabilities = [EntityCapabilities.MetabolismSystem,
@@ -88,6 +90,7 @@ public class GameEngineService : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("GameEngineService is starting.");
+        await Task.Delay(1000, stoppingToken);
         while (!stoppingToken.IsCancellationRequested)
         {
             var startTick = Environment.TickCount;

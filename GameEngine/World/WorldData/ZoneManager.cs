@@ -1,14 +1,14 @@
 using WebPeli.GameEngine.Util;
-namespace WebPeli.GameEngine.WorldData;
+namespace WebPeli.GameEngine.World.WorldData;
 
 public static class ZoneManager
 {
     public static void CreateZones(Chunk chunk)
     {
-        bool[,] visited = new bool[Config.CHUNK_SIZE_BYTE, Config.CHUNK_SIZE_BYTE];
-        for (byte y = 0; y < Config.CHUNK_SIZE_BYTE; y++)
+        bool[,] visited = new bool[Config.CHUNK_SIZE, Config.CHUNK_SIZE];
+        for (byte x = 0; x < Config.CHUNK_SIZE; x++)
         {
-            for (byte x = 0; x < Config.CHUNK_SIZE_BYTE; x++)
+            for (byte y = 0; y < Config.CHUNK_SIZE; y++)
             {
                 if (visited[x, y]) continue;
                 Zone? newZone = DiscoverZone(chunk, (x, y), ref visited);
@@ -22,15 +22,15 @@ public static class ZoneManager
         {
             World.WorldGenerator.DrawChunk(chunk);
             DrawZones(chunk);
-            System.Console.WriteLine($"Chunk {chunk.X}, {chunk.Y} has {chunk.GetZones().Count()} zones");
+            Console.WriteLine($"Chunk {chunk.X}, {chunk.Y} has {chunk.GetZones().Count()} zones");
         }
     }
 
     public static void DrawZones(Chunk chunk)
     {
-        for (byte y = 0; y < Config.CHUNK_SIZE_BYTE; y++)
+        for (byte x = 0; x < Config.CHUNK_SIZE; x++)
         {
-            for (byte x = 0; x < Config.CHUNK_SIZE_BYTE; x++)
+            for (byte y = 0; y < Config.CHUNK_SIZE; y++)
             {
                 var zone = chunk.GetZoneAt(x, y);
                 if (zone == null)
@@ -45,22 +45,6 @@ public static class ZoneManager
                     if (zoneEdge)
                     {
                         var edge = zone.Value.Edges[(x, y)];
-                        if (edge.HasFlag(ZoneEdge.ChunkNorth))
-                        {
-                            Glyph = 'N';
-                        }
-                        if (edge.HasFlag(ZoneEdge.ChunkSouth))
-                        {
-                            Glyph = 'S';
-                        }
-                        if (edge.HasFlag(ZoneEdge.ChunkEast))
-                        {
-                            Glyph = 'E';
-                        }
-                        if (edge.HasFlag(ZoneEdge.ChunkWest))
-                        {
-                            Glyph = 'W';
-                        }
 
                         if (edge.HasFlag(ZoneEdge.North))
                         {
@@ -78,6 +62,24 @@ public static class ZoneManager
                         {
                             Glyph = 'w';
                         }
+
+                        if (edge.HasFlag(ZoneEdge.ChunkNorth))
+                        {
+                            Glyph = 'N';
+                        }
+                        if (edge.HasFlag(ZoneEdge.ChunkSouth))
+                        {
+                            Glyph = 'S';
+                        }
+                        if (edge.HasFlag(ZoneEdge.ChunkEast))
+                        {
+                            Glyph = 'E';
+                        }
+                        if (edge.HasFlag(ZoneEdge.ChunkWest))
+                        {
+                            Glyph = 'W';
+                        }
+
                     }
                     else if (zoneTile)
                     {
@@ -96,9 +98,9 @@ public static class ZoneManager
 
     public static void DrawZone(Zone zone, Position? position = null)
     {
-        for (byte y = 0; y < Config.CHUNK_SIZE_BYTE; y++)
+        for (byte x = 0; x < Config.CHUNK_SIZE; x++)
         {
-            for (byte x = 0; x < Config.CHUNK_SIZE_BYTE; x++)
+            for (byte y = 0; y < Config.CHUNK_SIZE; y++)
             {
                 var zoneTile = zone.TilePositions.Contains((x, y));
                 var zoneEdge = zone.Edges.ContainsKey((x, y));
@@ -191,9 +193,11 @@ public static class ZoneManager
                 (x + 1, y)
             };
 
+
+
             foreach (var (nx, ny) in neighbors)
             {
-                if (nx < 0 || nx >= Config.CHUNK_SIZE_BYTE || ny < 0 || ny >= Config.CHUNK_SIZE_BYTE) continue;
+                if (!World.IsInChunkBounds(nx, ny)) continue;
                 if (visited[nx, ny]) continue;
                 var (_, _, properties) = chunk.GetTile(nx, ny);
                 if (!TileManager.IsWalkable(properties)) continue;
@@ -209,36 +213,35 @@ public static class ZoneManager
             
             var neighbors = new (int, int)[]
             {
-                (x, y - 1),  // N
-                (x, y + 1), // S
-                (x - 1, y), // W
-                (x + 1, y) // E
+                (x - 1, y), // North
+                (x + 1, y), // South
+                (x, y - 1), // West
+                (x, y + 1)  // East
             };
             ZoneEdge edge = ZoneEdge.None;
             foreach (var (nx, ny) in neighbors)
             {
-                // if (!World.IsInWorldBounds(chunk.X * Config.CHUNK_SIZE_BYTE + x, chunk.Y * Config.CHUNK_SIZE_BYTE + y)) continue;
+                // if (!World.IsInWorldBounds(chunk.X * Config.CHUNK_SIZE + x, chunk.Y * Config.CHUNK_SIZE + y)) continue;
                 
                 // this neighbour is outside of chunk
-                if (nx < 0 || nx >= Config.CHUNK_SIZE_BYTE || ny < 0 || ny >= Config.CHUNK_SIZE_BYTE)
+                if (!World.IsInChunkBounds(nx, ny))
                 {
-                    if (nx < 0)
-                    {
-                        edge |= ZoneEdge.ChunkWest;
-                    }
-                    else if (nx >= Config.CHUNK_SIZE_BYTE)
-                    {
-                        edge |= ZoneEdge.ChunkEast;
-                    }
-                    else if (ny < 0)
+                    if (nx <= 0)
                     {
                         edge |= ZoneEdge.ChunkNorth;
                     }
-                    else if (ny >= Config.CHUNK_SIZE_BYTE)
+                    if (nx >= Config.CHUNK_SIZE)
                     {
                         edge |= ZoneEdge.ChunkSouth;
                     }
-                    continue;
+                    if (y == 0)
+                    {
+                        edge |= ZoneEdge.ChunkWest;
+                    }
+                    if (y == Config.CHUNK_SIZE - 1)
+                    {
+                        edge |= ZoneEdge.ChunkEast;
+                    }
                 }
                 
                 // this neighbour is not part of the zone
@@ -246,27 +249,21 @@ public static class ZoneManager
                 {
                     if (nx < x)
                     {
-                        edge |= ZoneEdge.West;
-                    }
-                    else if (nx > x)
-                    {
-                        edge |= ZoneEdge.East;
-                    }
-                    else if (ny < y)
-                    {
                         edge |= ZoneEdge.North;
                     }
-                    else if (ny > y)
+                    if (nx > x)
                     {
                         edge |= ZoneEdge.South;
                     }
+                    if (ny < y)
+                    {
+                        edge |= ZoneEdge.West;
+                    }
+                    if (ny > y)
+                    {
+                        edge |= ZoneEdge.East;
+                    }
                 }
-
-
-
-
-
-
 
                 if (edge != ZoneEdge.None)
                 {

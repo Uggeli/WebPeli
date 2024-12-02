@@ -1,9 +1,10 @@
 # WebPeli Development TODOs:
 
+# Milestone: Flora and Vegetation
+  Goal: Add flora and vegetation to the game world
 
 # General TODOs
 ## High priority
-
 
 ## Low priority
 - add shutdown thingies for server that terminates all websocket connections and shutdowns all systems and managers in orderly manner
@@ -11,11 +12,15 @@
 - add multitile entity pathfinding
 
 
-# Milestone: Flora and Vegetation
- Goal: Add flora and vegetation to the game world
+# Roadmap:
+# Milestone: rendering update
+  Goal: WebGl/WebGPU based rendering in 3dspace + texture fetching and stuff
 
 # Milestone: Entities starve and find food, the great famine milestone
- Goal: Entities starve and find food, impliment basic maslow's hierarchy of needs limitied to food and hunger for now
+  Goal: Entities starve and find food, impliment basic maslow's hierarchy of needs limitied to food and hunger for now
+
+# Milestone: Weather and Enviroments
+  Goal: Create weather system
 
 ## High priority
 - Add food entities
@@ -29,41 +34,8 @@
 
 
 ## Done milestones:
+# Milestone: World.API
+  Goal: Create coherent apilayer between systems and physical world
 # Milestone: Basic stuff
   Goal: Get Entities moving
 
-## High priority
-
-- Test pathfinding
-
-## Done stuff
-- Core Systems
-  - Basic game engine setup
-  - WebSocket communication layer
-  - Entity component system implementation
-  - Basic rendering system
-  - Input handling system
-
-- Gameplay Features
-  - Basic movement mechanics
-  - Simple collision detection
-  - Initial map rendering
-  - Basic player controls
-  - Character sprite implementation
-
-- Technical Infrastructure
-  - Project structure setup
-  - Development environment configuration
-  - Basic build pipeline
-  - Initial server architecture
-  - WebSocket connection handling
-  
-- Other
-  - Done refactor client side for easy debugging
-  - Rewrote whole fucking mapping system
-  - Get pathfinding stuff working
-  - everything should use new id system
-  - added multitile entity support, -partially done
-  - Add entityhandling
-  - Add movement handling
-  - Add collision handling

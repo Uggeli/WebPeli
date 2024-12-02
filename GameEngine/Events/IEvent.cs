@@ -1,5 +1,6 @@
-using WebPeli.GameEngine.EntitySystem;
+using System.Net.WebSockets;
 using WebPeli.GameEngine.Managers;
+using WebPeli.GameEngine.Util;
 
 namespace WebPeli.GameEngine;
 
@@ -29,13 +30,12 @@ public record TextureData
 
 public record ViewportRequest : IEvent
 {
-    public float CameraX { get; init; }
-    public float CameraY { get; init; }
-    public float ViewportWidth { get; init; }
-    public float ViewportHeight { get; init; }
-    public float? WorldWidth { get; init; }
-    public float? WorldHeight { get; init; }
+    public required Position TopLeft { get; init; }
+    public required int Width { get; init; }
+    public required int Height { get; init; }
     public Guid CallbackId { get; init; }
+    public required WebSocket Socket { get; init; }
+    public required Guid ConnectionId { get; init; }
 }
 
 public readonly record struct TerrainCollisionRequest : IEvent
@@ -70,7 +70,7 @@ public readonly record struct PathfindingRequest : IEvent
     // public required float TargetY { get; init; }
     public required Position FromPosition { get; init; }
     public required Position ToPosition { get; init; }
-    public required Guid CallbackId { get; init; }
+    public Guid CallbackId { get; init; }
 }
 
 // MovementManager handles this event and finds path for entity
@@ -85,7 +85,7 @@ public readonly record struct FindPathAndMoveEntity : IEvent
     // public required int TargetY { get; init; }
     public required Position FromPosition { get; init; }
     public required Position ToPosition { get; init; }
-    public required MovementType MovementType { get; init; }
+    public required EntityAction MovementType { get; init; }
 }
 
 
@@ -102,7 +102,7 @@ public readonly record struct EntityMovementFailed : IEvent
 }
 
 
-public enum SystemType
+public enum SystemType : byte
 {
     MetabolismSystem,
     MovementSystem,
@@ -128,14 +128,14 @@ public readonly record struct DeathEvent : IEvent
     // Entitys life is over, but is that the end? stay tuned for the next episode of Dragon Ball Z 
     
 }
-public enum ThresholdSeverity
+public enum ThresholdSeverity : byte
 {
     Mild,
     Severe,
     Critical
 }
 
-public enum ThresholdType
+public enum ThresholdType : byte
 {
     Hunger,
     Thirst,
@@ -154,6 +154,7 @@ public record Rest(int EntityId, byte Amount) : IEvent;
 public record CreateEntity : IEvent
 {
     public required EntityCapabilities[] Capabilities { get; init; }
+    public Position[]? Positions { get; init; }
 }
 
 public record RemoveEntity : IEvent
@@ -162,3 +163,49 @@ public record RemoveEntity : IEvent
     // EntityManager catches this and removes the entity and sends
     // UnregisterFromSystem to all systems that entity has interfaces for
 }
+
+
+
+/// <summary>
+/// What Entity is doing
+/// </summary>
+[Flags]
+public enum EntityAction : int
+{
+    None = 0,
+    Idle = 1 << 0,
+
+    // Movement
+    Walking = 1 << 1,
+    Running = 1 << 2,
+    Sneaking = 1 << 3,
+    Jumping = 1 << 4,
+    Climbing = 1 << 5,
+
+    // Manipulation
+    PickingUp = 1 << 6,
+    Dropping = 1 << 7,
+    Pushing = 1 << 8,
+    Pulling = 1 << 9,
+    Carrying = 1 << 10,
+
+    // Metabolism
+    Eating = 1 << 11,
+    Drinking = 1 << 12,
+    Resting = 1 << 13,
+}
+
+/// <summary>
+/// What Entity is
+/// </summary>
+
+[Flags]
+public enum EntityType : int
+{
+    None = 0,
+    Living = 1 << 0,  // This thing breathes
+    Resource = 1 << 1,  // This thing can be harvested
+    Structure = 1 << 2,  // This thing is a building
+}
+
+

@@ -50,7 +50,7 @@ public static class MessageProtocol
 
         // Read header
         type = (MessageType)data[0];
-        var length = BinaryPrimitives.ReadUInt16LittleEndian(data.Slice(1));
+        var length = BinaryPrimitives.ReadUInt16LittleEndian(data[1..]);
 
         // Validate full message available
         if (data.Length < HEADER_SIZE + length)
@@ -61,81 +61,19 @@ public static class MessageProtocol
         return true;
     }
 
-    // Helper for viewport requests
-    public static byte[] EncodeViewportRequest(float cameraX, float cameraY, float width, float height)
-    {
-        var payload = new byte[16];
-        BinaryPrimitives.WriteSingleLittleEndian(payload.AsSpan(0), cameraX);
-        BinaryPrimitives.WriteSingleLittleEndian(payload.AsSpan(4), cameraY);
-        BinaryPrimitives.WriteSingleLittleEndian(payload.AsSpan(8), width);
-        BinaryPrimitives.WriteSingleLittleEndian(payload.AsSpan(12), height);
-
-        return EncodeMessage(MessageType.ViewportRequest, payload);
-    }
-
-    public static bool TryDecodeViewportRequest(ReadOnlySpan<byte> payload, out float cameraX, out float cameraY, out float width, out float height)
+    public static bool TryDecodeViewportRequest(ReadOnlySpan<byte> payload, out int cameraX, out int cameraY, out byte width, out byte height)
     {
         // Defaults
-        cameraX = cameraY = width = height = 0;
-
-        if (payload.Length < 16)
-            return false;
-
-        cameraX = BinaryPrimitives.ReadSingleLittleEndian(payload);
-        cameraY = BinaryPrimitives.ReadSingleLittleEndian(payload.Slice(4));
-        width = BinaryPrimitives.ReadSingleLittleEndian(payload.Slice(8));
-        height = BinaryPrimitives.ReadSingleLittleEndian(payload.Slice(12));
-
-        return true;
-    }
-
-    // Helper for viewport data responses
-    public static byte[] EncodeViewportData(byte[,] tileGrid)
-    {
-        var width = (ushort)tileGrid.GetLength(0);
-        var height = (ushort)tileGrid.GetLength(1);
-        var payload = new byte[4 + (width * height)];
-
-        // Write dimensions
-        BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(0), width);
-        BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(2), height);
-
-        // Write tile data
-        var i = 4;
-        for (var y = 0; y < height; y++)
-            for (var x = 0; x < width; x++)
-                payload[i++] = tileGrid[x, y];
-
-        return EncodeMessage(MessageType.ViewportData, payload);
-    }
-
-    public static bool TryDecodeViewportData(
-        ReadOnlySpan<byte> payload,
-        out ushort width,
-        out ushort height,
-        out byte[,]? tileGrid)
-    {
-        // Defaults
+        cameraX = cameraY = 0;
         width = height = 0;
-        tileGrid = null;
 
-        if (payload.Length < 4)
+        if (payload.Length < 10) // 4 + 4 + 1 + 1
             return false;
 
-        // Read dimensions
-        width = BinaryPrimitives.ReadUInt16LittleEndian(payload);
-        height = BinaryPrimitives.ReadUInt16LittleEndian(payload.Slice(2));
-
-        // Validate data size
-        if (payload.Length != 4 + (width * height))
-            return false;
-
-        // Read tile data
-        tileGrid = new byte[width, height];
-        var i = 4;
-        for (var y = 0; y < height; y++)
-            for (var x = 0; x < width; x++)
-                tileGrid[x, y] = payload[i++];
+        cameraX = BinaryPrimitives.ReadInt32LittleEndian(payload);
+        cameraY = BinaryPrimitives.ReadInt32LittleEndian(payload[4..]);
+        width = payload[8];
+        height = payload[9];
 
         return true;
     }
@@ -145,19 +83,5 @@ public static class MessageProtocol
     {
         var payload = System.Text.Encoding.UTF8.GetBytes(message);
         return EncodeMessage(MessageType.Error, payload);
-    }
-
-    public static bool TryDecodeError(ReadOnlySpan<byte> payload, out string? message)
-    {
-        message = null;
-        try
-        {
-            message = System.Text.Encoding.UTF8.GetString(payload);
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
     }
 }
