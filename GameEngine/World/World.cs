@@ -12,7 +12,7 @@ internal static partial class World
     // private static readonly int _chunkSize = Config.CHUNK_SIZE_BYTE * Config.CHUNK_SIZE_BYTE;
     private static ConcurrentDictionary<(int X, int Y), Chunk> _chunks = [];
     private static Dictionary<(int x, int y), ChunkConnection> _chunkGraph = [];
-
+    
 
     // Accessors, Map data
     public static (byte material, TileSurface surface, TileProperties properties) GetTileAt(Position pos)
@@ -74,8 +74,8 @@ internal static partial class World
         IsInChunkBounds(pos.TilePosition.X, pos.TilePosition.Y);
 
     public static bool IsInWorldBounds(int x, int y) =>
-        x >= 0 && x < Config.WORLD_SIZE * Config.CHUNK_SIZE &&
-        y >= 0 && y < Config.WORLD_SIZE * Config.CHUNK_SIZE;
+        x >= 0 && x < Config.WORLD_TILES &&
+        y >= 0 && y < Config.WORLD_TILES;
 
     public static bool IsInWorldBounds(Position pos) => IsInWorldBounds(pos.ChunkPosition.X, pos.ChunkPosition.Y);
 

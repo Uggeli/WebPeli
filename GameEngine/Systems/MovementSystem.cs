@@ -85,14 +85,19 @@ public class MovementSystem : BaseManager
     private int _tickCounter = 0;
     public override void Update(double deltaTime)
     {
+        var pathingTock = Environment.TickCount;
+        var amountRequests = EventQueue.Count;
         Parallel.ForEach(EventQueue, HandleMessage);
         EventQueue.Clear();
+        System.Console.WriteLine($"MovementSystem pathing took {Environment.TickCount - pathingTock} ms for {amountRequests} requests");
         // Later: add deltaTime to moving entities, now just use crude loop limiter
+        var tock = Environment.TickCount;
         if (_tickCounter++ >= 1)
         {
             _tickCounter = 0;
             MoveEntities(deltaTime);
         }
+        System.Console.WriteLine($"MovementSystem update took {Environment.TickCount - tock} ms");
 
     }
 
@@ -161,7 +166,7 @@ public class MovementSystem : BaseManager
             continue;
             }
 
-            if (!WorldApi.TryMoveEntity(entityId, new[] { nextMove }))
+            if (!WorldApi.TryMoveEntity(entityId, [nextMove]))
             {
             // Entity could not move to next position
             if (Config.DebugPathfinding)
@@ -185,6 +190,13 @@ public class MovementSystem : BaseManager
             _movingEntities.TryRemove(entityId, out _);
         }
     }
+
+    private void ProcessEntityMovement()
+    {
+        
+    }
+
+
 
     public override void Init()
     {

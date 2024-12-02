@@ -1,10 +1,6 @@
-using System.Collections.Concurrent;
-using WebPeli.GameEngine.Managers;
 using WebPeli.GameEngine.Util;
 using WebPeli.GameEngine.World.WorldData;
-
 namespace WebPeli.GameEngine.World;
-
 /// <summary>
 /// The EntityManager class is used to manage entities in the world.
 /// </summary>
@@ -12,223 +8,282 @@ internal static partial class World
 {
     public static class EntityManager
     {
-        // Track which chunks each entity occupies
-        private static ConcurrentDictionary<int, HashSet<(byte ChunkX, byte ChunkY)>> _entityChunks = [];
-        // Just track volume per entity (we get positions from chunks)
-        private static ConcurrentDictionary<int, byte> _entityVolumes = [];
-        private static ConcurrentDictionary<int, EntityAction> _entityActions = [];
-        private static ConcurrentDictionary<int, EntityType> _entityTypes = [];
-        private static ConcurrentDictionary<int, Direction> _entityFacing = [];
+        private const int MAX_ENTITIES = 1_000_000;
+        private const int WORLD_TILES = Config.WORLD_SIZE * Config.CHUNK_SIZE_BYTE;
 
-        public static void AddEntity(int id, Position[] positions, byte volume = 200)
+        // Core entity data arrays - direct indexed access
+        private static readonly byte[] _volumes = new byte[MAX_ENTITIES];
+        private static readonly EntityAction[] _actions = new EntityAction[MAX_ENTITIES];
+        private static readonly EntityType[] _types = new EntityType[MAX_ENTITIES];
+        private static readonly Direction[] _facing = new Direction[MAX_ENTITIES];
+
+        // Position tracking with fixed sizes
+        private static readonly int[][] _positionGrid; // [x][y][entity_index]
+        private static readonly byte[] _tileCount; // How many entities in each tile
+        private static readonly Position[,] _positions; // [entity_id, position_index] 
+        private static readonly byte[] _positionCount; // How many positions each entity uses
+
+        // Track active entities
+        private static readonly HashSet<int> _activeEntities;
+
+        static EntityManager()
         {
-            if (_entityChunks.ContainsKey(id)) return;
+            // Initialize position grid
+            _positionGrid = new int[WORLD_TILES][];
+            for (int x = 0; x < WORLD_TILES; x++)
+            {
+                _positionGrid[x] = new int[WORLD_TILES * Config.MAX_ENTITIES_PER_TILE];
+            }
 
-            // First validate all positions
-            var chunks = new HashSet<(byte ChunkX, byte ChunkY)>();
+            _tileCount = new byte[WORLD_TILES * WORLD_TILES];
+            _positions = new Position[MAX_ENTITIES, Config.MAX_ENTITY_SIZE * Config.MAX_ENTITY_SIZE];
+            _positionCount = new byte[MAX_ENTITIES];
+            _activeEntities = new HashSet<int>(MAX_ENTITIES);
+        }
+
+        public static bool AddEntity(int id, Position[] positions, byte volume = 200)
+        {
+            if (_activeEntities.Contains(id)) return false;
+            if (positions.Length > Config.MAX_ENTITY_SIZE * Config.MAX_ENTITY_SIZE) return false;
+
+            // Validate all positions have space
             foreach (var pos in positions)
             {
-                // Check if position is valid
-                var chunk = GetChunk(pos.ChunkPosition);
-                if (chunk == null || !chunk.CanAddEntity(pos, volume)) return;
-                chunks.Add(pos.ChunkPosition);
+                int idx = pos.Y * WORLD_TILES + pos.X;
+                if (_tileCount[idx] >= Config.MAX_ENTITIES_PER_TILE) return false;
             }
 
-            // Then add to all chunks
-            foreach (var pos in positions)
+            // Store core data 
+            _volumes[id] = volume;
+            _actions[id] = EntityAction.None;
+            _types[id] = EntityType.None;
+            _facing[id] = Direction.Down;
+
+            // Store positions
+            _positionCount[id] = (byte)positions.Length;
+            for (int i = 0; i < positions.Length; i++)
             {
-                var chunk = GetChunk(pos.ChunkPosition);
-                chunk?.AddEntity(id, pos, volume);
+                _positions[id, i] = positions[i];
+
+                int idx = positions[i].Y * WORLD_TILES + positions[i].X;
+                _positionGrid[positions[i].X][_tileCount[idx]] = id;
+                _tileCount[idx]++;
             }
 
-            // Track which chunks this entity occupies
-            _entityChunks[id] = chunks;
-            _entityVolumes[id] = volume;
-        }
-
-        public static void SetEntityAction(int id, EntityAction action)
-        {
-            _entityActions[id] = action;
-        }
-
-        public static void SetEntityType(int id, EntityType type)
-        {
-            _entityTypes[id] = type;
-        }
-
-        public static void SetEntityFacing(int id, Direction facing)
-        {
-            _entityFacing[id] = facing;
-        }
-
-        public static EntityAction GetEntityAction(int id)
-        {
-            return _entityActions.TryGetValue(id, out EntityAction action) ? action : EntityAction.None;
-        }
-
-        public static EntityType GetEntityType(int id)
-        {
-            return _entityTypes.TryGetValue(id, out EntityType type) ? type : EntityType.None;
-        }
-
-        public static Direction GetEntityFacing(int id)
-        {
-            return _entityFacing.TryGetValue(id, out Direction facing) ? facing : Direction.Down;
-        }
-
-        public static bool MoveEntity(int id, Position[] newPositions)
-        {
-            if (!_entityVolumes.TryGetValue(id, out byte volume)) return false;
-
-            // Get old positions from chunks
-            var oldChunks = _entityChunks[id];
-
-            // Validate new positions first
-            foreach (var pos in newPositions)
-            {
-                if (!CanMoveTo(pos))
-                {
-                    EventManager.Emit(new EntityMovementFailed { EntityId = id });
-                    return false;
-                }
-            }
-
-            // Remove from old chunks
-            foreach (var chunkPos in oldChunks)
-            {
-                var chunk = GetChunk(chunkPos);
-                // Get positions in this chunk from chunk itself
-                chunk?.RemoveEntity(id);
-            }
-
-            // Add to new chunks & update tracking
-            var newChunks = new HashSet<(byte ChunkX, byte ChunkY)>();
-            foreach (var pos in newPositions)
-            {
-                var chunk = GetChunk(pos.ChunkPosition);
-                chunk?.AddEntity(id, pos, volume);
-                newChunks.Add(pos.ChunkPosition);
-            }
-            _entityChunks[id] = newChunks;
-            return true;
-        }
-
-        public static bool CanEntityFit(Position[] positions, byte volume)
-        {
-            if (positions == null || positions.Length == 0) return false;
-
-            foreach (var pos in positions)
-            {
-                var chunk = GetChunk(pos);
-                if (chunk == null || !chunk.CanAddEntity(pos, volume)) return false;
-            }
+            _activeEntities.Add(id);
             return true;
         }
 
         public static bool AddEntity(int id, byte volume = 200)
         {
+            if (_activeEntities.Contains(id)) return false;
+
+            // Find random spawn point
             List<Position> positions = FindRandomSpawnPoint(volume);
             if (positions.Count == 0) return false;
 
-            AddEntity(id, [..positions], volume);
+            // Store core data 
+            _volumes[id] = volume;
+            _actions[id] = EntityAction.None;
+            _types[id] = EntityType.None;
+            _facing[id] = Direction.Down;
+
+            // Store positions
+            _positionCount[id] = (byte)positions.Count;
+            for (int i = 0; i < positions.Count; i++)
+            {
+                _positions[id, i] = positions[i];
+
+                int idx = positions[i].Y * WORLD_TILES + positions[i].X;
+                _positionGrid[positions[i].X][_tileCount[idx]] = id;
+                _tileCount[idx]++;
+            }
+
+            _activeEntities.Add(id);
             return true;
         }
 
-        private static List<Position> FindRandomSpawnPoint(byte volume, byte entitySize = 1)
+        public static bool RemoveEntity(int id)
         {
+            if (!_activeEntities.Contains(id)) return false;
 
-            Chunk? chunk = GetChunk(((byte)Tools.Random.Next(Config.WORLD_SIZE), (byte)Tools.Random.Next(Config.WORLD_SIZE)));
-            if (chunk == null) return [];
+            _volumes[id] = 0;
+            _actions[id] = EntityAction.None;
+            _types[id] = EntityType.None;
+            _facing[id] = Direction.Down;
 
-            byte attempts = 0;
-
-            while (attempts < 10)
+            // Remove from all positions
+            for (int i = 0; i < _positionCount[id]; i++)
             {
-                byte x = (byte)Tools.Random.Next(Config.CHUNK_SIZE_BYTE);
-                byte y = (byte)Tools.Random.Next(Config.CHUNK_SIZE_BYTE);
-                Position pos = new Position { X = chunk.X * Config.CHUNK_SIZE_BYTE + x, Y = chunk.Y * Config.CHUNK_SIZE_BYTE + y };
-                List<Position> positions = [];
-                for (int dx = 0; dx < entitySize; dx++)
+                var pos = _positions[id, i];
+                int idx = pos.Y * WORLD_TILES + pos.X;
+
+                // Find and remove from position grid
+                int gridIdx = FindEntityInTile(pos.X, pos.Y, id);
+                if (gridIdx >= 0)
                 {
-                    for (int dy = 0; dy < entitySize; dy++)
+                    // Shift remaining entities down
+                    for (int j = gridIdx; j < _tileCount[idx] - 1; j++)
                     {
-                        Position checkPos = pos + (dx, dy);
-                        if (!chunk.CanAddEntity(checkPos, volume) || !IsInWorldBounds(checkPos) || !IsInChunkBounds(checkPos) || !GetTileAt(checkPos).properties.HasFlag(TileProperties.Walkable))
-                        {
-                            attempts++;
-                            continue;
-                        }
-                        positions.Add(checkPos);
+                        _positionGrid[pos.X][j] = _positionGrid[pos.X][j + 1];
                     }
-                }
-
-                if (positions.Count == entitySize * entitySize)
-                {
-                    return positions;
+                    _tileCount[idx]--;
                 }
             }
-            return [];
+            _activeEntities.Remove(id);
+            return true;
         }
 
-        public static void RemoveEntity(int id)
+        public static bool MoveEntity(int id, Position[] newPositions)
         {
-            if (!_entityChunks.TryGetValue(id, out HashSet<(byte ChunkX, byte ChunkY)>? chunks)) return;
+            if (!_activeEntities.Contains(id)) return false;
+            if (newPositions.Length > Config.MAX_ENTITY_SIZE * Config.MAX_ENTITY_SIZE) return false;
 
-            foreach (var chunkPos in chunks)
+            // Check if new positions have space
+            foreach (var pos in newPositions)
             {
-                var chunk = GetChunk(chunkPos);
-                chunk?.RemoveEntity(id);
+                int idx = pos.Y * WORLD_TILES + pos.X;
+                if (_tileCount[idx] >= Config.MAX_ENTITIES_PER_TILE) return false;
             }
 
-            _entityChunks.TryRemove(id, out _);
-            _entityVolumes.TryRemove(id, out _);
+            // Remove from old positions
+            for (int i = 0; i < _positionCount[id]; i++)
+            {
+                var oldPos = _positions[id, i];
+                int idx = oldPos.Y * WORLD_TILES + oldPos.X;
+
+                // Find and remove from position grid
+                int gridIdx = FindEntityInTile(oldPos.X, oldPos.Y, id);
+                if (gridIdx >= 0)
+                {
+                    // Shift remaining entities down
+                    for (int j = gridIdx; j < _tileCount[idx] - 1; j++)
+                    {
+                        _positionGrid[oldPos.X][j] = _positionGrid[oldPos.X][j + 1];
+                    }
+                    _tileCount[idx]--;
+                }
+            }
+
+            // Add to new positions 
+            _positionCount[id] = (byte)newPositions.Length;
+            for (int i = 0; i < newPositions.Length; i++)
+            {
+                _positions[id, i] = newPositions[i];
+
+                int idx = newPositions[i].Y * WORLD_TILES + newPositions[i].X;
+                _positionGrid[newPositions[i].X][_tileCount[idx]] = id;
+                _tileCount[idx]++;
+            }
+
+            return true;
         }
 
-        private static bool CanMoveTo(Position pos)
+        private static int FindEntityInTile(int x, int y, int entityId)
         {
-            (byte X, byte Y) = pos.TilePosition;
-            return IsInChunkBounds(X, Y) && GetTileAt(pos).properties.HasFlag(TileProperties.Walkable);
+            int idx = y * WORLD_TILES + x;
+            for (int i = 0; i < _tileCount[idx]; i++)
+            {
+                if (_positionGrid[x][i] == entityId) return i;
+            }
+            return -1;
         }
+
+        // Fast accessors
+        public static void SetEntityAction(int id, EntityAction action) => _actions[id] = action;
+        public static void SetEntityType(int id, EntityType type) => _types[id] = type;
+        public static void SetEntityFacing(int id, Direction facing) => _facing[id] = facing;
+        public static EntityAction GetEntityAction(int id) => _actions[id];
+        public static EntityType GetEntityType(int id) => _types[id];
+        public static Direction GetEntityFacing(int id) => _facing[id];
 
         public static Position[] GetEntityPositions(int id)
         {
-            var positions = new List<Position>();
-            var chunks = _entityChunks[id];
-
-            foreach (var chunkPos in chunks)
+            var positions = new Position[_positionCount[id]];
+            for (int i = 0; i < _positionCount[id]; i++)
             {
-                var chunk = GetChunk(chunkPos);
-                if (chunk != null)
-                {
-                    positions.AddRange(chunk.GetEntityPositions(id));
-                }
+                positions[i] = _positions[id, i];
             }
-            return [.. positions];
+            return positions;
         }
 
         public static Dictionary<Position, (int entityId, EntityAction, EntityType, Direction)[]> GetEntitiesInArea(Position topLeft, int width, int height)
         {
-            var entities = new Dictionary<Position, (int entityId, EntityAction, EntityType, Direction)[]>();
+            var result = new Dictionary<Position, (int, EntityAction, EntityType, Direction)[]>();
+
             for (int x = 0; x < width; x++)
             {
                 for (int y = 0; y < height; y++)
                 {
-                    Position pos = topLeft + (x, y);
-                    var chunk = GetChunk(pos.ChunkPosition);
-                    if (chunk == null) continue;
-                    List<(int, EntityAction, EntityType, Direction)> entitiesInTile = [];
-                    foreach (var entityId in chunk.GetEntitiesAt(pos.TilePosition.X, pos.TilePosition.Y))
+                    var pos = new Position { X = topLeft.X + x, Y = topLeft.Y + y };
+                    int idx = pos.Y * WORLD_TILES + pos.X;
+
+                    if (_tileCount[idx] > 0)
                     {
-                        entitiesInTile.Add((entityId, GetEntityAction(entityId), GetEntityType(entityId), GetEntityFacing(entityId)));
-                    }
-                    if (entitiesInTile.Count > 0)
-                    {
-                        entities[pos] = [.. entitiesInTile];
+                        var tileEntities = new (int, EntityAction, EntityType, Direction)[_tileCount[idx]];
+                        for (int i = 0; i < _tileCount[idx]; i++)
+                        {
+                            int entityId = _positionGrid[pos.X][i];
+                            tileEntities[i] = (entityId, _actions[entityId], _types[entityId], _facing[entityId]);
+                        }
+                        result[pos] = tileEntities;
                     }
                 }
             }
-            return entities;
+
+            return result;
         }
+
+        private static List<Position> FindRandomSpawnPoint(byte volume, byte entitySize = 1)
+        {
+            byte attempts = 0;
+
+            while (attempts < 10)
+            {
+                // Get random position in world
+                int x = Tools.Random.Next(WORLD_TILES);
+                int y = Tools.Random.Next(WORLD_TILES);
+                Position pos = new Position { X = x, Y = y };
+                List<Position> positions = [];
+
+                bool validSpot = true;
+                // Check entity size area
+                for (int dx = 0; dx < entitySize && validSpot; dx++)
+                {
+                    for (int dy = 0; dy < entitySize && validSpot; dy++)
+                    {
+                        Position checkPos = pos + (dx, dy);
+
+                        // Validate position
+                        if (!IsInWorldBounds(checkPos.X, checkPos.Y) ||
+                            !GetTileAt(checkPos).properties.HasFlag(TileProperties.Walkable))
+                        {
+                            validSpot = false;
+                            break;
+                        }
+
+                        // Check if there's room in tile
+                        int idx = checkPos.Y * WORLD_TILES + checkPos.X;
+                        if (_tileCount[idx] >= Config.MAX_ENTITIES_PER_TILE)
+                        {
+                            validSpot = false;
+                            break;
+                        }
+
+                        positions.Add(checkPos);
+                    }
+                }
+
+                if (validSpot && positions.Count == entitySize * entitySize)
+                {
+                    return positions;
+                }
+
+                attempts++;
+            }
+            return [];
+        }
+
 
     }
 }
