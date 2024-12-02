@@ -53,6 +53,12 @@ public readonly struct Position
         }
         return dy > 0 ? Direction.Down : Direction.Up;
     }
+
+    public static Direction LookAt(Position from, Position to) => from.LookAt(to);
+    public static Direction LookAt(int fromX, int fromY, int toX, int toY) => new Position(fromX, fromY).LookAt(new Position(toX, toY));
+
+
+
     public override string ToString() => $"({X}, {Y}) in chunk ({ChunkPosition.X}, {ChunkPosition.Y})";
 }
 

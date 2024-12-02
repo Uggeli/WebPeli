@@ -56,7 +56,7 @@ public class AiManager : BaseManager
 
             // Move to random direction
             var currentEntityPosition = WorldApi.GetEntityPositions(entity)[0];
-
+            
             var newPosX = Tools.Random.Next(0, Config.WORLD_SIZE * Config.CHUNK_SIZE);
             var newPosY = Tools.Random.Next(0, Config.WORLD_SIZE * Config.CHUNK_SIZE);
 

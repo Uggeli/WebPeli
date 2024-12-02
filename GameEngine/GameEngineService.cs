@@ -36,7 +36,7 @@ public class GameEngineService : BackgroundService
         InitSystems();
 
         // Add placeholder entities
-        int num_entities = 10;
+        int num_entities = 10000;
         for (int i = 0; i < num_entities; i++)
         {
             managers[0].HandleMessage(new CreateEntity{Capabilities = [EntityCapabilities.MetabolismSystem,

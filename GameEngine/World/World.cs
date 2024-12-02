@@ -10,7 +10,7 @@ internal static partial class World
 
     // private static readonly int _worldGridSize = Config.WORLD_SIZE * Config.WORLD_SIZE;
     // private static readonly int _chunkSize = Config.CHUNK_SIZE_BYTE * Config.CHUNK_SIZE_BYTE;
-    private static ConcurrentDictionary<(byte X, byte Y), Chunk> _chunks = [];
+    private static ConcurrentDictionary<(int X, int Y), Chunk> _chunks = [];
     private static Dictionary<(int x, int y), ChunkConnection> _chunkGraph = [];
 
 
@@ -46,7 +46,7 @@ internal static partial class World
     }
 
 
-    public static Chunk? GetChunk((byte X, byte Y) pos)
+    public static Chunk? GetChunk((int X, int Y) pos)
     {
         return _chunks.TryGetValue(pos, out Chunk? c) ? c : null;
     }
@@ -55,6 +55,7 @@ internal static partial class World
     {
         return GetChunk(pos.ChunkPosition);
     }
+
 
     public static void SetChunk((byte X, byte Y) pos, Chunk chunk)
     {
@@ -73,8 +74,8 @@ internal static partial class World
         IsInChunkBounds(pos.TilePosition.X, pos.TilePosition.Y);
 
     public static bool IsInWorldBounds(int x, int y) =>
-        x >= 0 && x < Config.WORLD_SIZE &&
-        y >= 0 && y < Config.WORLD_SIZE;
+        x >= 0 && x < Config.WORLD_SIZE * Config.CHUNK_SIZE &&
+        y >= 0 && y < Config.WORLD_SIZE * Config.CHUNK_SIZE;
 
     public static bool IsInWorldBounds(Position pos) => IsInWorldBounds(pos.ChunkPosition.X, pos.ChunkPosition.Y);
 

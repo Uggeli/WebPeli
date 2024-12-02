@@ -10,30 +10,48 @@ internal static partial class World
         // Pathfinding
         private static (int X, int Y)[] GetChunkNeighbours(int x, int y)
         {
-            List<(int X, int Y)> neighbours = [];
-            foreach ((int dx, int dy) in new[] { (-1, 0), (1, 0), (0, -1), (0, 1) })
+            var chunk = GetChunk((x, y));
+            if (chunk == null)
+            {
+                return [];
+            }
+
+            var neighbours = new List<(int X, int Y)>();
+
+            foreach ((int dx, int dy) in new[]{(-1, 0),(1, 0),(0, -1),(0, 1)})
             {
                 int nx = x + dx;
                 int ny = y + dy;
-                if (IsInWorldBounds(nx, ny))
+
+                if (!IsInWorldBounds(nx, ny))
                 {
-                    neighbours.Add((nx, ny));
+                    continue;
                 }
+
+                var nchunk = GetChunk((nx, ny));
+                if (nchunk == null)
+                {
+                    continue;
+                }
+                neighbours.Add((nx, ny));
             }
             return [.. neighbours];
         }
 
-        public static (int x, int y) GetNeighborPosition((int x, int y) pos, Direction direction)
+        private static Position[] GetNeighbours(Position pos)
         {
-            (int, int) value = direction switch
+            var neighbours = new List<Position>();
+            foreach ((int dx, int dy) in new[]{(-1, 0),(1, 0),(0, -1),(0, 1)})
             {
-                Direction.North => (pos.x, pos.y - 1),
-                Direction.East => (pos.x + 1, pos.y),
-                Direction.South => (pos.x, pos.y + 1),
-                Direction.West => (pos.x - 1, pos.y),
-                _ => pos
-            };
-            return value;
+                var nx = pos.X + dx;
+                var ny = pos.Y + dy;
+                if (!IsInWorldBounds(nx, ny))
+                {
+                    continue;
+                }
+                neighbours.Add(new Position(nx, ny));
+            }
+            return [.. neighbours];
         }
 
         public static Position LocalToWorld(LocalTilePos local) => new()
@@ -42,408 +60,338 @@ internal static partial class World
             Y = (local.ChunkY * Config.CHUNK_SIZE_BYTE) + local.Y
         };
 
-        public static LocalTilePos WorldToLocal(Position pos) => new()
+        public static LocalTilePos WorldToLocal(Position pos)
         {
-            ChunkX = (byte)(pos.X / Config.CHUNK_SIZE_BYTE),
-            ChunkY = (byte)(pos.Y / Config.CHUNK_SIZE_BYTE),
-            X = (byte)(pos.X % Config.CHUNK_SIZE_BYTE),
-            Y = (byte)(pos.Y % Config.CHUNK_SIZE_BYTE)
-        };
+            return new()
+            {
+                ChunkX = (byte)(pos.X / Config.CHUNK_SIZE_BYTE),
+                ChunkY = (byte)(pos.Y / Config.CHUNK_SIZE_BYTE),
+                X = (byte)(pos.X % Config.CHUNK_SIZE_BYTE),
+                Y = (byte)(pos.Y % Config.CHUNK_SIZE_BYTE)
+            };
+        } 
 
         public static Position[] GetPath(Position worldStart, Position worldEnd)
         {
-            if (Config.DebugPathfinding)
-            {
-                Console.WriteLine("=== PATHFINDING START ===");
-                Console.WriteLine($"From {worldStart} to {worldEnd}");
-            }
-
             try
             {
-                LocalTilePos localStart = WorldToLocal(worldStart);
-                LocalTilePos localEnd = WorldToLocal(worldEnd);
+                Chunk? StartChunk = GetChunk(worldStart);
+                Chunk? EndChunk = GetChunk(worldEnd);
 
-                if (Config.DebugPathfinding)
-                {
-                    Console.WriteLine("\n=== CHUNK LEVEL PATHFINDING ===");
-                    Console.WriteLine($"Local start: {localStart}, Local end: {localEnd}");
-                }
-
-                (LocalTilePos[] chunkPath, LocalTilePos chunkEnd) = FindPathChunkLevel(localStart, localEnd);
-                if (chunkPath.Length == 0)
-                {
-                    if (Config.DebugPathfinding)
-                    {
-                        Console.WriteLine("ERROR: No path found at chunk level");
-                        Console.WriteLine("=== PATHFINDING END ===\n");
-                    }
-                    return [];
-                }
-
-                if (Config.DebugPathfinding)
-                {
-                    Console.WriteLine($"Found chunk path: {string.Join(", ", chunkPath.Select(c => c.ToString()))}");
-                    Console.WriteLine($"Chunk endpoint: {chunkEnd}");
-                    Console.WriteLine("\n=== ZONE LEVEL PATHFINDING ===");
-                }
-
-                LocalTilePos[] chunks = chunkPath.Take(2).ToArray();
-                (HashSet<Position> SearchSpace, Position zoneEnd) = FindZonePath(localStart, localEnd, chunkEnd, chunks);
-
-                if (SearchSpace.Count == 0)
-                {
-                    if (Config.DebugPathfinding)
-                    {
-                        Console.WriteLine("ERROR: No valid zones found");
-                        Console.WriteLine("=== PATHFINDING END ===\n");
-                    }
-                    return [];
-                }
-
-                if (Config.DebugPathfinding)
-                {
-                    Console.WriteLine($"Search space size: {SearchSpace.Count}");
-                    Console.WriteLine($"Zone endpoint: {zoneEnd}");
-                    Console.WriteLine("\n=== TILE LEVEL PATHFINDING ===");
-                }
-
-                Position[] tilePath = FindTilePath(worldStart, zoneEnd, SearchSpace);
-
-                if (Config.DebugPathfinding)
-                {
-                    Console.WriteLine($"Final path length: {tilePath.Length}");
-                    Console.WriteLine("=== PATHFINDING END ===\n");
-                }
-
-                return tilePath;
+                if (StartChunk == null || EndChunk == null) return [];
+                if (StartChunk == EndChunk) return BresenhamsLine((worldStart.X, worldStart.Y), (worldEnd.X, worldEnd.Y)).Select(p => new Position(p.X, p.Y)).ToArray();
+                // if pathing is even possible
+                if(!FindPathChunkLevel(StartChunk, EndChunk, worldStart, worldEnd)) return [];
+                Position[] tilePath = FindTilePath(worldStart, worldEnd);
+                if (tilePath.Length == 0) return [];
+                else return tilePath;
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
-                if (Config.DebugPathfinding)
-                {
-                    Console.WriteLine($"ERROR: Pathfinding failed with exception: {ex.Message}");
-                    Console.WriteLine($"Stack trace: {ex.StackTrace}");
-                    Console.WriteLine("=== PATHFINDING END ===\n");
-                }
-                throw;
+                Console.WriteLine(e);
+                return [];
             }
         }
 
-        private static (LocalTilePos[], LocalTilePos) FindPathChunkLevel(LocalTilePos start, LocalTilePos end)
-        {
-            List<(byte X, byte Y)> path = [];
-            (byte ChunkX, byte ChunkY) current = (start.ChunkX, start.ChunkY);
-            (byte ChunkX, byte ChunkY) target = (end.ChunkX, end.ChunkY);
 
+
+        /// <summary>
+        /// Find path between two points on chunk level., Returns first two chunks in path
+        /// </summary>
+        /// <param name="start">Starting chunk</param>
+        /// <param name="end">End chunk</param>
+        /// <param name="startPos">Start pos in world coordinates</param>
+        /// <param name="endPos">End pos in world coordinates</param>
+        /// <returns></returns>
+        private static bool FindPathChunkLevel(Chunk start, Chunk end, Position startPos, Position endPos)
+        {
             // If in same or adjacent chunks, that's our path
-            if (Math.Abs(current.ChunkX - target.ChunkX) <= 1 &&
-                Math.Abs(current.ChunkY - target.ChunkY) <= 1)
+            if (Math.Abs(start.X - end.X) <= 1 && Math.Abs(start.Y - end.Y) <= 1)
             {
-                path.Add(current);
-                if (current != target) path.Add(target);
-
-                // End point is original if in same chunk, otherwise pick suitable point in second chunk
-                LocalTilePos newEnd = current == target ? end : PickEndpointInChunk(target, end);
-                return (path.Select(p => new LocalTilePos { ChunkX = p.X, ChunkY = p.Y }).ToArray(), newEnd);
+                return true;
             }
 
-            // Otherwise do proper A* for chunks...
-            // Returns first two chunks in path and endpoint in second chunk
-            path = [.. ChunkLevelAStar(current, target)];
-            if (path.Count == 0) return ([], default);
+            var path = new List<(int x, int y)> { (startPos.ChunkPosition.X, startPos.ChunkPosition.Y) };
+            var blacklist = new HashSet<(int x, int y)>();
+            var visited = new HashSet<(int x, int y)> { (startPos.ChunkPosition.X, startPos.ChunkPosition.Y) };
+            PriorityQueue<(int x, int y), float> positionsToTry = new();
+            positionsToTry.Enqueue((startPos.ChunkPosition.X, startPos.ChunkPosition.Y), 0);
 
-            (byte X, byte Y)[] firstTwoChunks = path.Take(2).ToArray();
-            (byte X, byte Y) endChunk = firstTwoChunks[1];
-
-            LocalTilePos newEndpoint = PickEndpointInChunk(endChunk, end);
-
-            return (firstTwoChunks.Select(p => new LocalTilePos { ChunkX = p.X, ChunkY = p.Y }).ToArray(),
-                    newEndpoint);
-        }
-
-        public static (HashSet<Position> searchSpace, Position newEndpos) FindZonePath(LocalTilePos start,
-                                                                                       LocalTilePos end,
-                                                                                       LocalTilePos chunkEnd,
-                                                                                       LocalTilePos[] chunks)
-        {
-            Chunk? startChunk = GetChunk((chunks[0].ChunkX, chunks[0].ChunkY));
-            Chunk? endChunk;
-            if (chunks.Length == 1)
-                endChunk = GetChunk((chunks[0].ChunkX, chunks[0].ChunkY));
-            else
-                endChunk = GetChunk((chunks[1].ChunkX, chunks[1].ChunkY));
-            if (startChunk == null || endChunk == null)
-                return ([], default);
-
-            // Find start zone
-            IEnumerable<Zone> zones = startChunk.GetZones();
-            if (!zones.Any()) return ([], default);
-
-            Zone startZone = zones.First(z => z.TilePositions.Contains((start.X, start.Y)));
-
-            // Look for valid path through zones using edges
-            ChunkConnection connection = _chunkGraph[(startChunk.X, startChunk.Y)];
-            Direction direction = GetConnectionDirection(startChunk, endChunk);
-
-            // Get zones that can reach the boundary in the right direction
-            List<Zone> endZones = startZone.Edges.Values
-                .Where(e => HasMatchingEdge(e, direction))
-                .SelectMany(e => GetConnectedZones(endChunk, GetOppositeEdge(direction)))
-                .Distinct()
-                .ToList();
-
-            if (endZones.Count == 0) return ([], default);
-
-            // Pick closest end zone and suitable endpoint in it
-            Zone endZone = PickBestEndZone(endZones, chunkEnd);
-            Position newEnd;
-            if (!endZone.TilePositions.Contains((end.X, end.Y)))
+            while (positionsToTry.Count > 0)
             {
-                newEnd = PickEndpointInZone(endZone, chunkEnd);
-            }
-            else
-            {
-                newEnd = LocalToWorld(end);
-            }
+                var currentPos = positionsToTry.Dequeue();
+                var linePath = BresenhamsLine(currentPos, (end.X, end.Y));
 
-            // Create search space from both zones
-            HashSet<Position> searchSpace = [];
-            foreach (Zone zone in new[] { startZone, endZone })
-            {
-                foreach ((byte x, byte y) in zone.TilePositions)
+                for (int i = 0; i < linePath.Length; i++)
                 {
-                    searchSpace.Add(new Position
+                    currentPos = linePath[i];
+                    visited.Add(currentPos);
+
+                    // if path length is 1, we are there already
+                    if (linePath.Length == 1)
                     {
-                        X = (zone.ChunkPosition.X * Config.CHUNK_SIZE) + x,
-                        Y = (zone.ChunkPosition.Y * Config.CHUNK_SIZE) + y
-                    });
+                        return true;
+                    }
+                    // if path lenght is 2 check from connection between those two chunks
+                    else if (linePath.Length == 2)
+                    {
+                        var requiredConnection = GetRequiredConnection(Position.LookAt(startPos.X, startPos.Y, endPos.X, endPos.Y), Position.LookAt(endPos.X, endPos.Y, startPos.X, startPos.Y));
+                        if (start.Connections.HasFlag(requiredConnection))
+                        {
+                            return true;
+                        }
+                        else
+                        {
+                            return false;
+                        }
+                    }
+
+                    if (linePath.Length > 2 && i > 0 && i < linePath.Length - 1)
+                    {
+                        (int previousPosX, int previousPosY) = linePath[i - 1];
+                        (int nextPosX, int nextPosY) = linePath[i + 1];
+
+
+                        // Check if we can move from previous to current and current to next
+                        var prevDirection = Position.LookAt(previousPosX, previousPosY, currentPos.x, currentPos.y);
+                        var nextDirection = Position.LookAt(currentPos.x, currentPos.y, nextPosX, nextPosY);
+                        var requiredConnection = GetRequiredConnection(prevDirection, nextDirection);
+                        var currentChunk = GetChunk(currentPos);
+                        if (currentChunk == null)
+                        {
+                            blacklist.Add(currentPos);
+                            break;
+                        }
+                        if (currentChunk.Connections.HasFlag(requiredConnection))
+                        {
+                            path.Add(currentPos);
+                        }
+
+                        // we cant move from previous to current, so we need to find a new path
+                        else
+                        {
+                            blacklist.Add(currentPos);
+                            var neighbours = GetChunkNeighbours(previousPosX, previousPosY);
+                            // Add neighbours to try
+                            foreach (var neighbour in neighbours)
+                            {
+                                if (visited.Contains(neighbour) || blacklist.Contains(neighbour))
+                                {
+                                    continue;
+                                }
+                                positionsToTry.Enqueue(neighbour, ManhattanDistance(neighbour, (end.X, end.Y)));
+                            }
+                            break;
+                        }
+                    }
+
+                    // If we are at the end, return path
+                    if (currentPos == (end.X, end.Y))
+                    {
+                        return true;
+                    }
+
                 }
+                
             }
-            return (searchSpace, newEnd);
+            return false;
         }
 
-        private static Position[] FindTilePath(Position start, Position end, HashSet<Position> searchSpace)
+        private static ChunkConnection GetRequiredConnection(Direction from, Direction to)
         {
-            // Simple A* through the combined space
-            PriorityQueue<Position, float> openSet = new();
-            HashSet<Position> closedSet = [];
-            Dictionary<Position, Position> cameFrom = [];
-            Dictionary<Position, float> gScore = [];
-
-            if (!searchSpace.Contains(start))
+            return (from, to) switch
             {
-                if (Config.DebugPathfinding)
+                // From north
+                (Direction.North, Direction.South) => ChunkConnection.NorthSouth,
+                (Direction.North, Direction.East) => ChunkConnection.NorthEast,
+                (Direction.North, Direction.West) => ChunkConnection.NorthWest,
+                // From south
+                (Direction.South, Direction.North) => ChunkConnection.NorthSouth,
+                (Direction.South, Direction.East) => ChunkConnection.SouthEast,
+                (Direction.South, Direction.West) => ChunkConnection.SouthWest,
+                // From east
+                (Direction.East, Direction.North) => ChunkConnection.NorthEast,
+                (Direction.East, Direction.South) => ChunkConnection.SouthEast,
+                (Direction.East, Direction.West) => ChunkConnection.EastWest,
+                // From west
+                (Direction.West, Direction.North) => ChunkConnection.NorthWest,
+                (Direction.West, Direction.South) => ChunkConnection.SouthWest,
+                (Direction.West, Direction.East) => ChunkConnection.EastWest,
+                _ => ChunkConnection.None
+            };
+            
+        }
+
+        private static (int X, int Y)[] BresenhamsLine((int x, int y)start, (int x, int y) end)
+        {
+            var points = new List<(int x, int y)>();
+            int x0 = start.x;
+            int y0 = start.y;
+            int x1 = end.x;
+            int y1 = end.y;
+
+            int dx = Math.Abs(x1 - x0);
+            int dy = Math.Abs(y1 - y0);
+            int sx = x0 < x1 ? 1 : -1;
+            int sy = y0 < y1 ? 1 : -1;
+            int err = dx - dy;
+
+            while (true)
+            {
+                points.Add((x0, y0));
+                if (x0 == x1 && y0 == y1)
+                    break;
+
+                int e2 = 2 * err;
+                if (e2 > -dy)
                 {
-                    Console.WriteLine("Start was not in search space");
-                    Console.WriteLine($"Start: {start}");
+                    err -= dy;
+                    x0 += sx;
                 }
+                if (e2 < dx)
+                {
+                    err += dx;
+                    y0 += sy;
+                }
+            }
+            return [.. points];            
+        }
+
+
+
+        private static Position[] FindTilePath(Position start, Position end)
+        {
+            var startChunk = GetChunk(start);
+            if (startChunk == null)
+            {
+                return [];
+            }
+            Zone? startingZone = startChunk.GetZoneAt(start.TilePosition.X, start.TilePosition.Y);
+            if (startingZone == null)
+            {
                 return [];
             }
 
-            if (!searchSpace.Contains(end))
-            {
-                if (Config.DebugPathfinding)
-                {
-                    Console.WriteLine("End was not in search space");
-                    Console.WriteLine($"End: {end}");
-                }
-                return [];
-            }
+            var openSet = new PriorityQueue<Position, float>();
+            var closedSet = new HashSet<Position>();
+            var cameFrom = new Dictionary<Position, Position>();
+            var gScore = new Dictionary<Position, float>();
+            var fScore = new Dictionary<Position, float>();
 
             openSet.Enqueue(start, 0);
             gScore[start] = 0;
+            fScore[start] = ManhattanDistance(start, end);
 
-            while (openSet.Count > 0)
+            while(openSet.Count > 0)
             {
-                Position current = openSet.Dequeue();
-                if (current == end)
+                // new position from queue
+                var current = openSet.Dequeue();
+
+                // are we there yet?
+                if (current == end || !startingZone.Value.TilePositions.Contains(current.TilePosition))
                 {
-                    return ReconstructPath(cameFrom, current);
+                    var path = new List<Position>();
+                    while (cameFrom.TryGetValue(current, out var c))
+                    {
+                        path.Add(current);
+                        current = c;
+                    }
+                    path.Add(start);
+                    path.Reverse();
+                    return [.. path];
                 }
 
                 closedSet.Add(current);
-
-                // Check neighbors (just cardinal directions for now)
-                foreach ((int, int) delta in new[] { (1, 0), (-1, 0), (0, 1), (0, -1) })
+                foreach (var neighbour in GetNeighbours(current))
                 {
-                    Position next = new()
+                    if (!TileManager.IsWalkable(startChunk.GetTile(neighbour.TilePosition.X, neighbour.TilePosition.Y).properties))
                     {
-                        X = current.X + delta.Item1,
-                        Y = current.Y + delta.Item2
-                    };
+                        continue;
+                    }
 
-                    if (!searchSpace.Contains(next) || closedSet.Contains(next))
+                    if (closedSet.Contains(neighbour))
                         continue;
 
-                    float tentativeG = gScore[current] + 1;
-
-                    if (!gScore.ContainsKey(next) || tentativeG < gScore[next])
+                    var tentativeGScore = gScore[current] + 1;
+                    if (!gScore.TryGetValue(neighbour, out _) || tentativeGScore < gScore[neighbour])
                     {
-                        cameFrom[next] = current;
-                        gScore[next] = tentativeG;
-                        int h = Math.Abs(end.X - next.X) + Math.Abs(end.Y - next.Y);
-                        openSet.Enqueue(next, tentativeG + h);
+                        cameFrom[neighbour] = current;
+                        gScore[neighbour] = tentativeGScore;
+                        var f = tentativeGScore + ManhattanDistance(neighbour, end);
+                        fScore[neighbour] = f;
+                        openSet.Enqueue(neighbour, f);
                     }
                 }
             }
-
             return [];
         }
 
-        // Helper for finding best endpoint in a chunk based on direction we're heading
-        private static LocalTilePos PickEndpointInChunk((byte X, byte Y) chunk, LocalTilePos target)
+
+        private static Dictionary<(int X, int Y), (int X, int Y)> ChunkLevelAStar((byte, byte) start, (byte, byte) end)
         {
-            // For now just pick middle of chunk - could be smarter based on target direction
-            return new LocalTilePos
-            {
-                ChunkX = chunk.X,
-                ChunkY = chunk.Y,
-                X = Config.CHUNK_SIZE_BYTE / 2,
-                Y = Config.CHUNK_SIZE_BYTE / 2
-            };
-        }
+            
+            var openSet = new PriorityQueue<(int X, int Y), float>();
+            var closedSet = new HashSet<(int X, int Y)>();
+            var cameFrom = new Dictionary<(int X, int Y), (int X, int Y)>();
+            var gScore = new Dictionary<(int X, int Y), float>();
+            var fScore = new Dictionary<(int X, int Y), float>();
 
-        private static Position PickEndpointInZone(Zone zone, LocalTilePos target)
-        {
-            // Just grab any walkable position from the zone
-            var (X, Y) = zone.TilePositions.First();
-            return new Position
-            {
-                X = (zone.ChunkPosition.X * Config.CHUNK_SIZE_BYTE) + X,
-                Y = (zone.ChunkPosition.Y * Config.CHUNK_SIZE_BYTE) + Y
-            };
-        }
-        private static Zone PickBestEndZone(List<Zone> possibleZones, LocalTilePos target)
-        {
-            // For now just pick first one - could be smarter based on distance to target
-            return possibleZones[0];
-        }
-
-        private static Direction GetConnectionDirection(LocalTilePos from, LocalTilePos to)
-        {
-            if (to.ChunkX > from.ChunkX) return Direction.Right;
-            if (to.ChunkX < from.ChunkX) return Direction.Left;
-            if (to.ChunkY > from.ChunkY) return Direction.Down;
-            return Direction.Up;
-        }
-
-        private static Direction GetConnectionDirection(Chunk from, Chunk to)
-        {
-            if (to.X > from.X) return Direction.Right;
-            if (to.X < from.X) return Direction.Left;
-            if (to.Y > from.Y) return Direction.Down;
-            return Direction.Up;
-        }
-
-
-
-        private static bool HasMatchingEdge(ZoneEdge edge, Direction direction) =>
-            direction switch
-            {
-                Direction.Right => edge.HasFlag(ZoneEdge.ChunkEast),
-                Direction.Left => edge.HasFlag(ZoneEdge.ChunkWest),
-                Direction.Down => edge.HasFlag(ZoneEdge.ChunkSouth),
-                Direction.Up => edge.HasFlag(ZoneEdge.ChunkNorth),
-                _ => false
-            };
-
-        private static IEnumerable<Zone> GetConnectedZones(Chunk chunk, ZoneEdge edge)
-        {
-            return chunk.GetZones().Where(z =>
-                z.Edges.Values.Any(e => e.HasFlag(edge)));
-        }
-
-        private static ZoneEdge GetOppositeEdge(Direction direction) =>
-            direction switch
-            {
-                Direction.Right => ZoneEdge.ChunkWest,
-                Direction.Left => ZoneEdge.ChunkEast,
-                Direction.Down => ZoneEdge.ChunkNorth,
-                Direction.Up => ZoneEdge.ChunkSouth,
-                _ => ZoneEdge.None
-            };
-
-        private static (byte X, byte Y)[] ChunkLevelAStar((byte, byte) start, (byte, byte) end)
-        {
-            Chunk? startChunk = GetChunk(start);
-            Chunk? endChunk = GetChunk(end);
-            if (startChunk == null || endChunk == null)
-            {
-                if (Config.DebugPathfinding)
-                {
-                    Console.WriteLine("Invalid start or end chunk in A*");
-                    Console.WriteLine($"Start: {start}");
-                    Console.WriteLine($"End: {end}");
-                }
-                return [];
-            }
-
-            Queue<(int X, int Y)> openSet = new();
-            HashSet<(int X, int Y)> closedSet = [];
-            Dictionary<(int X, int Y), (int X, int Y)> cameFrom = [];
-
-            openSet.Enqueue((startChunk.X, startChunk.Y));
-            (byte X, byte Y) endPos = (endChunk.X, endChunk.Y);
+            openSet.Enqueue(start, 0);
+            gScore[start] = 0;
+            fScore[start] = ManhattanDistance(start, end);
 
             while (openSet.Count > 0)
             {
-                (int X, int Y) current = openSet.Dequeue();
-                if (current == endPos) return ReconstructChunkPath(cameFrom, current);
+                var current = openSet.Dequeue();
+                if (current == end)
+                    return cameFrom;
 
-                foreach ((int X, int Y) neighbour in GetChunkNeighbours(current.X, current.Y))
+                closedSet.Add(current);
+                foreach (var neighbor in GetChunkNeighbours(current.X, current.Y))
                 {
-                    if (closedSet.Contains(neighbour)) continue;
-
-                    (int dx, int dy) delta = (dx: current.X - neighbour.X, dy: current.Y - neighbour.Y);
-                    ChunkConnection connection = _chunkGraph[neighbour];
-
-                    bool canMove = (delta, connection) switch
+                    // can we move to this neighbour?
+                    var currentChunk = GetChunk(current);
+                    var neighbourChunk = GetChunk(neighbor);
+                    var cameFromChunk = GetChunk(cameFrom.TryGetValue(current, out var c) ? c : current);
+                    if (currentChunk == null || neighbourChunk == null || cameFromChunk == null)
                     {
-                        ((1, 0) or (-1, 0), var c) when c.HasFlag(ChunkConnection.EastWest) => true,
-                        ((0, 1) or (0, -1), var c) when c.HasFlag(ChunkConnection.NorthSouth) => true,
-                        _ => false
-                    };
+                        continue;
+                    }
 
-                    if (!canMove) continue;
+                    var requiredConnection = GetRequiredConnection(Position.LookAt(cameFromChunk.X, cameFromChunk.Y, currentChunk.X, currentChunk.Y), Position.LookAt(currentChunk.X, currentChunk.Y, neighbourChunk.X, neighbourChunk.Y));
+                    if (!currentChunk.Connections.HasFlag(requiredConnection))
+                    {
+                        continue;
+                    }
 
-                    openSet.Enqueue(neighbour);
-                    closedSet.Add(neighbour);
-                    cameFrom[neighbour] = current;
+                    if (closedSet.Contains(neighbor))
+                        continue;
+
+                    var tentativeGScore = gScore[current] + 1;
+                    if (!gScore.TryGetValue(neighbor, out _) || tentativeGScore < gScore[neighbor])
+                    {
+                        cameFrom[neighbor] = current;
+                        gScore[neighbor] = tentativeGScore;
+                        var f = tentativeGScore + ManhattanDistance(neighbor, end);
+                        fScore[neighbor] = f;
+                        openSet.Enqueue(neighbor, f);
+                    }
                 }
-            }
-            if (Config.DebugPathfinding)
-            {
-                Console.WriteLine("A* failed to find path between chunks");
-                Console.WriteLine($"Start: {start}");
-                Console.WriteLine($"End: {end}");
             }
             return [];
         }
 
-        private static (byte X, byte Y)[] ReconstructChunkPath(Dictionary<(int X, int Y), (int X, int Y)> cameFrom, (int X, int Y) current)
+        private static float ManhattanDistance((int X, int Y) a, (int X, int Y) b)
         {
-            List<(byte X, byte Y)> path = [];
-            while (cameFrom.TryGetValue(current, out (int X, int Y) previous))
-            {
-                path.Add(((byte X, byte Y))(current.X, current.Y));
-                current = previous;
-            }
-            path.Reverse();
-            if (path.Count == 1) return [.. path];
-            return path.Take(2).ToArray();
+            return Math.Abs(a.X - b.X) + Math.Abs(a.Y - b.Y);
         }
 
-        private static Position[] ReconstructPath(Dictionary<Position, Position> cameFrom, Position current)
+        private static float ManhattanDistance(Position a, Position b)
         {
-            List<Position> path = [current];
-            while (cameFrom.TryGetValue(current, out Position previous))
-            {
-                path.Add(previous);
-                current = previous;
-            }
-            path.Reverse();
-            return [.. path];
+            return Math.Abs(a.X - b.X) + Math.Abs(a.Y - b.Y);
         }
+
+        
     }
 }
 

@@ -308,6 +308,7 @@ internal static partial class World
                     }
 
                     _chunkGraph[(worldX, worldY)] = connections;
+                    chunk.Connections = connections;
                 }
             }
         }
@@ -332,24 +333,6 @@ internal static partial class World
         {
             return edgeTiles.Select(pos =>
             {
-                // Verify edge positions are actually on chunk boundaries
-                bool isValidEdge = direction switch
-                {
-                    Direction.North => pos.y == 0,
-                    Direction.South => pos.y == Config.CHUNK_SIZE - 1,
-                    Direction.East => pos.x == Config.CHUNK_SIZE - 1,
-                    Direction.West => pos.x == 0,
-                    _ => false
-                };
-
-                if (!isValidEdge)
-                {
-                    #if DEBUG
-                    Console.WriteLine($"Warning: Invalid edge position ({pos.x},{pos.y}) for direction {direction}");
-                    #endif
-                    return false;
-                }
-
                 var (x, y) = GetOppositeEdge(pos, direction);
                 bool isMatch = TileManager.IsWalkable(chunk1.GetTile(pos.x, pos.y).properties) &&
                               TileManager.IsWalkable(chunk2.GetTile(x, y).properties);
