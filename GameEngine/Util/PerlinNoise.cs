@@ -138,7 +138,7 @@ public static class EnhancedPerlinNoise
     // Generate noise with regions (using thresholds)
     public static float GenerateRegions(float x, float y, float[] thresholds, int octaves = 6)
     {
-        float noiseValue = Generate(x, y, octaves);
+        float noiseValue = Generate(x, y, octaves) * 1000;
         
         // Find the appropriate threshold region
         for (int i = 0; i < thresholds.Length; i++)
@@ -155,17 +155,38 @@ public static class EnhancedPerlinNoise
     {
         // Layer 1: Base terrain shape
         float baseNoise = Generate(x, y, 6, 0.5f, 2.0f);
+        if (float.IsNaN(baseNoise))
+        {
+            System.Console.WriteLine("Nan on basenoise");
+            return 0.0f;
+        }
         
         // Layer 2: Add some medium details
-        float detailNoise = Generate(x * 2.0f, y * 2.0f, 4, 0.4f, 2.5f) * 0.5f;
+        float detailNoise = Generate(x * 2.0f, y * 2.0f, 4, 0.4f, 2.5f) * 0.75f;
+        if (float.IsNaN(detailNoise))
+        {
+            System.Console.WriteLine("Nan on detailnoise");
+            return 0.0f;
+        }
         
         // Layer 3: Fine details
-        float fineNoise = Generate(x * 4.0f, y * 4.0f, 3, 0.3f, 3.0f) * 0.25f;
+        float fineNoise = Generate(x * 4.0f, y * 4.0f, 3, 0.3f, 3.0f) * 0.5f;
+        if (float.IsNaN(fineNoise))
+        {
+            System.Console.WriteLine("Nan on fineNoise");
+            return 0.0f;
+        }
 
         // Combine layers
         float combined = (baseNoise + detailNoise + fineNoise) / 1.75f;
+        if (float.IsNaN(combined))
+        {
+            System.Console.WriteLine("Nan on combined");
+            return 0.0f;
+        }
         
         // Add some non-linearity to create more distinct regions
-        return (float)Math.Pow(combined, 1.5);
+        // return (float)Math.Pow(combined, 1.5);
+        return combined * 10;
     }
 }

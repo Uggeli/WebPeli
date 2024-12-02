@@ -34,19 +34,6 @@ public class GameEngineService : BackgroundService
         systems.Add(new MovementSystem());
 
         InitSystems();
-
-        // Add placeholder entities
-        int num_entities = 10_000;
-        for (int i = 0; i < num_entities; i++)
-        {
-            managers[0].HandleMessage(new CreateEntity{Capabilities = [EntityCapabilities.MetabolismSystem,
-                                                                        EntityCapabilities.MovementSystem,
-                                                                        EntityCapabilities.RenderingSystem,
-                                                                        EntityCapabilities.AiSystem]});
-
-        }
-
-    
     }
 
     private void InitManagers()
@@ -110,7 +97,6 @@ public class GameEngineService : BackgroundService
 
             var processingTime = Environment.TickCount - startTick;
             await Task.Delay(Math.Max(Config.UpdateLoop - processingTime, 0), stoppingToken);
-            
         }
     }
 }

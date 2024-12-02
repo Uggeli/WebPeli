@@ -208,4 +208,17 @@ public enum EntityType : int
     Structure = 1 << 2,  // This thing is a building
 }
 
+public readonly record struct MoistureChangeEvent : IEvent 
+{
+    public required Position Position { get; init; }
+    public required byte Amount { get; init; }  // How much moisture to add/remove
+}
 
+// For area effects like rain
+public readonly record struct AreaMoistureChangeEvent : IEvent
+{
+    public required Position TopLeft { get; init; }
+    public required int Width { get; init; }
+    public required int Height { get; init; }
+    public required byte Amount { get; init; }
+}

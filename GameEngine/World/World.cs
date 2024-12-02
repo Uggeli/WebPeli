@@ -15,7 +15,7 @@ internal static partial class World
     
 
     // Accessors, Map data
-    public static (byte material, TileSurface surface, TileProperties properties) GetTileAt(Position pos)
+    public static (TileMaterial material, TileSurface surface, TileProperties properties) GetTileAt(Position pos)
     {
         (byte X, byte Y) chunkPos = pos.ChunkPosition;
         if (!IsInWorldBounds(pos)) return (0, TileSurface.None, TileProperties.None);
@@ -24,16 +24,16 @@ internal static partial class World
         return _chunks[chunkPos].GetTile(X, Y);
     }
 
-    public static void SetTileAt(Position pos, byte material, TileSurface surface, TileProperties properties)
+    public static void SetTileAt(Position pos, TileMaterial material, TileSurface surface, TileProperties properties)
     {
         (byte X, byte Y) chunkPos = pos.ChunkPosition;
         (byte X, byte Y) = pos.TilePosition;
         _chunks[chunkPos].SetTile(X, Y, material, surface, properties);
     }
 
-    public static (byte material, TileSurface surface, TileProperties props)[] GetTilesInArea(Position topLeft, int width, int height)
+    public static (TileMaterial material, TileSurface surface, TileProperties props)[] GetTilesInArea(Position topLeft, int width, int height)
     {
-        var tiles = new (byte material, TileSurface surface, TileProperties props)[width * height];
+        var tiles = new (TileMaterial material, TileSurface surface, TileProperties props)[width * height];
         for (int x = 0; x < width; x++)
         {
             for (int y = 0; y < height; y++)

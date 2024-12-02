@@ -168,7 +168,7 @@ public class ViewportManager : BaseManager
         // Write tile data
         for (int i = 0; i < tileGrid.Length; i++)
         {
-            span[offset++] = tileGrid[i].material;
+            span[offset++] = (byte)tileGrid[i].material;
             span[offset++] = (byte)tileGrid[i].surface;
             span[offset++] = (byte)tileGrid[i].props;
         }

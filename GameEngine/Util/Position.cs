@@ -1,4 +1,5 @@
 using System.Numerics;
+using WebPeli.GameEngine.World;
 
 namespace WebPeli.GameEngine.Util;
 
@@ -65,4 +66,19 @@ public readonly struct Position
 public static class PositionExtensions
 {
     public static Vector2 ToVector2(this Position pos) => new(pos.X, pos.Y);
+
+    public static Position[] GetNeighbours(this Position pos)
+    {
+        var neighbours = new List<Position>();
+        foreach ((int dx, int dy) in new[] { (-1, 0), (1, 0), (0, -1), (0, 1) })
+        {
+            var newPos = new Position(pos.X + dx, pos.Y + dy);
+            if (!WorldApi.IsInWorldBounds(newPos))
+            {
+                continue;
+            }
+            neighbours.Add(newPos);
+        }
+        return [.. neighbours];
+    }
 }

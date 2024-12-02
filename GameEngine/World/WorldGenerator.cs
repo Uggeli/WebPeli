@@ -7,12 +7,6 @@ internal static partial class World
 {
     public static class WorldGenerator
     {
-        // Core elevation thresholds for basic terrain types
-        private static readonly float WATER_THRESHOLD = -0.3f;
-        private static readonly float BEACH_THRESHOLD = -0.2f;
-        private static readonly float MOUNTAIN_THRESHOLD = 0.5f;
-        private static readonly float PEAK_THRESHOLD = 0.7f;
-
         public static void GenerateWorld()
         {
             GenerateChunks();
@@ -33,7 +27,7 @@ internal static partial class World
                 for (byte y = 0; y < Config.CHUNK_SIZE_BYTE; y++)
                 {
                     // Let's use a simpler pattern that will make issues obvious
-                    byte value = (byte)((x + y) % 4); // Or any other pattern that's easy to spot
+                    TileMaterial value = (x + y) % 2 == 0 ? TileMaterial.Dirt : TileMaterial.Stone;
                     dummyChunk.SetTile(x, y, value);
                     realChunk.SetTile(x, y, value, TileSurface.None, TileProperties.None);
                 }
@@ -55,8 +49,8 @@ internal static partial class World
             foreach (byte[] pos in positionsToCheck)
             {
                 byte x = pos[0], y = pos[1];
-                byte dummyValue = dummyChunk.GetTile(x, y);
-                byte realValue = realChunk.GetTile(x, y).material;
+                TileMaterial dummyValue = dummyChunk.GetTile(x, y);
+                TileMaterial realValue = realChunk.GetTile(x, y).material;
                 Console.WriteLine($"Position ({x,3},{y,3}): Dummy={dummyValue,3} Real={realValue,3}" +
                                 (dummyValue == realValue ? "" : " MISMATCH!"));
             }
@@ -95,20 +89,14 @@ internal static partial class World
         }
 
         // Dummy chunk class just for testing
-        private class DummyChunk
+        private class DummyChunk(byte x, byte y)
         {
-            public byte[,] MapData { get; } = new byte[Config.CHUNK_SIZE_BYTE, Config.CHUNK_SIZE_BYTE];
-            public byte X { get; }
-            public byte Y { get; }
+            public TileMaterial[,] MapData { get; } = new TileMaterial[Config.CHUNK_SIZE_BYTE, Config.CHUNK_SIZE_BYTE];
+            public byte X { get; } = x;
+            public byte Y { get; } = y;
 
-            public DummyChunk(byte x, byte y)
-            {
-                X = x;
-                Y = y;
-            }
-
-            public void SetTile(byte x, byte y, byte material) => MapData[x, y] = material;
-            public byte GetTile(byte x, byte y) => MapData[x, y];
+            public void SetTile(byte x, byte y, TileMaterial material) => MapData[x, y] = material;
+            public TileMaterial GetTile(byte x, byte y) => MapData[x, y];
         }
 
         private static void GenerateAndCompare()
@@ -136,7 +124,7 @@ internal static partial class World
 
                             // Generate terrain value
                             float elevation = EnhancedPerlinNoise.GenerateTerrain(worldX * baseScale, worldY * baseScale);
-                            (byte material, TileProperties _) = DetermineTileType(elevation);
+                            (TileMaterial material, TileProperties _, TileSurface _) = DetermineTileType(elevation);
 
                             // Set in both chunks
                             dummyChunk.SetTile(localX, localY, material);
@@ -375,55 +363,64 @@ internal static partial class World
                     float worldY = chunk.Y * Config.CHUNK_SIZE + localY;
                     if (Config.GenerateFlatWorld)
                     {
-                        chunk.SetTile(localX, localY, (byte)TileMaterial.Dirt, TileSurface.None, TileProperties.Walkable | TileProperties.Breakable);
+                        chunk.SetTile(localX, localY, TileMaterial.Dirt, TileSurface.None, TileProperties.Walkable | TileProperties.Breakable);
                         continue;
                     }
                     // Generate base terrain elevation
                     float elevation = EnhancedPerlinNoise.GenerateTerrain(worldX * baseScale, worldY * baseScale);
-                    (byte material, TileProperties properties) = DetermineTileType(elevation);
-                    chunk.SetTile(localX, localY, material, TileSurface.None, properties);
+                    System.Console.WriteLine($"Elevation: {elevation}");
+                    (TileMaterial material, TileProperties properties, TileSurface surface) = DetermineTileType(elevation);
+                    chunk.SetTile(localX, localY, material, surface, properties);
                 }
             }
 
         }
 
-        private static (byte material, TileProperties properties) DetermineTileType(float elevation)
+        private static (TileMaterial material, TileProperties properties, TileSurface surface) DetermineTileType(float elevation)
         {
             TileMaterial material;
             TileProperties properties;
+            TileSurface surface = TileSurface.None;
 
-            if (elevation < WATER_THRESHOLD)
+            if (elevation < Config.WATER_THRESHOLD)
             {
                 // Deep water
                 material = TileMaterial.Water;
                 properties = TileProperties.Transparent | TileProperties.BlocksProjectiles;
             }
-            else if (elevation < BEACH_THRESHOLD)
+            else if (elevation < Config.BEACH_THRESHOLD)
             {
                 // Beach/Shore
                 material = TileMaterial.Sand;
                 properties = TileProperties.Walkable | TileProperties.Breakable;
             }
-            else if (elevation < MOUNTAIN_THRESHOLD)
+            else if (elevation < Config.HILL_THRESHOLD)
             {
                 // Regular terrain
                 material = TileMaterial.Dirt;
                 properties = TileProperties.Walkable | TileProperties.Solid | TileProperties.Breakable;
             }
-            else if (elevation < PEAK_THRESHOLD)
+            else if (elevation < Config.MOUNTAIN_THRESHOLD)
+            {
+                // Hills
+                material = TileMaterial.Stone;
+                properties = TileProperties.Walkable | TileProperties.Breakable;
+            }
+            else if (elevation < Config.MOUNTAIN_THRESHOLD)
             {
                 // Mountains
                 material = TileMaterial.Stone;
-                properties = TileProperties.Solid | TileProperties.BlocksLight | TileProperties.Breakable;
+                properties = TileProperties.Solid | TileProperties.BlocksLight | TileProperties.BlocksProjectiles;
             }
             else
             {
                 // High peaks
                 material = TileMaterial.Stone;
                 properties = TileProperties.Solid | TileProperties.BlocksLight | TileProperties.BlocksProjectiles;
+                surface = TileSurface.Snow;
             }
 
-            return ((byte)material, properties);
+            return (material, properties, surface);
         }
 
         public static void DrawChunk(Chunk chunk)
@@ -432,13 +429,13 @@ internal static partial class World
             {
                 for (byte x = 0; x < Config.CHUNK_SIZE_BYTE; x++)
                 {
-                    (byte material, TileSurface _, TileProperties properties) = chunk.GetTile(x, y);
+                    (TileMaterial material, TileSurface _, TileProperties properties) = chunk.GetTile(x, y);
                     char glyph = material switch
                     {
-                        (byte)TileMaterial.Water => '~',
-                        (byte)TileMaterial.Sand => '.',
-                        (byte)TileMaterial.Dirt => ',',
-                        (byte)TileMaterial.Stone => '#',
+                        TileMaterial.Water => '~',
+                        TileMaterial.Sand => '.',
+                        TileMaterial.Dirt => ',',
+                        TileMaterial.Stone => '#',
                         _ => '?'
                     };
                     if (!properties.HasFlag(TileProperties.Walkable))
