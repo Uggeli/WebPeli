@@ -13,18 +13,26 @@ public class MapManager : BaseManager
         EventManager.RegisterListener<MoistureChangeEvent>(this);
         EventManager.RegisterListener<AreaMoistureChangeEvent>(this);
 
+        HashSet<Position> waterTiles = [];
         // Initialize water tiles to max moisture
-        for (int x = 0; x < Config.WORLD_TILES; x++)
+        for (int x = 0; x < Config.WORLD_TILES - 1; x++)
         {
-            for (int y = 0; y < Config.WORLD_TILES; y++)
+            for (int y = 0; y < Config.WORLD_TILES - 1; y++)
             {
                 var pos = new Position(x, y);
                 var (material, _, _) = WorldApi.GetTileInfo(pos);
                 if (material == TileMaterial.Water)
                 {
                     _moisture[WorldToIndex(x, y)] = Config.WATER_TILE_MOISTURE;
+                    waterTiles.Add(pos);
                 }
             }
+        }
+
+        // Spread moisture from water tiles
+        foreach (var pos in waterTiles)
+        {
+            SpreadMoisture(pos, Config.WATER_TILE_MOISTURE);
         }
     }
 

@@ -13,14 +13,14 @@ public readonly struct Position
     }
     public Position((byte X, byte Y) chunkPosition, (byte X, byte Y) tilePosition)
     {
-        X = chunkPosition.X * Config.CHUNK_SIZE_BYTE + tilePosition.X;
-        Y = chunkPosition.Y * Config.CHUNK_SIZE_BYTE + tilePosition.Y;
+        X = chunkPosition.X * Config.CHUNK_SIZE + tilePosition.X;
+        Y = chunkPosition.Y * Config.CHUNK_SIZE + tilePosition.Y;
     }
 
     public int X { get; init; }  // World coordinates
     public int Y { get; init; }  // World coordinates
-    public readonly (byte X, byte Y) ChunkPosition => (X: (byte)(X / Config.CHUNK_SIZE_BYTE), Y: (byte)(Y / Config.CHUNK_SIZE_BYTE));
-    public readonly (byte X, byte Y) TilePosition => (X: (byte)(X % Config.CHUNK_SIZE_BYTE), Y: (byte)(Y % Config.CHUNK_SIZE_BYTE));
+    public readonly (byte X, byte Y) ChunkPosition => (X: (byte)(X / Config.CHUNK_SIZE), Y: (byte)(Y / Config.CHUNK_SIZE));
+    public readonly (byte X, byte Y) TilePosition => (X: (byte)(X % Config.CHUNK_SIZE), Y: (byte)(Y % Config.CHUNK_SIZE));
     public static Position operator +(Position a, Position b)
     {
         return new Position { X = a.X + b.X, Y = a.Y + b.Y };
