@@ -6,6 +6,8 @@ namespace WebPeli.GameEngine.Managers;
 public class MapManager : BaseManager
 {
     private readonly byte[] _moisture = new byte[Config.WORLD_TILES * Config.WORLD_TILES];
+    private readonly byte[] _temperature = new byte[Config.WORLD_TILES * Config.WORLD_TILES];
+    private readonly byte[] _sunlight = new byte[Config.WORLD_TILES * Config.WORLD_TILES]; // 0 full exposure, 255 full shade
     private static int WorldToIndex(int x, int y) => y * Config.WORLD_TILES + x;
     
     public override void Init()
