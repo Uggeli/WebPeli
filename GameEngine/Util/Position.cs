@@ -81,4 +81,9 @@ public static class PositionExtensions
         }
         return [.. neighbours];
     }
+
+    public static int WorldToIndex(this Position pos)
+    {
+        return pos.Y * Config.WORLD_SIZE + pos.X;
+    }
 }

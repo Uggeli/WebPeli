@@ -1,6 +1,7 @@
 using System.Net.WebSockets;
 using WebPeli.GameEngine.Managers;
 using WebPeli.GameEngine.Util;
+using WebPeli.GameEngine.World.WorldData;
 
 namespace WebPeli.GameEngine;
 
@@ -221,4 +222,180 @@ public readonly record struct AreaMoistureChangeEvent : IEvent
     public required int Width { get; init; }
     public required int Height { get; init; }
     public required byte Amount { get; init; }
+}
+
+public readonly record struct TemperatureChangeEvent : IEvent
+{
+    public required Position Position { get; init; }
+    public required byte Amount { get; init; }  // How much temperature to add/remove
+}
+
+public readonly record struct AreaTemperatureChangeEvent : IEvent
+{
+    public required Position TopLeft { get; init; }
+    public required int Width { get; init; }
+    public required int Height { get; init; }
+    public required byte Amount { get; init; }
+}
+
+public readonly record struct MoistureRequest : IEvent
+{
+    public required Position Position { get; init; }
+    public required Guid CallbackId { get; init; }
+}
+
+// Events for plant lifecycle
+public record PlantStatusChanged : IEvent
+{
+    public required Position Position { get; init; }
+    public required PlantStatus OldStatus { get; init; }
+    public required PlantStatus NewStatus { get; init; }
+}
+
+public record PlantReproductionEvent : IEvent
+{
+    public required int EntityId { get; init; }
+    public required Position Position { get; init; }
+    public required IBasePlant Plant { get; init; }
+}
+
+[Flags]
+public enum PlantStatus : byte
+{
+    Dead = 0,
+    Seed = 1 << 0,
+    Seedling = 1 << 1,
+    Mature = 1 << 2,
+    Growing = 1 << 3,
+    Flowering = 1 << 4,
+    Fruiting = 1 << 5,
+    Harvested = 1 << 6,
+    Dying = 1 << 7
+}
+
+public interface IBasePlant
+{
+    public byte Volume { get; init; }
+    public TileSurface Surface { get; init; }  
+    public TileMaterial[] ValidMaterials { get; init; }
+    public byte MinMoisture { get; init; }     
+    public byte OptimalMoisture { get; init; } 
+    public byte MaxMoisture { get; init; }
+    public int Age { get; init; }  
+    public int SeedlingThreshold { get; init; }  
+    public int MaturityThreshold { get; init; }   
+}
+
+// Interface for plants that can reproduce
+public interface IPlantReproduction : IBasePlant
+{
+    public byte SeedRange { get; init; }       
+    public byte GerminationChance { get; init; }
+    public bool IsContinuousSpreader { get; init; }  
+    public byte ReproductionThreshold { get; init; }
+}
+
+// PlantTypes.cs
+public record GroundCoverPlant : IBasePlant, IPlantReproduction
+{
+    public required byte Volume { get; init; }
+    public required TileSurface Surface { get; init; }
+    public required TileMaterial[] ValidMaterials { get; init; }
+    public required byte MinMoisture { get; init; }
+    public required byte OptimalMoisture { get; init; }
+    public required byte MaxMoisture { get; init; }
+    public required int Age { get; init; }
+    public required int SeedlingThreshold { get; init; }
+    public required int MaturityThreshold { get; init; }
+    
+    // Reproduction properties
+    public required byte SeedRange { get; init; }
+    public required byte GerminationChance { get; init; }
+    public required bool IsContinuousSpreader { get; init; }
+    public required byte ReproductionThreshold { get; init; }
+}
+
+public static class PlantTemplates
+{
+    public static readonly GroundCoverPlant ShortGrass = new()
+    {
+        Volume = 1,
+        Surface = TileSurface.ShortGrass,
+        ValidMaterials = [TileMaterial.Dirt, TileMaterial.Sand],
+        MinMoisture = 30,
+        OptimalMoisture = 60,
+        MaxMoisture = 100,
+        Age = 0,
+        SeedlingThreshold = 50,    // Grows relatively fast
+        MaturityThreshold = 100,
+        SeedRange = 2,             // Spreads short distance
+        GerminationChance = 25,    // 10% chance
+        IsContinuousSpreader = true,
+        ReproductionThreshold = 75
+    };
+
+    public static readonly GroundCoverPlant TallGrass = new()
+    {
+        Volume = 2,
+        Surface = TileSurface.TallGrass,
+        ValidMaterials = [TileMaterial.Dirt],  // Only on dirt
+        MinMoisture = 40,          // Needs more water
+        OptimalMoisture = 80,
+        MaxMoisture = 120,
+        Age = 0,
+        SeedlingThreshold = 75,    // Takes longer to grow
+        MaturityThreshold = 150,
+        SeedRange = 3,             // Spreads further
+        GerminationChance = 15,    // But less likely
+        IsContinuousSpreader = true,
+        ReproductionThreshold = 100
+    };
+}
+
+public record TreeTemplate : IBasePlant, IPlantReproduction
+{
+    public required byte Volume { get; init; }
+    public required TileSurface Surface { get; init; }  // For shade effects maybe?
+    public required TileMaterial[] ValidMaterials { get; init; }
+    public required byte MinMoisture { get; init; }
+    public required byte OptimalMoisture { get; init; }
+    public required byte MaxMoisture { get; init; }
+    public required int Age { get; init; }
+    public required int SeedlingThreshold { get; init; }
+    public required int MaturityThreshold { get; init; }
+    public required byte SeedRange { get; init; }
+    public required byte GerminationChance { get; init; }
+    public required bool IsContinuousSpreader { get; init; }
+    public required int ReproductionThreshold { get; init; }
+    
+    // Tree specific stuff
+    public required EntityType TreeType { get; init; }
+    public required int MaxHeight { get; init; }
+    public required byte GrowthRate { get; init; }  // How fast it gains height
+    public required Position[] OccupiedTiles { get; init; }  // For bigger trees
+    byte IPlantReproduction.ReproductionThreshold { get => throw new NotImplementedException(); init => throw new NotImplementedException(); }
+}
+
+public static class TreeTemplates 
+{
+    public static readonly TreeTemplate BasicTree = new()
+    {
+        Volume = 100,
+        Surface = TileSurface.None,
+        ValidMaterials = [TileMaterial.Dirt],
+        MinMoisture = 40,
+        OptimalMoisture = 90,
+        MaxMoisture = 150,
+        Age = 0,
+        SeedlingThreshold = 200,   // Trees take longer
+        MaturityThreshold = 1000,
+        SeedRange = 5,             // Seeds can spread further
+        GerminationChance = 10,    // But harder to grow
+        IsContinuousSpreader = true,
+        ReproductionThreshold = 500,
+        TreeType = EntityType.Resource,  // Can be harvested
+        MaxHeight = 5,
+        GrowthRate = 1,
+        OccupiedTiles = [new Position(0, 0)]  // Just one tile when planted
+    };
 }

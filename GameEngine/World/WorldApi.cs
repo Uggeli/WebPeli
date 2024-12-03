@@ -10,9 +10,9 @@ namespace WebPeli.GameEngine.World;
 public static class WorldApi
 {
     # region Entity Management
-    public static void AddEntity(int id, Position[] positions, byte volume = 200)
+    public static bool AddEntity(int id, Position[] positions, byte volume = 200)
     {
-        World.EntityManager.AddEntity(id, positions, volume);
+        return World.EntityManager.AddEntity(id, positions, volume);
     }
     /// <summary>
     /// Add an entity to the world at the specified position. Returns true if successful.

@@ -22,6 +22,7 @@ static class Config
     // Tile configuration
     public const byte MOISTURE_MIN_DIFFERENCE = 20;
     public const byte WATER_TILE_MOISTURE = 255;  // max moisture
+    public const byte MOISTURE_CHECK_INTERVAL = 10;  // ticks
 
     // World generation
     public static bool GenerateFlatWorld = false;
