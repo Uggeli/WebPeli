@@ -1,4 +1,5 @@
 using WebPeli.GameEngine;
+using WebPeli.GameEngine.Managers;
 
 namespace WebPeli.GameEngine.Systems;
 public enum Season: byte
@@ -88,10 +89,10 @@ public class TimeSystem(ILogger<TimeSystem> logger) : BaseManager
     }
     private readonly Dictionary<Season, byte> SeasonLengths = new()
     {
-        { Season.Spring, 90 },
-        { Season.Summer, 90 },
-        { Season.Autumn, 90 },
-        { Season.Winter, 90 }
+        { Season.Spring, Config.SpringLength },
+        { Season.Summer, Config.SummerLength },
+        { Season.Autumn, Config.AutumnLength },
+        { Season.Winter, Config.WinterLength }
     };
     private int _currentTick = 0;
     static private int _currentDay = 0;
@@ -120,46 +121,47 @@ public class TimeSystem(ILogger<TimeSystem> logger) : BaseManager
         
         _updateTick = 0;
         _currentTick++;
-        UpdateTimeOfDay();
-    }
-
-    private void UpdateTimeOfDay()
-    {
-        if (_currentTick < GetTimeOfDayLength(_currentTimeOfDay, _currentSeason))
-            return;
-        
-        _currentTick = 0;
-        _currentTimeOfDay++;
-        _logger.LogInformation("Time of day changed to {0}", _currentTimeOfDay);
-        
-        if (_currentTimeOfDay <= TimeOfDay.Night)
-            return;
-            
-        AdvanceToNextDay();
-    }
-
-    private void AdvanceToNextDay()
-    {
-        _currentTimeOfDay = TimeOfDay.Dawn;
-        _currentDay++;
-        
-        if (_currentDay < SeasonLengths[_currentSeason])
-            return;
-            
-        AdvanceToNextSeason();
-    }
-
-    private void AdvanceToNextSeason()
-    {
-        _currentDay = 0;
-        _currentSeason++;
-        _logger.LogInformation("Season changed to {0}", _currentSeason);
-        if (_currentSeason > Season.Winter)
+        bool dayChanged = false;
+        if (_currentTick >= GetTimeOfDayLength(_currentTimeOfDay, _currentSeason))
         {
-            _currentSeason = Season.Spring;
-            _currentYear++;
+            _currentTick = 0;
+            _currentTimeOfDay = _currentTimeOfDay switch
+            {
+                TimeOfDay.Dawn => TimeOfDay.Noon,
+                TimeOfDay.Noon => TimeOfDay.Evening,
+                TimeOfDay.Evening => TimeOfDay.Dusk,
+                TimeOfDay.Dusk => TimeOfDay.Night,
+                TimeOfDay.Night => TimeOfDay.Dawn,
+                _ => throw new ArgumentException("Invalid time of day")
+            };
+            EventManager.Emit(new TimeOfDayChangeEvent(_currentTimeOfDay));
+            if (_currentTimeOfDay == TimeOfDay.Dawn)
+                dayChanged = true;
         }
+
+        if (dayChanged)
+        {
+            _currentDay++;
+            if (_currentDay % SeasonLengths[_currentSeason] == 0)
+            {
+                // _currentDay = 0;
+                _currentYear++;
+                _currentSeason = _currentSeason switch
+                {
+                    Season.Spring => Season.Summer,
+                    Season.Summer => Season.Autumn,
+                    Season.Autumn => Season.Winter,
+                    Season.Winter => Season.Spring,
+                    _ => throw new ArgumentException("Invalid season")
+                };
+                EventManager.Emit(new SeasonChangeEvent(_currentSeason));
+            }
+        }
+        if (_currentTick == 0)
+            _logger.LogInformation($"Day {_currentDay}, {_currentTimeOfDay}, {_currentSeason}, Year {_currentYear}");
+
     }
+
 
     public override void Destroy()
     {
@@ -173,6 +175,14 @@ public class TimeSystem(ILogger<TimeSystem> logger) : BaseManager
 
     public override void Init()
     {
-        
+        EventManager.RegisterListener<RequestTimeOfDayChangeEvent>(this);
+        EventManager.RegisterListener<RequestSeasonChangeEvent>(this);
     }
 }
+
+
+public record struct TimeOfDayChangeEvent(TimeOfDay NewTimeOfDay) : IEvent;
+public record struct SeasonChangeEvent(Season NewSeason) : IEvent;
+public record struct RequestTimeOfDayChangeEvent(TimeOfDay NewTimeOfDay) : IEvent;
+public record struct RequestSeasonChangeEvent(Season NewSeason) : IEvent;
+

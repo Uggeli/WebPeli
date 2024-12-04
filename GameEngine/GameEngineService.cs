@@ -37,8 +37,8 @@ public class GameEngineService : BackgroundService
         systems.Add(timeSystem);
         systems.Add(metabolismSystem);
         systems.Add(movementSystem);
-        // systems.Add(treeSystem);
-        systems.Add(groundCoverSystem);
+        systems.Add(treeSystem);
+        // systems.Add(groundCoverSystem);
 
         InitManagers();
 
