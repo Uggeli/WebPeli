@@ -19,7 +19,8 @@ public class GameEngineService : BackgroundService
                              MetabolismSystem metabolismSystem,
                              MovementSystem movementSystem,
                              TreeSystem treeSystem,
-                             GroundCoverSystem groundCoverSystem)
+                             GroundCoverSystem groundCoverSystem,
+                             TimeSystem timeSystem)
     {
         _logger = logger;
         // Build world
@@ -33,9 +34,10 @@ public class GameEngineService : BackgroundService
         managers.Add(mapManager);
         managers.Add(viewportManager);
 
+        systems.Add(timeSystem);
         systems.Add(metabolismSystem);
         systems.Add(movementSystem);
-        systems.Add(treeSystem);
+        // systems.Add(treeSystem);
         systems.Add(groundCoverSystem);
 
         InitManagers();

@@ -84,6 +84,6 @@ public static class PositionExtensions
 
     public static int WorldToIndex(this Position pos)
     {
-        return pos.Y * Config.WORLD_SIZE + pos.X;
+        return pos.Y * Config.WORLD_TILES + pos.X;
     }
 }

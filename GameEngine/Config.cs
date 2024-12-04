@@ -39,6 +39,9 @@ static class Config
     public const byte FATIGUE_RATE = 2;
     public const int UpdateLoop = 16; // ms
 
+    // Time configuration
+    public const int TicksToUpdateTimeOfDay = 1000;  // 1 second
+
     // Debugging
     public static bool DebugMode = false;
     public static bool DebugPathfinding = false;

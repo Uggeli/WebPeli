@@ -13,6 +13,7 @@ builder.Services.AddSingleton<MapManager>();
 builder.Services.AddSingleton<AiManager>();
 
 // Init systems
+builder.Services.AddSingleton<TimeSystem>();
 builder.Services.AddSingleton<MetabolismSystem>();
 builder.Services.AddSingleton<MovementSystem>();
 builder.Services.AddSingleton<TreeSystem>();
