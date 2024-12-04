@@ -10,21 +10,20 @@ public class GroundCoverSystem(ILogger<GroundCoverSystem> logger) : BaseManager
     private readonly Dictionary<Position, (IBasePlant Plant, PlantStatus Status)> _activePlants = [];
     private readonly byte[] _ages = new byte[Config.WORLD_TILES * Config.WORLD_TILES];
     private readonly ILogger<GroundCoverSystem > _logger = logger;
-    private static readonly Random _rng = new();
 
     public override void Init()
     {
         EventManager.RegisterListener<PlantReproductionEvent>(this);
         EventManager.RegisterListener<MoistureChangeEvent>(this);
-        
         // Initial seeding if we want some starter grass
         InitializeStarterGroundCover();
+        _logger.LogInformation("Ground cover system initialized");
     }
 
     private void InitializeStarterGroundCover()
     {
         // Maybe seed some initial patches in good spots
-        for (int x = 0; x < Config.WORLD_TILES; x += 10)  // Space them out
+        for (int x = 0; x < Config.WORLD_TILES; x += 10)
         {
             for (int y = 0; y < Config.WORLD_TILES; y += 10)
             {
@@ -40,11 +39,11 @@ public class GroundCoverSystem(ILogger<GroundCoverSystem> logger) : BaseManager
         {
             var (material, surface, _) = WorldApi.GetTileInfo(pos);
             
-            if (!plant.ValidMaterials.Contains((TileMaterial)material) ||
+            if (!plant.ValidMaterials.Contains(material) ||
                 surface != TileSurface.None ||
                 moisture < plant.MinMoisture ||
                 moisture > plant.MaxMoisture ||
-                _rng.Next(255) >= plant.GerminationChance)
+                Tools.Random.Next(255) >= plant.GerminationChance)
             {
                 return;
             }
@@ -55,7 +54,7 @@ public class GroundCoverSystem(ILogger<GroundCoverSystem> logger) : BaseManager
                 _activePlants[pos] = (plant, PlantStatus.Seed | PlantStatus.Growing);
                 _ages[pos.WorldToIndex()] = 0;
                 
-                _logger.LogDebug($"New {plant.Surface} planted at {pos}");
+                _logger.LogInformation($"New {plant.Surface} planted at {pos}");
             }
         });
 
@@ -64,10 +63,10 @@ public class GroundCoverSystem(ILogger<GroundCoverSystem> logger) : BaseManager
 
     public override void Update(double deltaTime)
     {
+        base.Update(deltaTime);
         foreach (var (pos, (plant, status)) in _activePlants.ToArray())
         {
-            if (status.HasFlag(PlantStatus.Dead))
-                continue;
+            if (status.HasFlag(PlantStatus.Dead)) continue;
 
             var idx = pos.WorldToIndex();
             _ages[idx]++;
@@ -104,6 +103,7 @@ public class GroundCoverSystem(ILogger<GroundCoverSystem> logger) : BaseManager
         if (age >= plant.MaturityThreshold && !currentStatus.HasFlag(PlantStatus.Mature))
         {
             newStatus = PlantStatus.Mature;
+            _logger.LogDebug($"Plant matured at {pos}");
             
             // Short grass can grow into tall grass if conditions are good
             if (plant.Surface == TileSurface.ShortGrass)
@@ -135,7 +135,7 @@ public class GroundCoverSystem(ILogger<GroundCoverSystem> logger) : BaseManager
             // Only upgrade if moisture is in tall grass range
             if (moisture >= PlantTemplates.TallGrass.MinMoisture && 
                 moisture <= PlantTemplates.TallGrass.MaxMoisture &&
-                _rng.Next(100) < 20)  // 20% chance to upgrade
+                Tools.Random.Next(100) < 20)  // 20% chance to upgrade
             {
                 WorldApi.ModifyTile(pos, surface: TileSurface.TallGrass);
                 _activePlants[pos] = (PlantTemplates.TallGrass, PlantStatus.Mature);
@@ -149,15 +149,15 @@ public class GroundCoverSystem(ILogger<GroundCoverSystem> logger) : BaseManager
     private void TryReproduction(Position pos, IPlantReproduction plant)
     {
         var seedPositions = GetSeedPositions(pos, plant.SeedRange);
-        
+ 
         foreach (var seedPos in seedPositions)
         {
             if (!WorldApi.IsInWorldBounds(seedPos))
                 continue;
 
-            if (_rng.Next(100) < plant.GerminationChance)
+            if (Tools.Random.Next(100) < plant.GerminationChance && plant is GroundCoverPlant groundCoverPlant)
             {
-                TryPlantGroundCover(seedPos, plant as GroundCoverPlant);
+                TryPlantGroundCover(seedPos, groundCoverPlant);
             }
         }
     }
@@ -217,11 +217,12 @@ public class GroundCoverSystem(ILogger<GroundCoverSystem> logger) : BaseManager
 
     public override void Destroy()
     {
-        throw new NotImplementedException();
+        EventManager.UnregisterListener<PlantReproductionEvent>(this);
+        EventManager.UnregisterListener<MoistureChangeEvent>(this);
     }
 
     public override void HandleMessage(IEvent evt)
     {
-        throw new NotImplementedException();
+        
     }
 }

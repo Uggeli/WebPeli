@@ -1,3 +1,89 @@
+class BiMap {
+    constructor(obj) {
+        this.nameToValue = Object.freeze({...obj});
+        this.valueToName = Object.freeze(
+            Object.entries(obj).reduce((acc, [key, val]) => ({...acc, [val]: key}), {})
+        );
+    }
+    
+    fromValue(value) {
+        return this.valueToName[value];
+    }
+
+    fromName(name) {
+        return this.nameToValue[name];
+    }
+}
+
+class TileMaterial {
+    static #mapping = new BiMap({
+        None: 0,
+        Dirt: 1,
+        Stone: 2,
+        Wood: 3,
+        Metal: 4,
+        Ice: 5,
+        Sand: 6,
+        Water: 8,
+        Lava: 9,
+        Snow: 10,
+        Blood: 12,
+        Mud: 13,
+    });
+
+    static fromValue(value) { return this.#mapping.fromValue(value); }
+    static fromName(name) { return this.#mapping.fromName(name); }
+}
+
+class Surface {
+    static #mapping = new BiMap({
+        None: 0,
+        ShortGrass: 1 << 0,
+        TallGrass: 1 << 6,
+        Snow: 1 << 1,
+        Moss: 1 << 2,
+        Water: 1 << 3,
+        Blood: 1 << 4,
+        Mud: 1 << 5,
+        Reserved2: 1 << 7
+    });
+
+    static fromValue(value) { return this.#mapping.fromValue(value); }
+    static fromName(name) { return this.#mapping.fromName(name); }
+    
+    static fromBitField(bits) {
+        return Object.entries(this.#mapping.nameToValue)
+            .filter(([_, value]) => bits & value)
+            .map(([name]) => name);
+    }
+}
+
+class TileProperties {
+    static #mapping = new BiMap({
+        None: 0,
+        Walkable: 1 << 0,
+        BlocksLight: 1 << 1,
+        Transparent: 1 << 2,
+        BlocksProjectiles: 1 << 3,
+        Solid: 1 << 4,
+        Interactive: 1 << 5,
+        Breakable: 1 << 6,
+        Reserved: 1 << 7
+    });
+
+    static fromValue(value) { return this.#mapping.fromValue(value); }
+    static fromName(name) { return this.#mapping.fromName(name); }
+    
+    static fromBitField(bits) {
+        return Object.entries(this.#mapping.nameToValue)
+            .filter(([_, value]) => bits & value)
+            .map(([name]) => name);
+    }
+}
+
+
+
+
 class GameRenderer {
     constructor(canvas) {
         this.canvas = canvas;
@@ -21,6 +107,166 @@ class GameRenderer {
             13: '#654321', // Mud
         };
 
+        // Surface rendering patterns
+        this.surfacePatterns = {
+            ShortGrass: (x, y) => {
+                const grassColor = '#90EE90';
+                this.ctx.fillStyle = grassColor;
+                // Draw grass tufts
+                // for (let i = 0; i < 8; i++) {
+                //     const offsetX = Math.random() * (this.tileSize - 4) + 2;
+                //     const offsetY = Math.random() * (this.tileSize - 4) + 2;
+                //     this.ctx.beginPath();
+                //     this.ctx.moveTo(x * this.tileSize + offsetX, y * this.tileSize + offsetY);
+                //     this.ctx.lineTo(x * this.tileSize + offsetX - 2, y * this.tileSize + offsetY - 4);
+                //     this.ctx.lineTo(x * this.tileSize + offsetX + 2, y * this.tileSize + offsetY - 4);
+                //     this.ctx.closePath();
+                //     this.ctx.fill();
+                // }
+                for (let offsetX = 0; offsetX < this.tileSize; offsetX += 8) {
+                    for (let offsetY = 0; offsetY < this.tileSize; offsetY += 8) {
+                        const grassX = x * this.tileSize + offsetX;
+                        const grassY = y * this.tileSize + offsetY;
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(grassX , grassY);
+                        this.ctx.lineTo(grassX - 2, grassY - 4);
+                        this.ctx.lineTo(grassX + 2, grassY - 4);
+                        this.ctx.closePath();
+                        this.ctx.fill();
+                    }
+                }
+
+            },
+            
+            TallGrass: (x, y) => {
+                const grassColor = '#228B22';
+                this.ctx.fillStyle = grassColor;
+                // Draw taller grass blades
+                for (let i = 0; i < 6; i++) {
+                    const offsetX = Math.random() * (this.tileSize - 8) + 4;
+                    const offsetY = Math.random() * (this.tileSize - 8) + 4;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x * this.tileSize + offsetX, y * this.tileSize + offsetY);
+                    this.ctx.lineTo(x * this.tileSize + offsetX - 3, y * this.tileSize + offsetY - 8);
+                    this.ctx.lineTo(x * this.tileSize + offsetX + 3, y * this.tileSize + offsetY - 8);
+                    this.ctx.closePath();
+                    this.ctx.fill();
+                }
+            },
+            
+            Snow: (x, y) => {
+                // Add snow overlay with some variation
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                this.ctx.fillRect(
+                    x * this.tileSize, 
+                    y * this.tileSize, 
+                    this.tileSize, 
+                    this.tileSize
+                );
+                
+                // Add snow sparkles
+                this.ctx.fillStyle = '#FFFFFF';
+                for (let i = 0; i < 5; i++) {
+                    const offsetX = Math.random() * this.tileSize;
+                    const offsetY = Math.random() * this.tileSize;
+                    this.ctx.fillRect(
+                        x * this.tileSize + offsetX,
+                        y * this.tileSize + offsetY,
+                        2,
+                        2
+                    );
+                }
+            },
+            
+            Moss: (x, y) => {
+                // Draw moss patches
+                this.ctx.fillStyle = '#3A5F0B';
+                for (let i = 0; i < 6; i++) {
+                    const offsetX = Math.random() * (this.tileSize - 6) + 3;
+                    const offsetY = Math.random() * (this.tileSize - 6) + 3;
+                    const size = Math.random() * 6 + 4;
+                    this.ctx.beginPath();
+                    this.ctx.arc(
+                        x * this.tileSize + offsetX,
+                        y * this.tileSize + offsetY,
+                        size,
+                        0,
+                        Math.PI * 2
+                    );
+                    this.ctx.fill();
+                }
+            },
+            
+            Water: (x, y) => {
+                // Semi-transparent water overlay
+                this.ctx.fillStyle = 'rgba(0, 105, 148, 0.4)';
+                this.ctx.fillRect(
+                    x * this.tileSize,
+                    y * this.tileSize,
+                    this.tileSize,
+                    this.tileSize
+                );
+                
+                // Add ripple effect
+                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                this.ctx.beginPath();
+                this.ctx.arc(
+                    x * this.tileSize + this.tileSize/2,
+                    y * this.tileSize + this.tileSize/2,
+                    this.tileSize/3,
+                    0,
+                    Math.PI * 2
+                );
+                this.ctx.stroke();
+            },
+            
+            Blood: (x, y) => {
+                // Draw blood splatters
+                this.ctx.fillStyle = '#8B0000';
+                for (let i = 0; i < 4; i++) {
+                    const offsetX = Math.random() * (this.tileSize - 8) + 4;
+                    const offsetY = Math.random() * (this.tileSize - 8) + 4;
+                    const size = Math.random() * 5 + 3;
+                    this.ctx.beginPath();
+                    this.ctx.arc(
+                        x * this.tileSize + offsetX,
+                        y * this.tileSize + offsetY,
+                        size,
+                        0,
+                        Math.PI * 2
+                    );
+                    this.ctx.fill();
+                }
+            },
+            
+            Mud: (x, y) => {
+                // Draw mud texture
+                this.ctx.fillStyle = '#483C32';
+                const opacity = 0.6;
+                this.ctx.fillStyle = `rgba(72, 60, 50, ${opacity})`;
+                this.ctx.fillRect(
+                    x * this.tileSize,
+                    y * this.tileSize,
+                    this.tileSize,
+                    this.tileSize
+                );
+                
+                // Add mud cracks
+                this.ctx.strokeStyle = '#362D23';
+                for (let i = 0; i < 3; i++) {
+                    const startX = x * this.tileSize + Math.random() * this.tileSize;
+                    const startY = y * this.tileSize + Math.random() * this.tileSize;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(startX, startY);
+                    this.ctx.lineTo(
+                        startX + (Math.random() * 10 - 5),
+                        startY + (Math.random() * 10 - 5)
+                    );
+                    this.ctx.stroke();
+                }
+            }
+        };
+
         // Initialize size
         this.resize();
         window.addEventListener('resize', () => this.resize());
@@ -37,6 +283,7 @@ class GameRenderer {
             for (let x = 0; x < width; x++) {
                 const tile = tiles[y * width + x];
                 this.renderTile(x, y, tile.material);
+                this.renderTileSurface(x, y, tile.surface);
             }
         }
 
@@ -64,36 +311,20 @@ class GameRenderer {
             this.tileSize,
             this.tileSize
         );
+    }
 
-        // Render chunk borders
-        let chunkSize = 8;
-        let chunkWidth = chunkSize * this.tileSize;
-        let chunkHeight = chunkSize * this.tileSize;
-        this.ctx.strokeStyle = '#FF0000';  // Red
-        this.ctx.lineWidth = 2;
-
-        if (x % chunkSize === 0) {
-            this.ctx.beginPath();
-            this.ctx.moveTo(x * this.tileSize, y * this.tileSize);
-            this.ctx.lineTo(x * this.tileSize, y * this.tileSize + chunkHeight);
-            this.ctx.stroke();
-        }
-
-        if (y % chunkSize === 0) {
-            this.ctx.beginPath();
-            this.ctx.moveTo(x * this.tileSize, y * this.tileSize);
-            this.ctx.lineTo(x * this.tileSize + chunkWidth, y * this.tileSize);
-            this.ctx.stroke();
-        }
-
-        // Render tile coordinates
-        this.ctx.fillStyle = '#FFFFFF';
-        this.ctx.font = '12px Arial';
-        this.ctx.fillText(
-            `${x},${y}`,
-            x * this.tileSize + 2,
-            y * this.tileSize + 12
-        );
+    renderTileSurface(x, y, surface) {
+        if (surface === 0) return;
+        
+        // Get array of surface names from bitfield
+        const surfaces = Surface.fromBitField(surface);
+        
+        // Render each surface type
+        surfaces.forEach(surfaceName => {
+            if (this.surfacePatterns[surfaceName]) {
+                this.surfacePatterns[surfaceName](x, y);
+            }
+        });
     }
 
     renderDebugInfo() {

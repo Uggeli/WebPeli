@@ -12,8 +12,6 @@ const MessageType = {
 
 
 
-
-
 class GameClient {
     constructor(url) {
         this.url = url;
@@ -128,7 +126,7 @@ class GameClient {
                 properties: payload[offset++]
             };
         }
-
+        
         // Parse entities
         const entities = [];
         while(offset < payload.length) {
@@ -190,24 +188,3 @@ class GameClient {
         this.errorCallback = callback;
     }
 }
-
-// Example usage:
-/*
-const client = new GameClient('ws://localhost:5000/ws');
-
-// Register callbacks
-client.onViewportData(({width, height, grid}) => {
-    console.log(`Received viewport data: ${width}x${height}`);
-    // Handle the grid data...
-});
-
-client.onError((message) => {
-    console.error('Game error:', message);
-});
-
-// Connect and start using
-await client.connect();
-
-// Request viewport data
-client.requestViewport(0, 0, 800, 600);
-*/

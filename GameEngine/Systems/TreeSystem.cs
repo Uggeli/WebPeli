@@ -43,7 +43,7 @@ public class TreeSystem(ILogger<TreeSystem> logger) : BaseManager
         {
             var (material, surface, _) = WorldApi.GetTileInfo(pos);
             
-            if (!template.ValidMaterials.Contains((TileMaterial)material) ||
+            if (!template.ValidMaterials.Contains(material) ||
                 moisture < template.MinMoisture ||
                 moisture > template.MaxMoisture ||
                 _rng.Next(255) >= template.GerminationChance)
@@ -70,7 +70,7 @@ public class TreeSystem(ILogger<TreeSystem> logger) : BaseManager
                 _ages[entityId] = 0;
                 _currentTiles[entityId] = [initialPos];
                 
-                _logger.LogDebug($"New tree {entityId} planted at {pos}");
+                _logger.LogInformation($"New tree {entityId} planted at {pos}");
             }
             else
             {

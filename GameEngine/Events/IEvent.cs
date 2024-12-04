@@ -260,9 +260,9 @@ public record PlantReproductionEvent : IEvent
 }
 
 [Flags]
-public enum PlantStatus : byte
+public enum PlantStatus : int
 {
-    Dead = 0,
+    None = 0,
     Seed = 1 << 0,
     Seedling = 1 << 1,
     Mature = 1 << 2,
@@ -270,7 +270,8 @@ public enum PlantStatus : byte
     Flowering = 1 << 4,
     Fruiting = 1 << 5,
     Harvested = 1 << 6,
-    Dying = 1 << 7
+    Dying = 1 << 7,
+    Dead = 1 << 8
 }
 
 public interface IBasePlant
@@ -322,8 +323,8 @@ public static class PlantTemplates
         Volume = 1,
         Surface = TileSurface.ShortGrass,
         ValidMaterials = [TileMaterial.Dirt, TileMaterial.Sand],
-        MinMoisture = 30,
-        OptimalMoisture = 60,
+        MinMoisture = 10,
+        OptimalMoisture = 30,
         MaxMoisture = 100,
         Age = 0,
         SeedlingThreshold = 50,    // Grows relatively fast
@@ -339,8 +340,8 @@ public static class PlantTemplates
         Volume = 2,
         Surface = TileSurface.TallGrass,
         ValidMaterials = [TileMaterial.Dirt],  // Only on dirt
-        MinMoisture = 40,          // Needs more water
-        OptimalMoisture = 80,
+        MinMoisture = 20,          // Needs more water
+        OptimalMoisture = 30,
         MaxMoisture = 120,
         Age = 0,
         SeedlingThreshold = 75,    // Takes longer to grow
@@ -383,13 +384,13 @@ public static class TreeTemplates
         Volume = 100,
         Surface = TileSurface.None,
         ValidMaterials = [TileMaterial.Dirt],
-        MinMoisture = 40,
-        OptimalMoisture = 90,
-        MaxMoisture = 150,
+        MinMoisture = 25,
+        OptimalMoisture = 50,
+        MaxMoisture = 80,
         Age = 0,
         SeedlingThreshold = 200,   // Trees take longer
         MaturityThreshold = 1000,
-        SeedRange = 5,             // Seeds can spread further
+        SeedRange = 15,             // Seeds can spread further
         GerminationChance = 10,    // But harder to grow
         IsContinuousSpreader = true,
         ReproductionThreshold = 500,

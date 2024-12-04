@@ -80,10 +80,11 @@ public static class TileManager
 
     private static readonly Dictionary<TileMaterial,(byte Capacity, byte Absorption)> _moistureProperties = new()
     {
-        { TileMaterial.Sand, (50, 10) },
-        { TileMaterial.Dirt, (80, 5) },
-        { TileMaterial.Stone, (0, 0) },
+        { TileMaterial.Sand, (30, 5) },
+        { TileMaterial.Dirt, (50, 1) },
+        { TileMaterial.Stone, (5, 0) },
         { TileMaterial.Water, (255, 0) },
+
     };
 
     public static (byte Capacity, byte Absorption) GetMaterialMoistureProperties(TileMaterial material)

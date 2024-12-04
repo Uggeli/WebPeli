@@ -11,7 +11,15 @@ public class GameEngineService : BackgroundService
     private readonly List<BaseManager> managers = [];
     private readonly List<BaseManager> systems = [];
 
-    public GameEngineService(ILogger<GameEngineService> logger, ViewportManager viewportManager, EntityRegister entityRegister)
+    public GameEngineService(ILogger<GameEngineService> logger,
+                             ViewportManager viewportManager,
+                             EntityRegister entityRegister,
+                             MapManager mapManager,
+                             AiManager aiManager,
+                             MetabolismSystem metabolismSystem,
+                             MovementSystem movementSystem,
+                             TreeSystem treeSystem,
+                             GroundCoverSystem groundCoverSystem)
     {
         _logger = logger;
         // Build world
@@ -20,13 +28,15 @@ public class GameEngineService : BackgroundService
         WorldApi.GenerateWorld();
         _logger.LogInformation($"World generation took {Environment.TickCount - startTime}ms");
 
-        // Initialize managers
         managers.Add(entityRegister);
-        managers.Add(new MapManager());
-        // managers.Add(new ViewportManager());
+        managers.Add(aiManager);
+        managers.Add(mapManager);
         managers.Add(viewportManager);
-        managers.Add(new AiManager());
 
+        systems.Add(metabolismSystem);
+        systems.Add(movementSystem);
+        systems.Add(treeSystem);
+        systems.Add(groundCoverSystem);
 
         InitManagers();
 
@@ -98,6 +108,10 @@ public class GameEngineService : BackgroundService
             var processingTime = Environment.TickCount - startTick;
             await Task.Delay(Math.Max(Config.UpdateLoop - processingTime, 0), stoppingToken);
         }
+
+        _logger.LogInformation("GameEngineService is stopping.");
+        DestroySystems();
+        DestroyManagers();
     }
 }
 

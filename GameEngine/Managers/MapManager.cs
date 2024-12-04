@@ -3,8 +3,9 @@ using WebPeli.GameEngine.World;
 using WebPeli.GameEngine.World.WorldData;
 
 namespace WebPeli.GameEngine.Managers;
-public class MapManager : BaseManager
+public class MapManager(ILogger<MapManager> logger) : BaseManager
 {
+    private readonly ILogger<MapManager> _logger = logger;
     private readonly byte[] _moisture = new byte[Config.WORLD_TILES * Config.WORLD_TILES];
     private readonly byte[] _temperature = new byte[Config.WORLD_TILES * Config.WORLD_TILES];
     private readonly byte[] _sunlight = new byte[Config.WORLD_TILES * Config.WORLD_TILES]; // 0 full exposure, 255 full shade
@@ -14,6 +15,9 @@ public class MapManager : BaseManager
     {
         EventManager.RegisterListener<MoistureChangeEvent>(this);
         EventManager.RegisterListener<AreaMoistureChangeEvent>(this);
+        EventManager.RegisterListener<AreaTemperatureChangeEvent>(this);
+        // EventManager.RegisterListener<AreaSunlightChangeEvent>(this);
+        EventManager.RegisterListener<MoistureRequest>(this);
 
         HashSet<Position> waterTiles = [];
         // Initialize water tiles to max moisture
@@ -21,6 +25,7 @@ public class MapManager : BaseManager
         {
             for (int y = 0; y < Config.WORLD_TILES - 1; y++)
             {
+                _moisture[WorldToIndex(x, y)] = 30; // lets set some initial moisture
                 var pos = new Position(x, y);
                 var (material, _, _) = WorldApi.GetTileInfo(pos);
                 if (material == TileMaterial.Water)
@@ -36,6 +41,19 @@ public class MapManager : BaseManager
         {
             SpreadMoisture(pos, Config.WATER_TILE_MOISTURE);
         }
+        // lets spread moisture again
+        
+        _logger.LogInformation("Map manager initialized");
+        _logger.LogInformation("{0} water tiles", waterTiles.Count);
+        var moistTiles = 0;
+        for (int i = 0; i < _moisture.Length; i++)
+        {
+            if (_moisture[i] > 0)
+            {
+                moistTiles++;
+            }
+        }
+        _logger.LogInformation("{0} moist tiles", moistTiles - waterTiles.Count);
     }
 
     public override void HandleMessage(IEvent evt)
@@ -48,16 +66,39 @@ public class MapManager : BaseManager
             case AreaMoistureChangeEvent areaChange:
                 HandleAreaMoistureChange(areaChange);
                 break;
+            case AreaTemperatureChangeEvent areaChange:
+                HandleAreaTemperatureChange(areaChange);
+                break;
+            // case AreaSunlightChangeEvent areaChange:
+            //     HandleAreaSunlightChange(areaChange);
+            //     break;
+            case MoistureRequest request:
+                HandleMoistureRequest(request);
+                break;
         }
+    }
+
+    private void HandleAreaTemperatureChange(AreaTemperatureChangeEvent areaChange)
+    {
+        throw new NotImplementedException();
+    }
+
+
+    private void HandleMoistureRequest(MoistureRequest request)
+    {
+        // var (material, _, _) = WorldApi.GetTileInfo(request.Position);
+        var moisture = _moisture[WorldToIndex(request.Position.X, request.Position.Y)];
+        var callbackId = request.CallbackId;
+        EventManager.EmitCallback(callbackId, moisture);
     }
 
     private void HandleMoistureChange(Position pos, byte amount)
     {
         var worldIdx = WorldToIndex(pos.X, pos.Y);
-        var tile = WorldApi.GetTileInfo(pos);
+        var (material, _, _) = WorldApi.GetTileInfo(pos);
         
         // Get material properties
-        var (capacity, absorption) = TileManager.GetMaterialMoistureProperties(tile.material);
+        var (capacity, absorption) = TileManager.GetMaterialMoistureProperties(material);
         
         // Calculate how much moisture tile can absorb
         var current = _moisture[worldIdx];
