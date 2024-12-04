@@ -216,6 +216,7 @@ internal static partial class World
                 for (int y = 0; y < height; y++)
                 {
                     var pos = new Position { X = topLeft.X + x, Y = topLeft.Y + y };
+                    if (!IsInWorldBounds(pos.X, pos.Y)) continue;
                     int idx = pos.Y * WORLD_TILES + pos.X;
 
                     if (_tileCount[idx] > 0)

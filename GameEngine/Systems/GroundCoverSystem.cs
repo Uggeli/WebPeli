@@ -54,7 +54,7 @@ public class GroundCoverSystem(ILogger<GroundCoverSystem> logger) : BaseManager
                 _activePlants[pos] = (plant, PlantStatus.Seed | PlantStatus.Growing);
                 _ages[pos.WorldToIndex()] = 0;
                 
-                _logger.LogInformation($"New {plant.Surface} planted at {pos}");
+                _logger.LogDebug($"New {plant.Surface} planted at {pos}");
             }
         });
 
@@ -77,7 +77,7 @@ public class GroundCoverSystem(ILogger<GroundCoverSystem> logger) : BaseManager
             // Check if it's time to try reproduction
             if (status.HasFlag(PlantStatus.Mature) && 
                 plant is IPlantReproduction repro &&
-                _ages[idx] % repro.ReproductionThreshold == 0)
+                _ages[idx] >= repro.ReproductionThreshold)
             {
                 TryReproduction(pos, repro);
             }
@@ -102,14 +102,18 @@ public class GroundCoverSystem(ILogger<GroundCoverSystem> logger) : BaseManager
         // Progress through growth stages
         if (age >= plant.MaturityThreshold && !currentStatus.HasFlag(PlantStatus.Mature))
         {
+            if (currentStatus.HasFlag(PlantStatus.Mature))
+            {
+                return;
+            }
             newStatus = PlantStatus.Mature;
             _logger.LogDebug($"Plant matured at {pos}");
             
             // Short grass can grow into tall grass if conditions are good
-            if (plant.Surface == TileSurface.ShortGrass)
-            {
-                CheckForTallGrassUpgrade(pos);
-            }
+            // if (plant.Surface == TileSurface.ShortGrass)
+            // {
+            //     CheckForTallGrassUpgrade(pos);
+            // }
         }
         else if (age >= plant.SeedlingThreshold && !currentStatus.HasFlag(PlantStatus.Seedling))
         {

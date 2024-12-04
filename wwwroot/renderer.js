@@ -111,30 +111,12 @@ class GameRenderer {
         this.surfacePatterns = {
             ShortGrass: (x, y) => {
                 const grassColor = '#90EE90';
+                const grassSize = this.tileSize / 8;
                 this.ctx.fillStyle = grassColor;
-                // Draw grass tufts
-                // for (let i = 0; i < 8; i++) {
-                //     const offsetX = Math.random() * (this.tileSize - 4) + 2;
-                //     const offsetY = Math.random() * (this.tileSize - 4) + 2;
-                //     this.ctx.beginPath();
-                //     this.ctx.moveTo(x * this.tileSize + offsetX, y * this.tileSize + offsetY);
-                //     this.ctx.lineTo(x * this.tileSize + offsetX - 2, y * this.tileSize + offsetY - 4);
-                //     this.ctx.lineTo(x * this.tileSize + offsetX + 2, y * this.tileSize + offsetY - 4);
-                //     this.ctx.closePath();
-                //     this.ctx.fill();
-                // }
-                for (let offsetX = 0; offsetX < this.tileSize; offsetX += 8) {
-                    for (let offsetY = 0; offsetY < this.tileSize; offsetY += 8) {
-                        const grassX = x * this.tileSize + offsetX;
-                        const grassY = y * this.tileSize + offsetY;
-                        this.ctx.beginPath();
-                        this.ctx.moveTo(grassX , grassY);
-                        this.ctx.lineTo(grassX - 2, grassY - 4);
-                        this.ctx.lineTo(grassX + 2, grassY - 4);
-                        this.ctx.closePath();
-                        this.ctx.fill();
-                    }
-                }
+                // top left of the tile
+                const grassX = x * this.tileSize;
+                const grassY = y * this.tileSize;
+                this.ctx.fillRect(grassX, grassY, grassSize, grassSize);
 
             },
             
@@ -302,7 +284,7 @@ class GameRenderer {
             this.tileSize,
             this.tileSize
         );
-
+        
         // Keep the grid lines
         this.ctx.strokeStyle = '#333333'; // Dark gray
         this.ctx.strokeRect(

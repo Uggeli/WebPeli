@@ -77,7 +77,7 @@ internal static partial class World
         x >= 0 && x < Config.WORLD_TILES &&
         y >= 0 && y < Config.WORLD_TILES;
 
-    public static bool IsInWorldBounds(Position pos) => IsInWorldBounds(pos.ChunkPosition.X, pos.ChunkPosition.Y);
+    public static bool IsInWorldBounds(Position pos) => IsInWorldBounds(pos.X, pos.Y);
 
     // World generation
     public static void GenerateWorld()

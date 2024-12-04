@@ -29,10 +29,7 @@ public class TreeSystem(ILogger<TreeSystem> logger) : BaseManager
         {
             for (int y = 10; y < Config.WORLD_TILES; y += 20)
             {
-                if (_rng.Next(100) < 30)  // 30% chance for each spot
-                {
-                    TryPlantTree(new Position(x, y), TreeTemplates.BasicTree);
-                }
+                TryPlantTree(new Position(x, y), TreeTemplates.BasicTree);
             }
         }
     }
@@ -85,7 +82,7 @@ public class TreeSystem(ILogger<TreeSystem> logger) : BaseManager
     {
         base.Update(deltaTime);  // Handle queued events
 
-        foreach (var (entityId, (template, status)) in _trees.ToArray())
+        foreach (var (entityId, (plant, status)) in _trees.ToArray())
         {
             if (status.HasFlag(PlantStatus.Dead))
                 continue;
@@ -96,8 +93,9 @@ public class TreeSystem(ILogger<TreeSystem> logger) : BaseManager
             UpdateTreeGrowth(entityId);
             
             // Check reproduction for mature trees
-            if (status.HasFlag(PlantStatus.Mature) && 
-                _ages[entityId] % template.ReproductionThreshold == 0)
+            if (status.HasFlag(PlantStatus.Mature) &&
+                _trees[entityId].Template is IPlantReproduction &&
+                _ages[entityId] >= plant.ReproductionThreshold)
             {
                 TryReproduction(entityId);
             }

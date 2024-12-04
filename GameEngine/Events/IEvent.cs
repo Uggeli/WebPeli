@@ -293,7 +293,7 @@ public interface IPlantReproduction : IBasePlant
     public byte SeedRange { get; init; }       
     public byte GerminationChance { get; init; }
     public bool IsContinuousSpreader { get; init; }  
-    public byte ReproductionThreshold { get; init; }
+    public int ReproductionThreshold { get; init; }
 }
 
 // PlantTypes.cs
@@ -313,7 +313,7 @@ public record GroundCoverPlant : IBasePlant, IPlantReproduction
     public required byte SeedRange { get; init; }
     public required byte GerminationChance { get; init; }
     public required bool IsContinuousSpreader { get; init; }
-    public required byte ReproductionThreshold { get; init; }
+    public required int ReproductionThreshold { get; init; }
 }
 
 public static class PlantTemplates
@@ -374,7 +374,7 @@ public record TreeTemplate : IBasePlant, IPlantReproduction
     public required int MaxHeight { get; init; }
     public required byte GrowthRate { get; init; }  // How fast it gains height
     public required Position[] OccupiedTiles { get; init; }  // For bigger trees
-    byte IPlantReproduction.ReproductionThreshold { get => throw new NotImplementedException(); init => throw new NotImplementedException(); }
+    // byte IPlantReproduction.ReproductionThreshold { get; init; }
 }
 
 public static class TreeTemplates 
@@ -391,7 +391,7 @@ public static class TreeTemplates
         SeedlingThreshold = 200,   // Trees take longer
         MaturityThreshold = 1000,
         SeedRange = 15,             // Seeds can spread further
-        GerminationChance = 10,    // But harder to grow
+        GerminationChance = 15,    // But harder to grow
         IsContinuousSpreader = true,
         ReproductionThreshold = 500,
         TreeType = EntityType.Resource,  // Can be harvested
