@@ -30,13 +30,11 @@ public class TimeSystem(ILogger<TimeSystem> logger) : BaseManager
     public static Season CurrentSeason 
     { 
         get => _currentSeason;
-        // set => _currentSeason = value;
     }
 
     public static TimeOfDay CurrentTimeOfDay
     {
         get => _currentTimeOfDay;
-        // set => _currentTimeOfDay = value;
     }
 
     // Update your GetCurrentTime method to use the properties
@@ -102,13 +100,11 @@ public class TimeSystem(ILogger<TimeSystem> logger) : BaseManager
     public static int CurrentDay
     {
         get => _currentDay;
-        // set => _currentDay = value;
     }
 
     public static int CurrentYear
     {
         get => _currentYear;
-        // set => _currentYear = value;
     }
 
     public override void Update(double deltaTime)
@@ -144,7 +140,6 @@ public class TimeSystem(ILogger<TimeSystem> logger) : BaseManager
             _currentDay++;
             if (_currentDay % SeasonLengths[_currentSeason] == 0)
             {
-                // _currentDay = 0;
                 _currentYear++;
                 _currentSeason = _currentSeason switch
                 {
