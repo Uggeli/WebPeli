@@ -17,6 +17,7 @@ static class Config
     public const byte MAX_ENTITIES_PER_TILE = 16;  // Or whatever makes sense
     public const byte MAX_ENTITY_SIZE = 4;  // 4x4 tiles max
     public const int MAX_ENTITIES = 1_000_000;  // We can easily change this
+    public const int MAX_TREES = 30_000;  // We can easily change this
 
 
     // Tile configuration
