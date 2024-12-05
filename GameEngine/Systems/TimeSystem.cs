@@ -183,13 +183,13 @@ public class TimeSystem(ILogger<TimeSystem> logger) : BaseManager
         EventManager.RegisterListener<RequestSeasonChangeEvent>(this);
     }
 
-    void HandleSeasonChangeRequest(RequestSeasonChangeEvent evt)
+    private static void HandleSeasonChangeRequest(RequestSeasonChangeEvent evt)
     {
         _currentSeason = evt.NewSeason;
         EventManager.Emit(new SeasonChangeEvent(_currentSeason));
     }
 
-    void HandleTimeOfDayChangeRequest(RequestTimeOfDayChangeEvent evt)
+    private static void HandleTimeOfDayChangeRequest(RequestTimeOfDayChangeEvent evt)
     {
         _currentTimeOfDay = evt.NewTimeOfDay;
         EventManager.Emit(new TimeOfDayChangeEvent(_currentTimeOfDay));
