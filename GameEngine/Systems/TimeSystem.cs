@@ -165,18 +165,39 @@ public class TimeSystem(ILogger<TimeSystem> logger) : BaseManager
 
     public override void Destroy()
     {
-        
+        EventManager.UnregisterListener<RequestTimeOfDayChangeEvent>(this);
+        EventManager.UnregisterListener<RequestSeasonChangeEvent>(this);
     }
 
     public override void HandleMessage(IEvent evt)
     {
-        
+        switch(evt)
+        {
+            case RequestTimeOfDayChangeEvent requestTimeOfDayChangeEvent:
+                HandleTimeOfDayChangeRequest(requestTimeOfDayChangeEvent);
+                break;
+            case RequestSeasonChangeEvent requestSeasonChangeEvent:
+                HandleSeasonChangeRequest(requestSeasonChangeEvent);
+                break;
+        }
     }
 
     public override void Init()
     {
         EventManager.RegisterListener<RequestTimeOfDayChangeEvent>(this);
         EventManager.RegisterListener<RequestSeasonChangeEvent>(this);
+    }
+
+    void HandleSeasonChangeRequest(RequestSeasonChangeEvent evt)
+    {
+        _currentSeason = evt.NewSeason;
+        EventManager.Emit(new SeasonChangeEvent(_currentSeason));
+    }
+
+    void HandleTimeOfDayChangeRequest(RequestTimeOfDayChangeEvent evt)
+    {
+        _currentTimeOfDay = evt.NewTimeOfDay;
+        EventManager.Emit(new TimeOfDayChangeEvent(_currentTimeOfDay));
     }
 }
 
