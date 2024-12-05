@@ -10,6 +10,7 @@ public class GameEngineService : BackgroundService
     private readonly ILogger<GameEngineService> _logger;
     private readonly List<BaseManager> managers = [];
     private readonly List<BaseManager> systems = [];
+    private readonly CancellationTokenSource _shutdownTokenSource = new();
 
     public GameEngineService(ILogger<GameEngineService> logger,
                              ViewportManager viewportManager,
@@ -82,38 +83,97 @@ public class GameEngineService : BackgroundService
         }
     }
 
-
-
     private int _lastUpdateTime = Environment.TickCount;
+
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        try 
+        {
+            _logger.LogInformation("GameEngineService is shutting down...");
+            
+            // Signal our own token to stop any running tasks
+            _shutdownTokenSource.Cancel();
+
+            // Destroy managers in reverse order of initialization
+            foreach (var manager in managers.AsEnumerable().Reverse())
+            {
+                try 
+                {
+                    _logger.LogInformation("Shutting down manager: {ManagerType}", manager.GetType().Name);
+                    manager.Destroy();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error shutting down manager: {ManagerType}", manager.GetType().Name);
+                }
+            }
+
+            // Destroy systems in reverse order
+            foreach (var system in systems.AsEnumerable().Reverse())
+            {
+                try 
+                {
+                    _logger.LogInformation("Shutting down system: {SystemType}", system.GetType().Name);
+                    system.Destroy();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error shutting down system: {SystemType}", system.GetType().Name);
+                }
+            }
+
+            await base.StopAsync(cancellationToken);
+            _logger.LogInformation("GameEngineService shutdown complete.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during GameEngineService shutdown");
+            throw;
+        }
+    }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("GameEngineService is starting.");
-        await Task.Delay(1000, stoppingToken);
-        while (!stoppingToken.IsCancellationRequested)
+        
+        // Link the external token with our internal one
+        using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(
+            stoppingToken, _shutdownTokenSource.Token);
+
+        try
         {
-            var startTick = Environment.TickCount;
-            float deltaTime = (startTick - _lastUpdateTime) / 1000f;
-            _lastUpdateTime = startTick;
-
-            foreach (BaseManager system in systems)
+            await Task.Delay(1000, linkedTokenSource.Token);
+            
+            while (!linkedTokenSource.Token.IsCancellationRequested)
             {
-                system.Update(deltaTime);
+                var startTick = Environment.TickCount;
+                float deltaTime = (startTick - _lastUpdateTime) / 1000f;
+                _lastUpdateTime = startTick;
+
+                foreach (BaseManager system in systems)
+                {
+                    system.Update(deltaTime);
+                }
+
+                foreach (BaseManager manager in managers)
+                {
+                    manager.Update(deltaTime);
+                }
+
+                var processingTime = Environment.TickCount - startTick;
+                await Task.Delay(Math.Max(Config.UpdateLoop - processingTime, 0), linkedTokenSource.Token);
             }
-
-            foreach (BaseManager manager in managers)
-            {
-                manager.Update(deltaTime);
-            }
-
-
-            var processingTime = Environment.TickCount - startTick;
-            await Task.Delay(Math.Max(Config.UpdateLoop - processingTime, 0), stoppingToken);
         }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("GameEngineService execution cancelled.");
+        }
+    }
 
-        _logger.LogInformation("GameEngineService is stopping.");
-        DestroySystems();
-        DestroyManagers();
+    public override void Dispose()
+    {
+        _shutdownTokenSource.Dispose();
+        base.Dispose();
     }
 }
 
