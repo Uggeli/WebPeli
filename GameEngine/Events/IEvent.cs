@@ -151,6 +151,8 @@ public record CreateEntity : IEvent
 {
     public required EntityCapabilities[] Capabilities { get; init; }
     public Position[]? Positions { get; init; }
+    public EntityType? EntityType { get; init; }
+    public Guid? CallbackId { get; init; }
 }
 
 public record RemoveEntity : IEvent

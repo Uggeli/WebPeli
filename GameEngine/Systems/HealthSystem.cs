@@ -42,10 +42,10 @@ public class HealthSystem(ILogger<HealthSystem> logger) : BaseManager
                 HandleDeath(deathEvent);
                 break;
             case RegisterToSystem registerToSystem:
-                // Handle register to system
+                HandleRegisterToSystem(registerToSystem);
                 break;
             case UnregisterFromSystem unregisterFromSystem:
-                // Handle unregister from system
+                HandleUnregisterFromSystem(unregisterFromSystem);
                 break;
             case DayChangedEvent:
                 HandleDayChanged();
@@ -60,7 +60,7 @@ public class HealthSystem(ILogger<HealthSystem> logger) : BaseManager
             // Get the component first
             if (_healthComponents.TryGetValue(entityID, out var component))
             {
-                var newHealth = component.Health + component.regenRate;
+                var newHealth = component.Health + component.RegenRate;
                 newHealth = Math.Min(newHealth, component.MaxHealth);
 
                 // Update the component and store it back
@@ -70,19 +70,57 @@ public class HealthSystem(ILogger<HealthSystem> logger) : BaseManager
         }
     }
 
+    private void HandleRegisterToSystem(RegisterToSystem evt)
+    {
+        var systemData = evt.SystemData;
+        if (systemData is not HealthComponent healthComponent)
+        {
+            _logger.LogError("Invalid system data");
+            return;
+        }
+
+        _healthComponents[evt.EntityId] = new HealthComponent
+        {
+            Health = healthComponent.Health,
+            MaxHealth = healthComponent.MaxHealth,
+            RegenRate = healthComponent.RegenRate
+        };
+    }
+
+    private void HandleUnregisterFromSystem(UnregisterFromSystem evt)
+    {
+        _healthComponents.TryRemove(evt.EntityId, out _);
+    }
+
     private void HandleDamage(DamageEvent evt)
     {
-        // Handle damage
+        if (_healthComponents.TryGetValue(evt.EntityId, out var component))
+        {
+            var newHealth = component.Health - evt.Damage;
+            newHealth = Math.Max(newHealth, 0);
+
+            // Update the component and store it back
+            component.Health = newHealth;
+            _healthComponents[evt.EntityId] = component;
+        }
     }
 
     private void HandleHeal(HealEvent evt)
     {
-        // Handle heal
+        if (_healthComponents.TryGetValue(evt.EntityId, out var component))
+        {
+            var newHealth = component.Health + evt.Heal;
+            newHealth = Math.Min(newHealth, component.MaxHealth);
+
+            // Update the component and store it back
+            component.Health = newHealth;
+            _healthComponents[evt.EntityId] = component;
+        }
     }
 
     private void HandleDeath(DeathEvent evt)
     {
-        // Handle death
+        _healthComponents.TryRemove(evt.EntityId, out _);
     }
 }
 
@@ -90,7 +128,7 @@ public struct HealthComponent
 {
     public int Health { get; set; }
     public int MaxHealth { get; set; }
-    public int regenRate { get; set; }  // Daily regen rate
+    public int RegenRate { get; set; }  // Daily regen rate
 }
 
 

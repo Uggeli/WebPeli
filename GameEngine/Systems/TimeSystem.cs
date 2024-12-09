@@ -132,6 +132,7 @@ public class TimeSystem(ILogger<TimeSystem> logger) : BaseManager
             };
             EventManager.Emit(new TimeOfDayChangeEvent(_currentTimeOfDay));
             if (_currentTimeOfDay == TimeOfDay.Dawn)
+                EventManager.Emit(new DayChangedEvent(_currentDay, _currentYear));
                 dayChanged = true;
         }
 
@@ -196,7 +197,7 @@ public class TimeSystem(ILogger<TimeSystem> logger) : BaseManager
     }
 }
 
-
+public record struct DayChangedEvent(int day, int year) : IEvent;
 public record struct TimeOfDayChangeEvent(TimeOfDay NewTimeOfDay) : IEvent;
 public record struct SeasonChangeEvent(Season NewSeason) : IEvent;
 public record struct RequestTimeOfDayChangeEvent(TimeOfDay NewTimeOfDay) : IEvent;
