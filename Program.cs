@@ -17,6 +17,8 @@ builder.Services.AddSingleton<TimeSystem>();
 builder.Services.AddSingleton<MetabolismSystem>();
 builder.Services.AddSingleton<MovementSystem>();
 builder.Services.AddSingleton<VegetationSystem>();
+builder.Services.AddSingleton<HarvestSystem>();
+builder.Services.AddSingleton<HealthSystem>();
 
 
 // Start the engine

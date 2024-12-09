@@ -20,7 +20,9 @@ public class GameEngineService : BackgroundService
                              MetabolismSystem metabolismSystem,
                              MovementSystem movementSystem,
                              VegetationSystem vegetationSystem,
-                             TimeSystem timeSystem)
+                             TimeSystem timeSystem,
+                             HarvestSystem harvestSystem,
+                             HealthSystem healthSystem)
     {
         _logger = logger;
         // Build world
@@ -38,6 +40,8 @@ public class GameEngineService : BackgroundService
         systems.Add(metabolismSystem);
         systems.Add(movementSystem);
         systems.Add(vegetationSystem);
+        systems.Add(harvestSystem);
+        systems.Add(healthSystem);
 
         InitManagers();
 

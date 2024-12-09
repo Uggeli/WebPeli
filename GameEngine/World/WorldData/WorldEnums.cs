@@ -72,7 +72,7 @@ public enum TileSurface : byte
     Water = 1 << 3,      // Puddle on grass
     Blood = 1 << 4,      // Blood stains on snow
     Mud = 1 << 5,        // Mud mixed with grass
-    Reserved2 = 1 << 7
+    Flowers = 1 << 7
 }
 
 [Flags]
