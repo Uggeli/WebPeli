@@ -80,6 +80,8 @@ public class VegetationSystem : BaseManager
         {
             { Plant.Tree, PlantTemplates.OakTree },  // For now just using oak as default tree
             { Plant.Grass, PlantTemplates.Grass },   // Basic grass template
+            { Plant.Weed, PlantTemplates.Weed },     // Basic weed template
+            { Plant.Flower, PlantTemplates.Flower }  // Basic flower template
             // Add more templates as needed
         };
     }
@@ -354,6 +356,69 @@ public static class PlantTemplates
         HarvestYields = new HarvestTable() // Define grass yields
     };
 
+    public static readonly PlantRequirements Weed = new()
+    {
+        IsGroundCover = true,
+        SuitableGrowthTiles = [TileMaterial.Dirt, TileMaterial.Mud],
+        MaxHeight = 0,  // Ground cover
+        MaxWidth = 0,   // Ground cover
+        GrowthStages = new()
+        {
+            { PlantMaturityStatus.Seed, new GrowthRequirements 
+                {
+                    MinDaysInStage = 2,
+                    MinTemperature = 5,
+                    MaxTemperature = 35,
+                    MinMoisture = 20,
+                    MaxMoisture = 80,
+                    ValidSeasons = [Season.Spring, Season.Summer, Season.Autumn]
+                }
+            },
+            { PlantMaturityStatus.Mature, new GrowthRequirements 
+                {
+                    MinDaysInStage = 0,  // No limit
+                    MinTemperature = 0,
+                    MaxTemperature = 40,
+                    MinMoisture = 10,
+                    MaxMoisture = 90,
+                    ValidSeasons = [Season.Spring, Season.Summer, Season.Autumn]
+                }
+            }
+        },
+        HarvestYields = new HarvestTable() // Define grass yields
+    };
+
+    public static readonly PlantRequirements Flower = new()
+    {
+        IsGroundCover = true,
+        SuitableGrowthTiles = [TileMaterial.Dirt, TileMaterial.Mud],
+        MaxHeight = 0,  // Ground cover
+        MaxWidth = 0,   // Ground cover
+        GrowthStages = new()
+        {
+            { PlantMaturityStatus.Seed, new GrowthRequirements 
+                {
+                    MinDaysInStage = 2,
+                    MinTemperature = 5,
+                    MaxTemperature = 35,
+                    MinMoisture = 20,
+                    MaxMoisture = 80,
+                    ValidSeasons = [Season.Spring, Season.Summer, Season.Autumn]
+                }
+            },
+            { PlantMaturityStatus.Mature, new GrowthRequirements 
+                {
+                    MinDaysInStage = 0,  // No limit
+                    MinTemperature = 0,
+                    MaxTemperature = 40,
+                    MinMoisture = 10,
+                    MaxMoisture = 90,
+                    ValidSeasons = [Season.Spring, Season.Summer, Season.Autumn]
+                }
+            }
+        },
+        HarvestYields = new HarvestTable() // Define grass yields
+    };
     // Example template for an oak tree (physical plant)
     public static readonly PlantRequirements OakTree = new()
     {
@@ -444,7 +509,7 @@ public static class PlantTemplates
     }
 }
 
-public class PlantFSM(Dictionary<Plant, PlantRequirements> templates)
+public class PlantFSM 
 {
     // Only store minimal info for idle plants
     private readonly ConcurrentDictionary<int, (Plant Type, Position Pos)> _idlePlants = new();
@@ -452,7 +517,12 @@ public class PlantFSM(Dictionary<Plant, PlantRequirements> templates)
     private readonly ConcurrentDictionary<int, PlantInstance> _activePlants = new();
     
     // Cache of templates to avoid lookups
-    private readonly Dictionary<Plant, PlantRequirements> _templates = templates;
+    private readonly Dictionary<Plant, PlantRequirements> _templates = new();
+
+    public PlantFSM(Dictionary<Plant, PlantRequirements> templates) 
+    {
+        _templates = templates;
+    }
 
     public void OnSeasonChanged(Season newSeason)
     {
@@ -534,8 +604,17 @@ public class PlantFSM(Dictionary<Plant, PlantRequirements> templates)
             DaysInCurrentStage = instance.DaysInCurrentStage + 1
         };
 
+        // Handle reproduction for mature plants
+        if (instance.Status == PlantMaturityStatus.Mature)
+        {
+            var currentSeason = TimeSystem.CurrentSeason;
+            if (ShouldSpreadSeeds(instance.Type, currentSeason))
+            {
+                SpreadSeeds(instance);
+            }
+        }
         // Check if plant can advance to next stage
-        if (CanAdvanceStage(instance, template))
+        else if (CanAdvanceStage(instance, template))
         {
             var nextStatus = GetNextStatus(instance.Status);
             if (nextStatus != instance.Status)
@@ -545,20 +624,54 @@ public class PlantFSM(Dictionary<Plant, PlantRequirements> templates)
                     Status = nextStatus,
                     DaysInCurrentStage = 0
                 };
-                // Emit status change event if needed
             }
         }
 
         _activePlants[entityId] = instance;
     }
 
-    public void RemovePlant(int entityId)
+    private bool ShouldSpreadSeeds(Plant type, Season season) =>
+        (type, season) switch
+        {
+            (Plant.Tree, Season.Autumn) => Tools.Random.Next(100) < 5,  // 5% chance per day in autumn
+            (Plant.Bush, Season.Autumn) => Tools.Random.Next(100) < 3,  // 3% chance per day in autumn
+            (Plant.Flower, Season.Summer) => Tools.Random.Next(100) < 10, // 10% chance per day in summer
+            (Plant.Grass, _) => Tools.Random.Next(100) < 15,  // 15% chance any day (grass spreads easily)
+            (Plant.Weed, _) => Tools.Random.Next(100) < 20,   // 20% chance any day (weeds spread aggressively)
+            _ => false
+        };
+
+    private void SpreadSeeds(PlantInstance parent)
     {
-        _activePlants.TryRemove(entityId, out _);
-        _idlePlants.TryRemove(entityId, out _);
+        // Get valid positions in a radius around parent
+        var radius = parent.Type switch
+        {
+            Plant.Tree => 3,    // Trees spread further
+            Plant.Bush => 2,    // Bushes spread less
+            _ => 1             // Others spread to adjacent tiles
+        };
+
+        // Try to spread in random direction
+        var angle = Tools.Random.NextDouble() * Math.PI * 2;
+        var distance = Tools.Random.Next(1, radius + 1);
+        var offsetX = (int)(Math.Cos(angle) * distance);
+        var offsetY = (int)(Math.Sin(angle) * distance);
+
+        var newPos = parent.Position + (offsetX, offsetY);
+
+        // Check if position is in world bounds
+        if (!WorldApi.IsInWorldBounds(newPos))
+            return;
+
+        // Emit seed planted event
+        EventManager.Emit(new SeedPlantedEvent
+        {
+            Position = newPos,
+            Plant = parent.Type
+        });
     }
 
-    private static bool CanAdvanceStage(PlantInstance instance, PlantRequirements template)
+    private bool CanAdvanceStage(PlantInstance instance, PlantRequirements template)
     {
         var currentReqs = template.GrowthStages[instance.Status];
         
@@ -575,7 +688,7 @@ public class PlantFSM(Dictionary<Plant, PlantRequirements> templates)
         return true;
     }
 
-    private static PlantMaturityStatus GetNextStatus(PlantMaturityStatus current) => current switch
+    private PlantMaturityStatus GetNextStatus(PlantMaturityStatus current) => current switch
     {
         PlantMaturityStatus.Seed => PlantMaturityStatus.Seedling,
         PlantMaturityStatus.Seedling => PlantMaturityStatus.Sapling,
@@ -608,6 +721,12 @@ public class PlantFSM(Dictionary<Plant, PlantRequirements> templates)
             // Start idle
             _idlePlants.TryAdd(entityId, (type, pos));
         }
+    }
+
+    public void RemovePlant(int entityId)
+    {
+        _activePlants.TryRemove(entityId, out _);
+        _idlePlants.TryRemove(entityId, out _);
     }
 
     public void WakePlant(int entityId)

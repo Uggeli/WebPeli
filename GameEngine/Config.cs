@@ -41,11 +41,11 @@ static class Config
     public const int UpdateLoop = 16; // ms
 
     // Time configuration
-    public const int TicksToUpdateTimeOfDay = 1000;  // 1 second
-    public const int SpringLength = 90;
-    public const int SummerLength = 90;
-    public const int AutumnLength = 90;
-    public const int WinterLength = 90;
+    public const int TicksToUpdateTimeOfDay = 10;  // 1 second
+    public const int SpringLength = 5;
+    public const int SummerLength = 5;
+    public const int AutumnLength = 5;
+    public const int WinterLength = 5;
 
     // Debugging
     public static bool DebugMode = false;

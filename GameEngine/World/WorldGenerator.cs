@@ -1,3 +1,5 @@
+using WebPeli.GameEngine.Managers;
+using WebPeli.GameEngine.Systems;
 using WebPeli.GameEngine.Util;
 using WebPeli.GameEngine.World.WorldData;
 
@@ -7,13 +9,130 @@ internal static partial class World
 {
     public static class WorldGenerator
     {
-        public static void GenerateWorld()
+        public static void GenerateInitialVegetation()
         {
-            GenerateChunks();
-            DumbMapdataToFile();
-            // GenerateAndCompare();
-            // TestChunkAccess();
+            for (byte worldX = 0; worldX < Config.WORLD_SIZE; worldX++)
+            {
+                for (byte worldY = 0; worldY < Config.WORLD_SIZE; worldY++)
+                {
+                    var chunk = GetChunk((worldX, worldY));
+                    if (chunk == null) continue;
+
+                    GenerateVegetationForChunk(chunk);
+                }
+            }
         }
+
+        private static void GenerateVegetationForChunk(Chunk chunk)
+        {
+            // Process each tile in the chunk
+            for (byte localX = 0; localX < Config.CHUNK_SIZE; localX++)
+            {
+                for (byte localY = 0; localY < Config.CHUNK_SIZE; localY++)
+                {
+                    var (material, _, _) = chunk.GetTile(localX, localY);
+                    var pos = new Position((chunk.X, chunk.Y), (localX, localY));
+
+                    // Skip water and inappropriate tiles
+                    if (material == TileMaterial.Water || 
+                        material == TileMaterial.Stone ||
+                        material == TileMaterial.Metal ||
+                        material == TileMaterial.Lava)
+                        continue;
+
+                    // First decide ground cover
+                    var surfaceRoll = Tools.Random.Next(100);
+                    
+                    if (material == TileMaterial.Dirt || material == TileMaterial.Mud)
+                    {
+                        // 80% chance of grass on dirt/mud
+                        if (surfaceRoll < 80)
+                        {
+                            EventManager.Emit(new SeedPlantedEvent 
+                            { 
+                                Position = pos,
+                                Plant = Plant.Grass
+                            });
+
+                            // 20% chance for flowers in grass
+                            if (Tools.Random.Next(100) < 20)
+                            {
+                                EventManager.Emit(new SeedPlantedEvent 
+                                { 
+                                    Position = pos,
+                                    Plant = Plant.Flower
+                                });
+                            }
+                        }
+                        // 5% chance of weeds
+                        else if (surfaceRoll < 85)
+                        {
+                            EventManager.Emit(new SeedPlantedEvent 
+                            { 
+                                Position = pos,
+                                Plant = Plant.Weed
+                            });
+                        }
+                    }
+
+                    // Now handle physical plants (trees, bushes)
+                    // Only place on tiles that can support them
+                    if (material == TileMaterial.Dirt || material == TileMaterial.Mud)
+                    {
+                        // 5% chance of tree on suitable tiles, but ensure spacing
+                        if (Tools.Random.Next(100) < 10 && HasSpaceForTree(pos))
+                        {
+                            EventManager.Emit(new SeedPlantedEvent 
+                            { 
+                                Position = pos,
+                                Plant = Plant.Tree
+                            });
+                        }
+                        // 3% chance of bush where there's no tree
+                        // else if (Tools.Random.Next(100) < 3)
+                        // {
+                        //     EventManager.Emit(new SeedPlantedEvent 
+                        //     { 
+                        //         Position = pos,
+                        //         Plant = Plant.Bush
+                        //     });
+                        // }
+                    }
+                }
+            }
+        }
+
+        private static bool HasSpaceForTree(Position pos)
+        {
+            // Check 3x3 area for other trees or unsuitable terrain
+            for (int x = -1; x <= 1; x++)
+            {
+                for (int y = -1; y <= 1; y++)
+                {
+                    var checkPos = pos + (x, y);
+                    
+                    // Skip if out of world bounds
+                    if (!IsInWorldBounds(checkPos.X, checkPos.Y))
+                        return false;
+
+                    var (material, _, _) = GetTileAt(checkPos);
+                    
+                    // Check for unsuitable terrain
+                    if (material == TileMaterial.Water || 
+                        material == TileMaterial.Stone ||
+                        material == TileMaterial.Metal ||
+                        material == TileMaterial.Lava)
+                        return false;
+
+                    // Check for existing entities (like other trees)
+                    var entities = WorldApi.GetEntitiesInArea(checkPos, 1, 1);
+                    if (entities.Any())
+                        return false;
+                }
+            }
+            return true;
+        }
+        
         // Test method to expose the issue
         # region Testing
         private static void TestChunkAccess()
@@ -206,7 +325,7 @@ internal static partial class World
             }
         }
         # endregion
-        private static void GenerateChunks()
+        public static void GenerateChunks()
         {
             for (byte worldX = 0; worldX < Config.WORLD_SIZE; worldX++)
             {
