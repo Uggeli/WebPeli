@@ -77,9 +77,22 @@ public static class TileManager
     public static void AddSurface(ref TileSurface surface, TileSurface surfaceType) => surface |= surfaceType;
     public static void RemoveSurface(ref TileSurface surface, TileSurface surfaceType) => surface &= ~surfaceType;
     public static void ClearSurface(ref TileSurface surface) => surface = 0;
+
+    private static readonly Dictionary<TileMaterial,(byte Capacity, byte Absorption)> _moistureProperties = new()
+    {
+        { TileMaterial.Sand, (30, 5) },
+        { TileMaterial.Dirt, (50, 1) },
+        { TileMaterial.Stone, (5, 0) },
+        { TileMaterial.Water, (255, 0) },
+
+    };
+
+    public static (byte Capacity, byte Absorption) GetMaterialMoistureProperties(TileMaterial material)
+    {
+        if (_moistureProperties.TryGetValue(material, out var props))
+            return props;
+        return (0, 0); // Default for unknown materials
+    }
 }
 
 
-
-
-// long paths tend to be incorrect in long run and long paths take long to run 

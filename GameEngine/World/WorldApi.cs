@@ -10,9 +10,9 @@ namespace WebPeli.GameEngine.World;
 public static class WorldApi
 {
     # region Entity Management
-    public static void AddEntity(int id, Position[] positions, byte volume = 200)
+    public static bool AddEntity(int id, Position[] positions, byte volume = 200)
     {
-        World.EntityManager.AddEntity(id, positions, volume);
+        return World.EntityManager.AddEntity(id, positions, volume);
     }
     /// <summary>
     /// Add an entity to the world at the specified position. Returns true if successful.
@@ -88,7 +88,7 @@ public static class WorldApi
 
  
     # region World Queries
-    public static (byte material, TileSurface surface, TileProperties props)[] GetTilesInArea(Position topLeft, int width, int height)
+    public static (TileMaterial material, TileSurface surface, TileProperties props)[] GetTilesInArea(Position topLeft, int width, int height)
     {
         return World.GetTilesInArea(topLeft, width, height);
     }
@@ -97,7 +97,7 @@ public static class WorldApi
     {
         return World.EntityManager.GetEntitiesInArea(topLeft, width, height);
     }
-    public static (byte material, TileSurface surface, TileProperties props) GetTileInfo(Position pos)
+    public static (TileMaterial material, TileSurface surface, TileProperties props) GetTileInfo(Position pos)
     {
         return World.GetTileAt(pos);
     }
@@ -116,7 +116,7 @@ public static class WorldApi
                     if (Math.Abs(x) != radius && Math.Abs(y) != radius) continue;
                     
                     var checkPos = new Position { X = pos.X + x, Y = pos.Y + y };
-                    if (World.GetTileAt(checkPos).material == (byte)material)
+                    if (World.GetTileAt(checkPos).material == material)
                     {
                         found.Add(checkPos);
                     }
@@ -134,7 +134,7 @@ public static class WorldApi
         return World.EntityManager.MoveEntity(id, newPositions);
     }
 
-    public static bool ModifyTile(Position pos, byte? material = null, TileSurface? surface = null)
+    public static bool ModifyTile(Position pos, TileMaterial? material = null, TileSurface? surface = null)
     {
         var current = World.GetTileAt(pos);
         World.SetTileAt(pos, 
@@ -149,5 +149,10 @@ public static class WorldApi
         World.GenerateWorld();
     }
 
-
+    public static bool IsInWorldBounds(Position pos)
+    {
+        if (pos.X < 0 || pos.Y < 0) return false;
+        if (pos.X >= Config.WORLD_TILES || pos.Y >= Config.WORLD_TILES) return false;
+        return true;
+    }
 }

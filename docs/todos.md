@@ -1,8 +1,5 @@
 # WebPeli Development TODOs:
 
-# Milestone: Flora and Vegetation
-  Goal: Add flora and vegetation to the game world
-
 # General TODOs
 ## High priority
 
@@ -13,6 +10,17 @@
 
 
 # Roadmap:
+# Milestone: Flora and Vegetation
+  Goal: Add flora and vegetation to the game world
+
+  - Plan:
+  -add moisture and sunlight tracking, mapmanager can do this
+  
+
+
+
+
+
 # Milestone: rendering update
   Goal: WebGl/WebGPU based rendering in 3dspace + texture fetching and stuff
 

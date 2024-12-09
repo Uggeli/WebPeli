@@ -10,8 +10,19 @@ public class GameEngineService : BackgroundService
     private readonly ILogger<GameEngineService> _logger;
     private readonly List<BaseManager> managers = [];
     private readonly List<BaseManager> systems = [];
+    private readonly CancellationTokenSource _shutdownTokenSource = new();
 
-    public GameEngineService(ILogger<GameEngineService> logger, ViewportManager viewportManager, EntityRegister entityRegister)
+    public GameEngineService(ILogger<GameEngineService> logger,
+                             ViewportManager viewportManager,
+                             EntityRegister entityRegister,
+                             MapManager mapManager,
+                             AiManager aiManager,
+                             MetabolismSystem metabolismSystem,
+                             MovementSystem movementSystem,
+                             VegetationSystem vegetationSystem,
+                             TimeSystem timeSystem,
+                             HarvestSystem harvestSystem,
+                             HealthSystem healthSystem)
     {
         _logger = logger;
         // Build world
@@ -20,13 +31,17 @@ public class GameEngineService : BackgroundService
         WorldApi.GenerateWorld();
         _logger.LogInformation($"World generation took {Environment.TickCount - startTime}ms");
 
-        // Initialize managers
         managers.Add(entityRegister);
-        managers.Add(new MapManager());
-        // managers.Add(new ViewportManager());
+        managers.Add(aiManager);
+        managers.Add(mapManager);
         managers.Add(viewportManager);
-        managers.Add(new AiManager());
 
+        systems.Add(timeSystem);
+        systems.Add(metabolismSystem);
+        systems.Add(movementSystem);
+        systems.Add(vegetationSystem);
+        systems.Add(harvestSystem);
+        systems.Add(healthSystem);
 
         InitManagers();
 
@@ -34,19 +49,6 @@ public class GameEngineService : BackgroundService
         systems.Add(new MovementSystem());
 
         InitSystems();
-
-        // Add placeholder entities
-        int num_entities = 10_000;
-        for (int i = 0; i < num_entities; i++)
-        {
-            managers[0].HandleMessage(new CreateEntity{Capabilities = [EntityCapabilities.MetabolismSystem,
-                                                                        EntityCapabilities.MovementSystem,
-                                                                        EntityCapabilities.RenderingSystem,
-                                                                        EntityCapabilities.AiSystem]});
-
-        }
-
-    
     }
 
     private void InitManagers()
@@ -55,14 +57,6 @@ public class GameEngineService : BackgroundService
         foreach (BaseManager manager in managers)
         {
             manager.Init();
-        }
-    }
-
-    private void DestroyManagers()
-    {
-        foreach (BaseManager manager in managers)
-        {
-            manager.Destroy();
         }
     }
 
@@ -75,43 +69,108 @@ public class GameEngineService : BackgroundService
         }
     }
 
-    private void DestroySystems()
+    private int _lastUpdateTime = Environment.TickCount;
+
+    public override async Task StopAsync(CancellationToken cancellationToken)
     {
-        foreach (BaseManager system in systems)
+        try 
         {
-            system.Destroy();
+            _logger.LogInformation("GameEngineService is shutting down...");
+            
+            // Signal our own token to stop any running tasks
+            _shutdownTokenSource.Cancel();
+
+            // Destroy managers in reverse order of initialization
+            foreach (var manager in managers.AsEnumerable().Reverse())
+            {
+                try 
+                {
+                    _logger.LogInformation("Shutting down manager: {ManagerType}", manager.GetType().Name);
+                    manager.Destroy();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error shutting down manager: {ManagerType}", manager.GetType().Name);
+                }
+            }
+
+            // Destroy systems in reverse order
+            foreach (var system in systems.AsEnumerable().Reverse())
+            {
+                try 
+                {
+                    _logger.LogInformation("Shutting down system: {SystemType}", system.GetType().Name);
+                    system.Destroy();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error shutting down system: {SystemType}", system.GetType().Name);
+                }
+            }
+
+            await base.StopAsync(cancellationToken);
+            _logger.LogInformation("GameEngineService shutdown complete.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during GameEngineService shutdown");
+            throw;
         }
     }
-
-
-
-    private int _lastUpdateTime = Environment.TickCount;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("GameEngineService is starting.");
-        await Task.Delay(1000, stoppingToken);
-        while (!stoppingToken.IsCancellationRequested)
+        
+        // Link the external token with our internal one
+        using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(
+            stoppingToken, _shutdownTokenSource.Token);
+
+        try
         {
-            var startTick = Environment.TickCount;
-            float deltaTime = (startTick - _lastUpdateTime) / 1000f;
-            _lastUpdateTime = startTick;
-
-            foreach (BaseManager system in systems)
+            await Task.Delay(1000, linkedTokenSource.Token);
+            Dictionary<string, int> updateTimes = new();
+            while (!linkedTokenSource.Token.IsCancellationRequested)
             {
-                system.Update(deltaTime);
+                var startTick = Environment.TickCount;
+                float deltaTime = (startTick - _lastUpdateTime) / 1000f;
+                _lastUpdateTime = startTick;
+                
+                foreach (BaseManager system in systems)
+                {
+                    var tick = Environment.TickCount;
+                    system.Update(deltaTime);
+                    // _logger.LogInformation("System {SystemType} took {Time}ms to update", system.GetType().Name, Environment.TickCount - tick);
+                    updateTimes[system.GetType().Name] = Environment.TickCount - tick;
+                }
+
+                foreach (BaseManager manager in managers)
+                {
+                    var tick = Environment.TickCount;
+                    manager.Update(deltaTime);
+                    // _logger.LogInformation("Manager {ManagerType} took {Time}ms to update", manager.GetType().Name, Environment.TickCount - tick);
+                    updateTimes[manager.GetType().Name] = Environment.TickCount - tick;
+                }
+                System.Console.Clear();
+                System.Console.WriteLine("Update times:");
+                foreach (var (name, time) in updateTimes)
+                {
+                    System.Console.WriteLine("{0}: {1}ms", name, time);
+                }
+                var processingTime = Environment.TickCount - startTick;
+                await Task.Delay(Math.Max(Config.UpdateLoop - processingTime, 0), linkedTokenSource.Token);
             }
-
-            foreach (BaseManager manager in managers)
-            {
-                manager.Update(deltaTime);
-            }
-
-
-            var processingTime = Environment.TickCount - startTick;
-            await Task.Delay(Math.Max(Config.UpdateLoop - processingTime, 0), stoppingToken);
-            
         }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("GameEngineService execution cancelled.");
+        }
+    }
+
+    public override void Dispose()
+    {
+        _shutdownTokenSource.Dispose();
+        base.Dispose();
     }
 }
 

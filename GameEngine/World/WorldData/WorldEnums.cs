@@ -65,14 +65,14 @@ public enum TileMaterial : byte
 public enum TileSurface : byte
 {
     None = 0,
-    Grass = 1 << 0,      // Can have grass with snow on it
+    ShortGrass = 1 << 0,
+    TallGrass = 1 << 6,
     Snow = 1 << 1,       // Snow covering grass
     Moss = 1 << 2,       // Moss growing alongside grass
     Water = 1 << 3,      // Puddle on grass
     Blood = 1 << 4,      // Blood stains on snow
     Mud = 1 << 5,        // Mud mixed with grass
-    Reserved1 = 1 << 6,
-    Reserved2 = 1 << 7
+    Flowers = 1 << 7
 }
 
 [Flags]

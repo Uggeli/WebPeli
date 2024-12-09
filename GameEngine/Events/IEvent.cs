@@ -1,6 +1,7 @@
 using System.Net.WebSockets;
 using WebPeli.GameEngine.Managers;
 using WebPeli.GameEngine.Util;
+using WebPeli.GameEngine.World.WorldData;
 
 namespace WebPeli.GameEngine;
 
@@ -64,10 +65,6 @@ public readonly record struct MoveEntityRequest : IEvent
 public readonly record struct PathfindingRequest : IEvent
 {
     public required int EntityId { get; init; }
-    // public required float StartX { get; init; }
-    // public required float StartY { get; init; }
-    // public required float TargetX { get; init; }
-    // public required float TargetY { get; init; }
     public required Position FromPosition { get; init; }
     public required Position ToPosition { get; init; }
     public Guid CallbackId { get; init; }
@@ -79,10 +76,6 @@ public readonly record struct PathfindingRequest : IEvent
 public readonly record struct FindPathAndMoveEntity : IEvent
 {
     public required int EntityId { get; init; }
-    // public required int StartX { get; init; }
-    // public required int StartY { get; init; }
-    // public required int TargetX { get; init; }
-    // public required int TargetY { get; init; }
     public required Position FromPosition { get; init; }
     public required Position ToPosition { get; init; }
     public required EntityAction MovementType { get; init; }
@@ -108,12 +101,15 @@ public enum SystemType : byte
     MovementSystem,
     RenderingSystem,
     AiSystem,
+    HealthSystem,
+    HarvestSystem,
 }
 
 public readonly record struct RegisterToSystem : IEvent
 {
     public  int EntityId { get; init; }
     public SystemType SystemType { get; init; } // Type of the system to register to
+    public object? SystemData { get; init; } // Data to pass to the system
 }
 
 public readonly record struct UnregisterFromSystem : IEvent
@@ -155,6 +151,8 @@ public record CreateEntity : IEvent
 {
     public required EntityCapabilities[] Capabilities { get; init; }
     public Position[]? Positions { get; init; }
+    public EntityType? EntityType { get; init; }
+    public Guid? CallbackId { get; init; }
 }
 
 public record RemoveEntity : IEvent
@@ -207,5 +205,67 @@ public enum EntityType : int
     Resource = 1 << 1,  // This thing can be harvested
     Structure = 1 << 2,  // This thing is a building
 }
+
+public readonly record struct MoistureChangeEvent : IEvent 
+{
+    public required Position Position { get; init; }
+    public required byte Amount { get; init; }  // How much moisture to add/remove
+}
+
+// For area effects like rain
+public readonly record struct AreaMoistureChangeEvent : IEvent
+{
+    public required Position TopLeft { get; init; }
+    public required int Width { get; init; }
+    public required int Height { get; init; }
+    public required byte Amount { get; init; }
+}
+
+public readonly record struct TemperatureChangeEvent : IEvent
+{
+    public required Position Position { get; init; }
+    public required byte Amount { get; init; }  // How much temperature to add/remove
+}
+
+public readonly record struct AreaTemperatureChangeEvent : IEvent
+{
+    public required Position TopLeft { get; init; }
+    public required int Width { get; init; }
+    public required int Height { get; init; }
+    public required byte Amount { get; init; }
+}
+
+public readonly record struct SunlightChangeEvent : IEvent
+{
+    public required Position Position { get; init; }
+    public required byte Amount { get; init; }  // How much sunlight to add/remove
+}
+
+public readonly record struct AreaSunlightChangeEvent : IEvent
+{
+    public required Position TopLeft { get; init; }
+    public required int Width { get; init; }
+    public required int Height { get; init; }
+    public required byte Amount { get; init; }
+}
+
+public readonly record struct WeatherChangeEvent : IEvent
+{
+    public required byte Temperature { get; init; }
+    public required byte Moisture { get; init; }
+    public required byte Sunlight { get; init; }
+}
+
+public readonly record struct MoistureRequest : IEvent
+{
+    public required Position Position { get; init; }
+    public required Guid CallbackId { get; init; }
+}
+
+
+
+
+
+
 
 

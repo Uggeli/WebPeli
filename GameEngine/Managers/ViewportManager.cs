@@ -73,7 +73,7 @@ public class ViewportManager : BaseManager
                 );
 
                 subscription.LastUpdate = viewportData.EncodedData.ToArray();
-                
+
                 EventManager.EmitCallback(req.CallbackId, viewportData);
             }
             catch (Exception ex)
@@ -88,7 +88,7 @@ public class ViewportManager : BaseManager
     {
         if (oldData == null) return true;
         if (oldData.Length != newData.Length) return true;
-        
+
         return !newData.SequenceEqual(oldData);
     }
 
@@ -105,7 +105,7 @@ public class ViewportManager : BaseManager
         foreach (var kvp in _activeViewports)
         {
             var sub = kvp.Value;
-            
+
             // Skip if socket is closed
             if (sub.Socket.State != WebSocketState.Open)
             {
@@ -116,12 +116,12 @@ public class ViewportManager : BaseManager
             try
             {
                 var newData = GetViewportDataBinary(sub.TopLeft, sub.Width, sub.Height);
-                
+
                 // Only send if data changed
                 if (HasChanged(sub.LastUpdate, newData.EncodedData.Span))
                 {
                     sub.LastUpdate = newData.EncodedData.ToArray();
-                    
+
                     // Send update
                     sub.Socket.SendAsync(
                         new ArraySegment<byte>(sub.LastUpdate),
@@ -168,7 +168,7 @@ public class ViewportManager : BaseManager
         // Write tile data
         for (int i = 0; i < tileGrid.Length; i++)
         {
-            span[offset++] = tileGrid[i].material;
+            span[offset++] = (byte)tileGrid[i].material;
             span[offset++] = (byte)tileGrid[i].surface;
             span[offset++] = (byte)tileGrid[i].props;
         }
@@ -201,8 +201,30 @@ public class ViewportManager : BaseManager
         // Nothing to initialize yet
     }
 
-    public override void Destroy()
+    public override async void Destroy()
     {
         EventManager.UnregisterListener<ViewportRequest>(this);
+        EventManager.UnregisterListener<ViewportRequest>(this);
+
+        // Close all active WebSocket connections
+        var closeTasks = new List<Task>();
+        foreach (var subscription in _activeViewports.Values)
+        {
+            if (subscription.Socket.State == WebSocketState.Open)
+            {
+                closeTasks.Add(subscription.Socket.CloseAsync(
+                    WebSocketCloseStatus.NormalClosure,
+                    "Server shutting down",
+                    CancellationToken.None));
+            }
+        }
+
+        // Wait for all connections to close with a timeout
+        if (closeTasks.Count > 0)
+        {
+            await Task.WhenAll(closeTasks).WaitAsync(TimeSpan.FromSeconds(5));
+        }
+
+        _activeViewports.Clear();
     }
 }

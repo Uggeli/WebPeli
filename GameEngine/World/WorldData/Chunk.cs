@@ -15,12 +15,12 @@ public class Chunk(byte x, byte y)
     
     // Tile data
     private readonly TileProperties[] Properties = new TileProperties[Config.CHUNK_SIZE * Config.CHUNK_SIZE];
-    private readonly byte[] Material = new byte[Config.CHUNK_SIZE * Config.CHUNK_SIZE];
+    private readonly TileMaterial[] Material = new TileMaterial[Config.CHUNK_SIZE * Config.CHUNK_SIZE];
     private readonly TileSurface[] Surface = new TileSurface[Config.CHUNK_SIZE * Config.CHUNK_SIZE];
     private static int ConvertTo1D(byte x, byte y) => y * Config.CHUNK_SIZE + x;
     // private static (byte, byte) ConvertTo2D(byte i) => ((byte)(i / Config.CHUNK_SIZE), (byte)(i % Config.CHUNK_SIZE)); 
-    public (byte material, TileSurface surface, TileProperties properties) GetTile(byte x, byte y) => (Material[ConvertTo1D(x, y)], Surface[ConvertTo1D(x, y)], Properties[ConvertTo1D(x, y)]);
-    public (byte material, TileSurface surface, TileProperties properties) GetTile(int x, int y)
+    public (TileMaterial material, TileSurface surface, TileProperties properties) GetTile(byte x, byte y) => (Material[ConvertTo1D(x, y)], Surface[ConvertTo1D(x, y)], Properties[ConvertTo1D(x, y)]);
+    public (TileMaterial material, TileSurface surface, TileProperties properties) GetTile(int x, int y)
     {
         if (!World.IsInChunkBounds(x, y))
         {
@@ -29,13 +29,13 @@ public class Chunk(byte x, byte y)
         return (Material[ConvertTo1D((byte)x, (byte)y)], Surface[ConvertTo1D((byte)x, (byte)y)], Properties[ConvertTo1D((byte)x, (byte)y)]);
     }
 
-    public void SetTile(byte x, byte y, byte material, TileSurface surface, TileProperties properties)
+    public void SetTile(byte x, byte y, TileMaterial material, TileSurface surface, TileProperties properties)
     {
         Material[ConvertTo1D(x, y)] = material;
         Surface[ConvertTo1D(x, y)] = surface;
         Properties[ConvertTo1D(x, y)] = properties;
     }
-    public void SetTileBaseMaterial(byte x, byte y, byte material) => Material[ConvertTo1D(x, y)] = material;
+    public void SetTileBaseMaterial(byte x, byte y, TileMaterial material) => Material[ConvertTo1D(x, y)] = material;
     public void SetTileOverlayMaterial(byte x, byte y, TileSurface material) => Surface[ConvertTo1D(x, y)] = material;
     public void SetTileProperties(byte x, byte y, TileProperties properties) => Properties[ConvertTo1D(x, y)] = properties;
 

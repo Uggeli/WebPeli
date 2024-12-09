@@ -38,21 +38,21 @@ internal static partial class World
             return [.. neighbours];
         }
 
-        private static Position[] GetNeighbours(Position pos)
-        {
-            var neighbours = new List<Position>();
-            foreach ((int dx, int dy) in new[]{(-1, 0),(1, 0),(0, -1),(0, 1)})
-            {
-                var nx = pos.X + dx;
-                var ny = pos.Y + dy;
-                if (!IsInWorldBounds(nx, ny))
-                {
-                    continue;
-                }
-                neighbours.Add(new Position(nx, ny));
-            }
-            return [.. neighbours];
-        }
+        // private static Position[] GetNeighbours(Position pos)
+        // {
+        //     var neighbours = new List<Position>();
+        //     foreach ((int dx, int dy) in new[]{(-1, 0),(1, 0),(0, -1),(0, 1)})
+        //     {
+        //         var nx = pos.X + dx;
+        //         var ny = pos.Y + dy;
+        //         if (!IsInWorldBounds(nx, ny))
+        //         {
+        //             continue;
+        //         }
+        //         neighbours.Add(new Position(nx, ny));
+        //     }
+        //     return [.. neighbours];
+        // }
 
         public static Position LocalToWorld(LocalTilePos local) => new()
         {
@@ -302,7 +302,7 @@ internal static partial class World
                 }
 
                 closedSet.Add(current);
-                foreach (var neighbour in GetNeighbours(current))
+                foreach (var neighbour in current.GetNeighbours())
                 {
                     if (!TileManager.IsWalkable(startChunk.GetTile(neighbour.TilePosition.X, neighbour.TilePosition.Y).properties))
                     {

@@ -1,12 +1,25 @@
 
 using WebPeli.GameEngine;
 using WebPeli.GameEngine.Managers;
+using WebPeli.GameEngine.Systems;
 
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Init managers
 builder.Services.AddSingleton<ViewportManager>();
 builder.Services.AddSingleton<EntityRegister>();
+builder.Services.AddSingleton<MapManager>();
+builder.Services.AddSingleton<AiManager>();
+
+// Init systems
+builder.Services.AddSingleton<TimeSystem>();
+builder.Services.AddSingleton<MetabolismSystem>();
+builder.Services.AddSingleton<MovementSystem>();
+builder.Services.AddSingleton<VegetationSystem>();
+builder.Services.AddSingleton<HarvestSystem>();
+builder.Services.AddSingleton<HealthSystem>();
+
 
 // Start the engine
 builder.Services.AddHostedService<GameEngineService>();
