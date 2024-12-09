@@ -21,6 +21,8 @@ public class HarvestSystem(ILogger<HarvestSystem> logger) : BaseManager
         EventManager.RegisterListener<DeathEvent>(this);
         EventManager.RegisterListener<QueryHarvestTable>(this);
         EventManager.RegisterListener<QueryLootTable>(this);
+        EventManager.RegisterListener<RegisterToSystem>(this);
+        EventManager.RegisterListener<UnregisterFromSystem>(this);
     }
 
     public override void Destroy()
@@ -31,6 +33,8 @@ public class HarvestSystem(ILogger<HarvestSystem> logger) : BaseManager
         EventManager.UnregisterListener<DeathEvent>(this);
         EventManager.UnregisterListener<QueryHarvestTable>(this);
         EventManager.UnregisterListener<QueryLootTable>(this);
+        EventManager.UnregisterListener<RegisterToSystem>(this);
+        EventManager.UnregisterListener<UnregisterFromSystem>(this);
     }
 
     public override void HandleMessage(IEvent evt)
@@ -101,7 +105,9 @@ public readonly record struct LootTable  // Triggered on entity death event
 
 }
 
-// Events 
+// Events
+
+
 public readonly record struct AddNewHarvestTable : IEvent
 {
     public int EntityId { get; init; }

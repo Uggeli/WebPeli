@@ -65,10 +65,6 @@ public readonly record struct MoveEntityRequest : IEvent
 public readonly record struct PathfindingRequest : IEvent
 {
     public required int EntityId { get; init; }
-    // public required float StartX { get; init; }
-    // public required float StartY { get; init; }
-    // public required float TargetX { get; init; }
-    // public required float TargetY { get; init; }
     public required Position FromPosition { get; init; }
     public required Position ToPosition { get; init; }
     public Guid CallbackId { get; init; }
@@ -80,10 +76,6 @@ public readonly record struct PathfindingRequest : IEvent
 public readonly record struct FindPathAndMoveEntity : IEvent
 {
     public required int EntityId { get; init; }
-    // public required int StartX { get; init; }
-    // public required int StartY { get; init; }
-    // public required int TargetX { get; init; }
-    // public required int TargetY { get; init; }
     public required Position FromPosition { get; init; }
     public required Position ToPosition { get; init; }
     public required EntityAction MovementType { get; init; }
@@ -109,12 +101,15 @@ public enum SystemType : byte
     MovementSystem,
     RenderingSystem,
     AiSystem,
+    HealthSystem,
+    HarvestSystem,
 }
 
 public readonly record struct RegisterToSystem : IEvent
 {
     public  int EntityId { get; init; }
     public SystemType SystemType { get; init; } // Type of the system to register to
+    public object? SystemData { get; init; } // Data to pass to the system
 }
 
 public readonly record struct UnregisterFromSystem : IEvent
