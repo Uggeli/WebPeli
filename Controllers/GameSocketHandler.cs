@@ -11,7 +11,7 @@ public class GameSocketHandler(ILogger<GameSocketHandler> logger, ViewportManage
 {
     private readonly ViewportManager _viewportManager = viewportManager;
     private readonly ILogger<GameSocketHandler> _logger = logger;
-    private const int MaxMessageSize = 64 * 1024; // 64KB
+    private const int MaxMessageSize = 640 * 1024; // 64KB
 
     [Route("/ws")]
     public async Task Get()

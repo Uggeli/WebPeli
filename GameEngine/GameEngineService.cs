@@ -19,8 +19,7 @@ public class GameEngineService : BackgroundService
                              AiManager aiManager,
                              MetabolismSystem metabolismSystem,
                              MovementSystem movementSystem,
-                             TreeSystem treeSystem,
-                             GroundCoverSystem groundCoverSystem,
+                             VegetationSystem vegetationSystem,
                              TimeSystem timeSystem)
     {
         _logger = logger;
@@ -38,8 +37,7 @@ public class GameEngineService : BackgroundService
         systems.Add(timeSystem);
         systems.Add(metabolismSystem);
         systems.Add(movementSystem);
-        systems.Add(treeSystem);
-        // systems.Add(groundCoverSystem);
+        systems.Add(vegetationSystem);
 
         InitManagers();
 
@@ -58,28 +56,12 @@ public class GameEngineService : BackgroundService
         }
     }
 
-    private void DestroyManagers()
-    {
-        foreach (BaseManager manager in managers)
-        {
-            manager.Destroy();
-        }
-    }
-
     private void InitSystems()
     {
         _logger.LogInformation("Initializing systems");
         foreach (BaseManager system in systems)
         {
             system.Init();
-        }
-    }
-
-    private void DestroySystems()
-    {
-        foreach (BaseManager system in systems)
-        {
-            system.Destroy();
         }
     }
 
@@ -143,23 +125,34 @@ public class GameEngineService : BackgroundService
         try
         {
             await Task.Delay(1000, linkedTokenSource.Token);
-            
+            Dictionary<string, int> updateTimes = new();
             while (!linkedTokenSource.Token.IsCancellationRequested)
             {
                 var startTick = Environment.TickCount;
                 float deltaTime = (startTick - _lastUpdateTime) / 1000f;
                 _lastUpdateTime = startTick;
-
+                
                 foreach (BaseManager system in systems)
                 {
+                    var tick = Environment.TickCount;
                     system.Update(deltaTime);
+                    // _logger.LogInformation("System {SystemType} took {Time}ms to update", system.GetType().Name, Environment.TickCount - tick);
+                    updateTimes[system.GetType().Name] = Environment.TickCount - tick;
                 }
 
                 foreach (BaseManager manager in managers)
                 {
+                    var tick = Environment.TickCount;
                     manager.Update(deltaTime);
+                    // _logger.LogInformation("Manager {ManagerType} took {Time}ms to update", manager.GetType().Name, Environment.TickCount - tick);
+                    updateTimes[manager.GetType().Name] = Environment.TickCount - tick;
                 }
-
+                System.Console.Clear();
+                System.Console.WriteLine("Update times:");
+                foreach (var (name, time) in updateTimes)
+                {
+                    System.Console.WriteLine("{0}: {1}ms", name, time);
+                }
                 var processingTime = Environment.TickCount - startTick;
                 await Task.Delay(Math.Max(Config.UpdateLoop - processingTime, 0), linkedTokenSource.Token);
             }

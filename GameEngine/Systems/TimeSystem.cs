@@ -111,10 +111,10 @@ public class TimeSystem(ILogger<TimeSystem> logger) : BaseManager
     {
         base.Update(deltaTime);
         _updateTick++;
-        
-        if (_updateTick < Config.TicksToUpdateTimeOfDay)
+        // System.Console.WriteLine($"TimeSystem update tick {_updateTick}/{Config.TicksToUpdateTimeOfDay}");
+        if (_updateTick <= Config.TicksToUpdateTimeOfDay)
             return;
-        
+
         _updateTick = 0;
         _currentTick++;
         bool dayChanged = false;

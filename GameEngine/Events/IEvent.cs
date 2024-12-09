@@ -238,119 +238,37 @@ public readonly record struct AreaTemperatureChangeEvent : IEvent
     public required byte Amount { get; init; }
 }
 
+public readonly record struct SunlightChangeEvent : IEvent
+{
+    public required Position Position { get; init; }
+    public required byte Amount { get; init; }  // How much sunlight to add/remove
+}
+
+public readonly record struct AreaSunlightChangeEvent : IEvent
+{
+    public required Position TopLeft { get; init; }
+    public required int Width { get; init; }
+    public required int Height { get; init; }
+    public required byte Amount { get; init; }
+}
+
+public readonly record struct WeatherChangeEvent : IEvent
+{
+    public required byte Temperature { get; init; }
+    public required byte Moisture { get; init; }
+    public required byte Sunlight { get; init; }
+}
+
 public readonly record struct MoistureRequest : IEvent
 {
     public required Position Position { get; init; }
     public required Guid CallbackId { get; init; }
 }
 
-// Events for plant lifecycle
-public record PlantStatusChanged : IEvent
-{
-    public required Position Position { get; init; }
-    public required PlantStatus OldStatus { get; init; }
-    public required PlantStatus NewStatus { get; init; }
-}
 
-public record PlantReproductionEvent : IEvent
-{
-    public required int EntityId { get; init; }
-    public required Position Position { get; init; }
-    public required IBasePlant Plant { get; init; }
-}
 
-[Flags]
-public enum PlantStatus : int
-{
-    None = 0,
-    Seed = 1 << 0,
-    Seedling = 1 << 1,
-    Mature = 1 << 2,
-    Growing = 1 << 3,
-    Flowering = 1 << 4,
-    Fruiting = 1 << 5,
-    Harvested = 1 << 6,
-    Dying = 1 << 7,
-    Dead = 1 << 8
-}
 
-public interface IBasePlant
-{
-    public byte Volume { get; init; }
-    public TileSurface Surface { get; init; }  
-    public TileMaterial[] ValidMaterials { get; init; }
-    public byte MinMoisture { get; init; }     
-    public byte OptimalMoisture { get; init; } 
-    public byte MaxMoisture { get; init; }
-    public int Age { get; init; }  
-    public int SeedlingThreshold { get; init; }  
-    public int MaturityThreshold { get; init; }   
-}
 
-// Interface for plants that can reproduce
-public interface IPlantReproduction : IBasePlant
-{
-    public byte SeedRange { get; init; }       
-    public byte GerminationChance { get; init; }
-    public bool IsContinuousSpreader { get; init; }  
-    public int ReproductionThreshold { get; init; }
-}
 
-// PlantTypes.cs
-public record GroundCoverPlant : IBasePlant, IPlantReproduction
-{
-    public required byte Volume { get; init; }
-    public required TileSurface Surface { get; init; }
-    public required TileMaterial[] ValidMaterials { get; init; }
-    public required byte MinMoisture { get; init; }
-    public required byte OptimalMoisture { get; init; }
-    public required byte MaxMoisture { get; init; }
-    public required int Age { get; init; }
-    public required int SeedlingThreshold { get; init; }
-    public required int MaturityThreshold { get; init; }
-    
-    // Reproduction properties
-    public required byte SeedRange { get; init; }
-    public required byte GerminationChance { get; init; }
-    public required bool IsContinuousSpreader { get; init; }
-    public required int ReproductionThreshold { get; init; }
-}
-
-public static class PlantTemplates
-{
-    public static readonly GroundCoverPlant ShortGrass = new()
-    {
-        Volume = 1,
-        Surface = TileSurface.ShortGrass,
-        ValidMaterials = [TileMaterial.Dirt, TileMaterial.Sand],
-        MinMoisture = 10,
-        OptimalMoisture = 30,
-        MaxMoisture = 100,
-        Age = 0,
-        SeedlingThreshold = 50,    // Grows relatively fast
-        MaturityThreshold = 100,
-        SeedRange = 2,             // Spreads short distance
-        GerminationChance = 25,    // 10% chance
-        IsContinuousSpreader = true,
-        ReproductionThreshold = 75
-    };
-
-    public static readonly GroundCoverPlant TallGrass = new()
-    {
-        Volume = 2,
-        Surface = TileSurface.TallGrass,
-        ValidMaterials = [TileMaterial.Dirt],  // Only on dirt
-        MinMoisture = 20,          // Needs more water
-        OptimalMoisture = 30,
-        MaxMoisture = 120,
-        Age = 0,
-        SeedlingThreshold = 75,    // Takes longer to grow
-        MaturityThreshold = 150,
-        SeedRange = 3,             // Spreads further
-        GerminationChance = 15,    // But less likely
-        IsContinuousSpreader = true,
-        ReproductionThreshold = 100
-    };
-}
 
 

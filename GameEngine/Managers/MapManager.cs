@@ -157,6 +157,10 @@ public class MapManager(ILogger<MapManager> logger) : BaseManager
 
     public override void Destroy()
     {
-        throw new NotImplementedException();
+        EventManager.UnregisterListener<MoistureChangeEvent>(this);
+        EventManager.UnregisterListener<AreaMoistureChangeEvent>(this);
+        EventManager.UnregisterListener<AreaTemperatureChangeEvent>(this);
+        // EventManager.UnregisterListener<AreaSunlightChangeEvent>(this);
+        EventManager.UnregisterListener<MoistureRequest>(this);
     }
 }

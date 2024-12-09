@@ -16,8 +16,7 @@ builder.Services.AddSingleton<AiManager>();
 builder.Services.AddSingleton<TimeSystem>();
 builder.Services.AddSingleton<MetabolismSystem>();
 builder.Services.AddSingleton<MovementSystem>();
-builder.Services.AddSingleton<TreeSystem>();
-builder.Services.AddSingleton<GroundCoverSystem>();
+builder.Services.AddSingleton<VegetationSystem>();
 
 
 // Start the engine

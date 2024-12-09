@@ -344,10 +344,6 @@ internal static partial class World
                 Direction.West => (pos.x, (byte)(pos.y + (Config.CHUNK_SIZE - 1))),
                 _ => pos
             };
-
-
-
-
         }
 
         private static void GenerateChunkTerrain(Chunk chunk)
@@ -368,7 +364,6 @@ internal static partial class World
                     }
                     // Generate base terrain elevation
                     float elevation = EnhancedPerlinNoise.GenerateTerrain(worldX * baseScale, worldY * baseScale);
-                    System.Console.WriteLine($"Elevation: {elevation}");
                     (TileMaterial material, TileProperties properties, TileSurface surface) = DetermineTileType(elevation);
                     chunk.SetTile(localX, localY, material, surface, properties);
                 }
