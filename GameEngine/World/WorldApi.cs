@@ -143,16 +143,21 @@ public static class WorldApi
             current.properties);
         return true;
     }
-    
-    public static void GenerateWorld()
-    {
-        World.GenerateWorld();
-    }
-
     public static bool IsInWorldBounds(Position pos)
     {
         if (pos.X < 0 || pos.Y < 0) return false;
         if (pos.X >= Config.WORLD_TILES || pos.Y >= Config.WORLD_TILES) return false;
         return true;
     }
+
+    public static void GenerateChunks()
+    {
+        World.WorldGenerator.GenerateChunks();
+    }
+
+    public static void InitVegetation()
+    {
+        World.WorldGenerator.GenerateInitialVegetation();
+    }
+
 }

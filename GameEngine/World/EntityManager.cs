@@ -9,7 +9,7 @@ internal static partial class World
     public static class EntityManager
     {
         private const int MAX_ENTITIES = 1_000_000;
-        private const int WORLD_TILES = Config.WORLD_SIZE * Config.CHUNK_SIZE_BYTE;
+        private const int WORLD_TILES = Config.WORLD_TILES;
 
         // Core entity data arrays - direct indexed access
         private static readonly byte[] _volumes = new byte[MAX_ENTITIES];
@@ -217,8 +217,8 @@ internal static partial class World
                 {
                     var pos = new Position { X = topLeft.X + x, Y = topLeft.Y + y };
                     if (!IsInWorldBounds(pos.X, pos.Y)) continue;
-                    int idx = pos.Y * WORLD_TILES + pos.X;
-
+                    int idx = pos.WorldToIndex();
+                    
                     if (_tileCount[idx] > 0)
                     {
                         var tileEntities = new (int, EntityAction, EntityType, Direction)[_tileCount[idx]];

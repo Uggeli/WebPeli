@@ -2,6 +2,7 @@ using WebPeli.GameEngine.Managers;
 using WebPeli.GameEngine.Util;
 using WebPeli.GameEngine.Systems;
 using WebPeli.GameEngine.World;
+using System.Text;
 
 namespace WebPeli.GameEngine;
 
@@ -26,10 +27,10 @@ public class GameEngineService : BackgroundService
     {
         _logger = logger;
         // Build world
-        var startTime = Environment.TickCount;
-        _logger.LogInformation("Generating world... this might take a while");
-        WorldApi.GenerateWorld();
-        _logger.LogInformation($"World generation took {Environment.TickCount - startTime}ms");
+        _logger.LogInformation("Generating world chunks...");
+        var tock = Environment.TickCount;
+        WorldApi.GenerateChunks();
+        _logger.LogInformation("World chunk generation took {Time}ms", Environment.TickCount - tock);
 
         managers.Add(entityRegister);
         managers.Add(aiManager);
@@ -49,6 +50,12 @@ public class GameEngineService : BackgroundService
         systems.Add(new MovementSystem());
 
         InitSystems();
+
+        // Initialize vegetation
+        _logger.LogInformation("Initializing vegetation...");
+        tock = Environment.TickCount;
+        WorldApi.InitVegetation();
+        _logger.LogInformation("Vegetation initialization took {Time}ms", Environment.TickCount - tock);
     }
 
     private void InitManagers()
@@ -129,7 +136,8 @@ public class GameEngineService : BackgroundService
         try
         {
             await Task.Delay(1000, linkedTokenSource.Token);
-            Dictionary<string, int> updateTimes = new();
+            Dictionary<string, int> updateTimes = [];
+            // Console.Clear();
             while (!linkedTokenSource.Token.IsCancellationRequested)
             {
                 var startTick = Environment.TickCount;
@@ -151,14 +159,17 @@ public class GameEngineService : BackgroundService
                     // _logger.LogInformation("Manager {ManagerType} took {Time}ms to update", manager.GetType().Name, Environment.TickCount - tick);
                     updateTimes[manager.GetType().Name] = Environment.TickCount - tick;
                 }
-                System.Console.Clear();
-                System.Console.WriteLine("Update times:");
-                foreach (var (name, time) in updateTimes)
-                {
-                    System.Console.WriteLine("{0}: {1}ms", name, time);
-                }
+                // var output = new StringBuilder();
+                // output.AppendLine("Update times:");
+                // foreach (var (name, time) in updateTimes)
+                // {
+                //     output.AppendLine($"{name}:\t {time}ms\t");
+                // }
+                // System.Console.SetCursorPosition(0, 20);
+                // System.Console.Write(output.ToString());
                 var processingTime = Environment.TickCount - startTick;
                 await Task.Delay(Math.Max(Config.UpdateLoop - processingTime, 0), linkedTokenSource.Token);
+                // _logger.LogInformation("GameEngineService update took {Time}ms", processingTime);
             }
         }
         catch (OperationCanceledException)
