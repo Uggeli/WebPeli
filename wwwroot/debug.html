@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>WebPeli Debug Interface</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #ffffff;
+        }
+        .debug-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .debug-card {
+            background: #2a2a2a;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .debug-title {
+            font-size: 1.2em;
+            margin-bottom: 10px;
+            color: #4CAF50;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .debug-title .filters {
+            font-size: 0.8em;
+        }
+        .debug-title .filters select {
+            background: #333;
+            color: white;
+            border: 1px solid #4CAF50;
+            border-radius: 4px;
+            padding: 2px 5px;
+        }
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+        .stat-label {
+            color: #888;
+        }
+        .stat-value {
+            color: #fff;
+            font-family: monospace;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        button {
+            background: #4CAF50;
+            border: none;
+            border-radius: 4px;
+            color: white;
+            padding: 8px 16px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        .error-banner {
+            background: #ff5252;
+            color: white;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            display: none;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-connected { background: #4CAF50; }
+        .status-disconnected { background: #ff5252; }
+        .status-connecting { background: #FFC107; }
+        
+        .console-card {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-direction: column;
+            height: 300px;
+        }
+        .console-output {
+            flex-grow: 1;
+            background: #000;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-family: monospace;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        .console-input {
+            display: flex;
+            gap: 10px;
+        }
+        .console-input input {
+            flex-grow: 1;
+            background: #333;
+            border: 1px solid #4CAF50;
+            border-radius: 4px;
+            color: white;
+            padding: 8px;
+            font-family: monospace;
+        }
+        .timestamp {
+            color: #666;
+            margin-right: 8px;
+        }
+        .command { color: #4CAF50; }
+        .error { color: #ff5252; }
+        .info { color: #2196F3; }
+        .success { color: #4CAF50; }
+    </style>
+</head>
+<body>
+    <div id="errorBanner" class="error-banner"></div>
+
+    <div class="controls">
+        <div>
+            <span id="statusIndicator" class="status-indicator status-disconnected"></span>
+            <span id="statusText">Disconnected</span>
+        </div>
+        <button onclick="toggleDebugMode()">Toggle Debug Mode</button>
+        <button onclick="togglePathfinding()">Toggle Pathfinding Debug</button>
+        <button onclick="reconnect()" id="reconnectBtn" disabled>Reconnect</button>
+        <button onclick="exportData()">Export Debug Data</button>
+        <button onclick="clearConsole()">Clear Console</button>
+    </div>
+
+    <div class="debug-grid">
+        <div class="debug-card">
+            <div class="debug-title">Time System</div>
+            <div class="stat-grid">
+                <div class="stat-label">Season:</div>
+                <div class="stat-value" id="season">-</div>
+                <div class="stat-label">Time of Day:</div>
+                <div class="stat-value" id="timeOfDay">-</div>
+                <div class="stat-label">Day:</div>
+                <div class="stat-value" id="day">-</div>
+                <div class="stat-label">Year:</div>
+                <div class="stat-value" id="year">-</div>
+            </div>
+        </div>
+
+        <div class="debug-card">
+            <div class="debug-title">Entity Stats</div>
+            <div class="stat-grid">
+                <div class="stat-label">Total Entities:</div>
+                <div class="stat-value" id="totalEntities">-</div>
+                <div class="stat-label">Active Entities:</div>
+                <div class="stat-value" id="activeEntities">-</div>
+                <div class="stat-label">Moving Entities:</div>
+                <div class="stat-value" id="movingEntities">-</div>
+            </div>
+        </div>
+
+        <div class="debug-card">
+            <div class="debug-title">System Status</div>
+            <div class="stat-grid">
+                <div class="stat-label">Debug Mode:</div>
+                <div class="stat-value" id="debugMode">-</div>
+                <div class="stat-label">Pathfinding Debug:</div>
+                <div class="stat-value" id="pathfindingDebug">-</div>
+                <div class="stat-label">Active Viewports:</div>
+                <div class="stat-value" id="activeViewports">-</div>
+            </div>
+        </div>
+
+        <div class="debug-card">
+            <div class="debug-title">
+                System Performance
+                <div class="filters">
+                    <select id="performanceFilter" onchange="updatePerformanceFilter()">
+                        <option value="all">All Systems</option>
+                    </select>
+                </div>
+            </div>
+            <canvas id="performance-chart"></canvas>
+        </div>
+
+        <div class="debug-card console-card">
+            <div class="debug-title">Debug Console</div>
+            <div id="console" class="console-output"></div>
+            <div class="console-input">
+                <input type="text" id="commandInput" placeholder="Enter command (type 'help' for available commands)" 
+                       onkeydown="if(event.key==='Enter')executeCommand()">
+                <button onclick="executeCommand()">Run</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Message type enum matching server
+        const MessageType = {
+            DebugRequest: 0x40,
+            DebugResponse: 0x41,
+            DebugData: 0x42,
+            Error: 0xFF
+        };
+
+        let ws;
+        let performanceChart;
+        let debugData = {};
+        let selectedSystems = new Set();
+        
+        function showError(message) {
+            const banner = document.getElementById('errorBanner');
+            banner.textContent = message;
+            banner.style.display = 'block';
+            setTimeout(() => { banner.style.display = 'none'; }, 5000);
+            logToConsole('error', message);
+        }
+
+        function updateConnectionStatus(status) {
+            const indicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+            const reconnectBtn = document.getElementById('reconnectBtn');
+            
+            indicator.className = 'status-indicator status-' + status;
+            statusText.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+            reconnectBtn.disabled = status === 'connected';
+            
+            logToConsole('info', `WebSocket ${status}`);
+        }
+        
+        function connect() {
+            updateConnectionStatus('connecting');
+            ws = new WebSocket(`ws://${window.location.host}/debugws`);
+            ws.binaryType = 'arraybuffer';
+            
+            ws.onopen = () => {
+                updateConnectionStatus('connected');
+                initPerformanceChart();
+            };
+            
+            ws.onclose = () => {
+                updateConnectionStatus('disconnected');
+                setTimeout(connect, 5000);
+            };
+            
+            ws.onerror = (error) => {
+                showError('WebSocket error occurred');
+                console.error('WebSocket error:', error);
+            };
+            
+            ws.onmessage = handleMessage;
+        }
+
+        async function handleMessage(event) {
+            try {
+                const buffer = event.data;
+                const messageType = new Uint8Array(buffer, 0, 1)[0];
+                const decoder = new TextDecoder();
+                const messageData = decoder.decode(buffer.slice(3));
+                
+                switch(messageType) {
+                    case MessageType.DebugData:
+                        try {
+                            debugData = JSON.parse(messageData);
+                            updateDebugInfo(debugData);
+                        } catch (parseError) {
+                            showError('Failed to parse debug data');
+                        }
+                        break;
+                        
+                    case MessageType.Error:
+                        showError(messageData);
+                        break;
+                        
+                    case MessageType.DebugResponse:
+                        logToConsole('success', messageData);
+                        break;
+                        
+                    default:
+                        logToConsole('info', `Unknown message type: ${messageType}`);
+                }
+            } catch (error) {
+                showError('Error processing message');
+                console.error(error);
+            }
+        }
+
+        function initPerformanceChart() {
+            const ctx = document.getElementById('performance-chart').getContext('2d');
+            performanceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: []
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Time (ms)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top'
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateDebugInfo(data) {
+            // Update time system info
+            document.getElementById('season').textContent = data.season;
+            document.getElementById('timeOfDay').textContent = data.timeOfDay;
+            document.getElementById('day').textContent = data.day;
+            document.getElementById('year').textContent = data.year;
+
+            // Update entity stats
+            document.getElementById('totalEntities').textContent = data.totalEntities;
+            document.getElementById('activeEntities').textContent = data.activeEntities;
+            document.getElementById('movingEntities').textContent = data.movingEntities;
+
+            // Update system status
+            document.getElementById('debugMode').textContent = data.debugMode;
+            document.getElementById('pathfindingDebug').textContent = data.pathfindingDebug;
+            document.getElementById('activeViewports').textContent = data.activeViewports;
+
+            // Update performance chart
+            updatePerformanceChart(data.performanceData);
+            
+            // Update performance filter options
+            updatePerformanceFilter(data.performanceData);
+        }
+
+        function updatePerformanceFilter(performanceData) {
+            const filter = document.getElementById('performanceFilter');
+            if (!performanceData) return;
+            
+            // Add new systems to filter
+            Object.keys(performanceData).forEach(system => {
+                if (!filter.querySelector(`option[value="${system}"]`)) {
+                    const option = document.createElement('option');
+                    option.value = system;
+                    option.textContent = system;
+                    filter.appendChild(option);
+                }
+            });
+        }
+
+        function updatePerformanceChart(performanceData) {
+            if (!performanceChart || !performanceData) return;
+
+            const maxDataPoints = 50;
+            const selectedSystem = document.getElementById('performanceFilter').value;
+            
+            performanceChart.data.labels.push(new Date().toLocaleTimeString());
+            if (performanceChart.data.labels.length > maxDataPoints) {
+                performanceChart.data.labels.shift();
+            }
+
+            Object.entries(performanceData).forEach(([system, time]) => {
+                if (selectedSystem !== 'all' && system !== selectedSystem) return;
+                
+                let dataset = performanceChart.data.datasets.find(ds => ds.label === system);
+                if (!dataset) {
+                    const hue = Math.random() * 360;
+                    dataset = {
+                        label: system,
+                        data: [],
+                        borderColor: `hsl(${hue}, 70%, 50%)`,
+                        tension: 0.4,
+                        fill: false
+                    };
+                    performanceChart.data.datasets.push(dataset);
+                }
+                
+                dataset.data.push(time);
+                if (dataset.data.length > maxDataPoints) {
+                    dataset.data.shift();
+                }
+            });
+
+            performanceChart.update();
+        }
+
+        function logToConsole(type, message) {
+            const console = document.getElementById('console');
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.innerHTML = `<span class="timestamp">${timestamp}</span><span class="${type}">${message}</span>`;
+            console.appendChild(entry);
+            console.scrollTop = console.scrollHeight;
+        }
+
+        function clearConsole() {
+            document.getElementById('console').innerHTML = '';
+            logToConsole('info', 'Console cleared');
+        }
+
+        const debugCommands = {
+            help: () => {
+                logToConsole('info', 'Available commands:');
+                Object.keys(debugCommands).forEach(cmd => {
+                    logToConsole('info', `  ${cmd}`);
+                });
+            },
+            clear: clearConsole,
+            export: exportData,
+            reconnect: reconnect,
+            status: () => {
+                logToConsole('info', 'Current Debug State:');
+                Object.entries(debugData).forEach(([key, value]) => {
+                    logToConsole('info', `  ${key}: ${value}`);
+                });
+            },
+            toggleDebug: () => {
+                sendDebugRequest('ToggleDebugMode');
+                logToConsole('command', 'Toggling debug mode');
+            },
+            togglePathfinding: () => {
+                sendDebugRequest('TogglePathfinding');
+                logToConsole('command', 'Toggling pathfinding debug');
+            }
+        };
+
+        function executeCommand() {
+            const input = document.getElementById('commandInput');
+            const command = input.value.trim().toLowerCase();
+            
+            if (!command) return;
+            
+            logToConsole('command', `> ${command}`);
+            
+            if (command in debugCommands) {
+                try {
+                    debugCommands[command]();
+                } catch (error) {
+                    logToConsole('error', `Error executing command: ${error.message}`);
+                }
+            } else {
+                logToConsole('error', `Unknown command: ${command}. Type 'help' for available commands.`);
+            }
+            
+            input.value = '';
+        }
+
+        function sendDebugRequest(requestType) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const request = {
+                    type: 'DebugRequest',
+                    request: requestType
+                };
+                ws.send(JSON.stringify(request));
+            } else {
+                showError('WebSocket not connected');
+            }
+        }
+
+        function toggleDebugMode() {
+            sendDebugRequest('ToggleDebugMode');
+        }
+
+        function togglePathfinding() {
+            sendDebugRequest('TogglePathfinding');
+        }
+
+        function reconnect() {
+            if (ws) {
+                ws.close();
+            }
+            connect();
+        }
+
+        function exportData() {
+            const exportData = {
+                timestamp: new Date().toISOString(),
+                debugState: debugData,
+                performanceHistory: performanceChart ? performanceChart.data : null
+            };
+            
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `webpeli-debug-${new Date().toISOString()}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            logToConsole('success', 'Debug data exported');
+        }
+
+        // Connect when page loads
+        connect();
+    </script>

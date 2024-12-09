@@ -20,6 +20,8 @@ builder.Services.AddSingleton<VegetationSystem>();
 builder.Services.AddSingleton<HarvestSystem>();
 builder.Services.AddSingleton<HealthSystem>();
 
+// Debug service
+builder.Services.AddSingleton<DebugDataService>();
 
 // Start the engine
 builder.Services.AddHostedService<GameEngineService>();
@@ -37,6 +39,10 @@ Aurinport.UseStaticFiles();
 Aurinport.MapGet("/", async context =>
 {
     await context.Response.SendFileAsync(Path.Combine(builder.Environment.WebRootPath, "index.html"));
+});
+Aurinport.MapGet("/debug", async context =>
+{
+    await context.Response.SendFileAsync(Path.Combine(builder.Environment.WebRootPath, "debug.html"));
 });
 Aurinport.MapControllers();
 Aurinport.Run();

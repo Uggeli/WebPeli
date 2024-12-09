@@ -23,7 +23,7 @@ public readonly record struct ViewportDataBinary
 // Specialized manager for handling viewport requests
 public class ViewportManager : BaseManager
 {
-    private readonly ConcurrentDictionary<Guid, ViewportSubscription> _activeViewports = [];
+    public readonly ConcurrentDictionary<Guid, ViewportSubscription> _activeViewports = [];
     private readonly ArrayPool<byte> _arrayPool;
     private readonly ILogger<ViewportManager> _logger;
 

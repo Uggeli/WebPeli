@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using WebPeli.GameEngine.Systems;
 
 namespace WebPeli.Network;
 
@@ -14,8 +15,38 @@ public enum MessageType : byte
     // Server -> Client messages (0x81-0xFE)
     ViewportData = 0x81,
     CellData = 0x82,        // Future use
-    Error = 0xFF
+    Error = 0xFF,
+    // Debug messages (0x40-0x4F)
+    DebugRequest = 0x40,
+    DebugResponse = 0x41,
+    DebugData = 0x42,
 }
+
+public enum DebugRequestType : byte
+{
+    ToggleDebugMode = 0,
+    TogglePathfinding = 1,
+    RequestFullState = 2
+}
+
+public record DebugState
+{
+    public required Season Season { get; init; }
+    public required TimeOfDay TimeOfDay { get; init; }
+    public required int Day { get; init; }
+    public required int Year { get; init; }
+
+    public required int TotalEntities { get; init; }
+    public required int ActiveEntities { get; init; }
+    public required int MovingEntities { get; init; }
+
+    public required bool DebugMode { get; init; }
+    public required bool PathfindingDebug { get; init; }
+    public required int ActiveViewports { get; init; }
+
+    public required Dictionary<string, int> SystemUpdateTimes { get; init; }
+}
+
 
 /// <summary>
 /// Helper class for message encoding/decoding
@@ -23,6 +54,45 @@ public enum MessageType : byte
 public static class MessageProtocol
 {
     private const int HEADER_SIZE = 3;  // 1 byte type + 2 bytes length
+    public static bool TryDecodeDebugRequest(ReadOnlySpan<byte> payload, out DebugRequestType requestType)
+    {
+        requestType = DebugRequestType.ToggleDebugMode; // Default
+        if (payload.Length < 1) return false;
+
+        requestType = (DebugRequestType)payload[0];
+        return true;
+    }
+
+    public static byte[] EncodeDebugResponse(string message)
+    {
+        var payload = System.Text.Encoding.UTF8.GetBytes(message);
+        return EncodeMessage(MessageType.DebugResponse, payload);
+    }
+
+    public static byte[] EncodeDebugData(DebugState state)
+    {
+        var debugData = new
+        {
+            season = state.Season.ToString(),
+            timeOfDay = state.TimeOfDay.ToString(),
+            day = state.Day,
+            year = state.Year,
+
+            totalEntities = state.TotalEntities,
+            activeEntities = state.ActiveEntities,
+            movingEntities = state.MovingEntities,
+
+            debugMode = state.DebugMode,
+            pathfindingDebug = state.PathfindingDebug,
+            activeViewports = state.ActiveViewports,
+
+            performanceData = state.SystemUpdateTimes
+        };
+
+        var json = System.Text.Json.JsonSerializer.Serialize(debugData);
+        var jsonBytes = System.Text.Encoding.UTF8.GetBytes(json);
+        return EncodeMessage(MessageType.DebugData, jsonBytes);
+    }
 
     public static byte[] EncodeMessage(MessageType type, ReadOnlySpan<byte> payload)
     {

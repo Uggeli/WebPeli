@@ -141,7 +141,6 @@ public class TimeSystem(ILogger<TimeSystem> logger) : BaseManager
             _currentDay++;
             if (_currentDay % SeasonLengths[_currentSeason] == 0)
             {
-                _currentYear++;
                 _currentSeason = _currentSeason switch
                 {
                     Season.Spring => Season.Summer,
@@ -151,11 +150,10 @@ public class TimeSystem(ILogger<TimeSystem> logger) : BaseManager
                     _ => throw new ArgumentException("Invalid season")
                 };
                 EventManager.Emit(new SeasonChangeEvent(_currentSeason));
+                if (_currentSeason == Season.Spring)
+                    _currentYear++;
             }
         }
-        if (_currentTick == 0)
-            _logger.LogInformation($"Day {_currentDay}, {_currentTimeOfDay}, {_currentSeason}, Year {_currentYear}");
-
     }
 
 
