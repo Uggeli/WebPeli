@@ -25,6 +25,12 @@
             padding: 15px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
+        
+        .chart-container {
+            height: 300px;
+            width: 100%;
+            position: relative;
+        }
         .debug-title {
             font-size: 1.2em;
             margin-bottom: 10px;
@@ -197,7 +203,9 @@
                     </select>
                 </div>
             </div>
-            <canvas id="performance-chart"></canvas>
+            <div class="chart-container">
+                <canvas id="performance-chart"></canvas>
+            </div>
         </div>
 
         <div class="debug-card console-card">
@@ -320,12 +328,33 @@
                             title: {
                                 display: true,
                                 text: 'Time (ms)'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
                             }
                         }
                     },
                     plugins: {
                         legend: {
-                            position: 'top'
+                            position: 'top',
+                            labels: {
+                                boxWidth: 12,
+                                usePointStyle: true,
+                                color: '#fff'
+                            }
+                        }
+                    },
+                    layout: {
+                        padding: {
+                            top: 10,
+                            right: 10,
+                            bottom: 10,
+                            left: 10
                         }
                     }
                 }
