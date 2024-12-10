@@ -6,6 +6,16 @@ using WebPeli.GameEngine.Systems;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddSingleton(sp => new Dictionary<Plant, PlantRequirements>
+{
+    { Plant.Tree, PlantTemplates.OakTree },  // For now just using oak as default tree
+    { Plant.Grass, PlantTemplates.Grass },   // Basic grass template
+    { Plant.Weed, PlantTemplates.Weed },     // Basic weed template
+    { Plant.Flower, PlantTemplates.Flower }  // Basic flower template
+});
+
+builder.Services.AddSingleton<PlantFSM>();
+
 // Init managers
 builder.Services.AddSingleton<ViewportManager>();
 builder.Services.AddSingleton<EntityRegister>();
@@ -20,6 +30,7 @@ builder.Services.AddSingleton<VegetationSystem>();
 builder.Services.AddSingleton<HarvestSystem>();
 builder.Services.AddSingleton<HealthSystem>();
 
+
 // Debug service
 builder.Services.AddSingleton<DebugDataService>();
 
@@ -30,6 +41,8 @@ builder.Services.AddHostedService<GameEngineService>();
 builder.Services.AddControllers();
 
 var Aurinport = builder.Build();
+var debugDataService = Aurinport.Services.GetRequiredService<DebugDataService>();
+_ = debugDataService.StartDebugLoop(Aurinport.Lifetime.ApplicationStopping);
 
 Aurinport.UseWebSockets(new WebSocketOptions
 {

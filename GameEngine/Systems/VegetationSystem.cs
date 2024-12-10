@@ -67,23 +67,11 @@ public class VegetationSystem : BaseManager
     private readonly PlantFSM _plantFSM;
     private readonly Dictionary<Plant, PlantRequirements> _plantTemplates;
 
-    public VegetationSystem(ILogger<VegetationSystem> logger)
+    public VegetationSystem(ILogger<VegetationSystem> logger, PlantFSM plantFSM, Dictionary<Plant, PlantRequirements> plantTemplates)
     {
         _logger = logger;
-        _plantTemplates = InitializePlantTemplates();
-        _plantFSM = new PlantFSM(_plantTemplates);
-    }
-
-    private Dictionary<Plant, PlantRequirements> InitializePlantTemplates()
-    {
-        return new Dictionary<Plant, PlantRequirements>
-        {
-            { Plant.Tree, PlantTemplates.OakTree },  // For now just using oak as default tree
-            { Plant.Grass, PlantTemplates.Grass },   // Basic grass template
-            { Plant.Weed, PlantTemplates.Weed },     // Basic weed template
-            { Plant.Flower, PlantTemplates.Flower }  // Basic flower template
-            // Add more templates as needed
-        };
+        _plantTemplates = plantTemplates;
+        _plantFSM = plantFSM;
     }
 
     public override void Init()
@@ -241,7 +229,9 @@ public class VegetationSystem : BaseManager
     {
         // Most updates happen through event handlers
         // Regular update mainly for debugging/logging if needed
+        var tick = Environment.TickCount;
         base.Update(deltaTime);
+        _lastUpdateTime = Environment.TickCount - tick;
     }
 }
 
@@ -509,25 +499,22 @@ public static class PlantTemplates
     }
 }
 
-public class PlantFSM 
+public class PlantFSM(Dictionary<Plant, PlantRequirements> templates, ILogger<PlantFSM> logger)
 {
+    private readonly ILogger<PlantFSM> _logger = logger;
     // Only store minimal info for idle plants
     private readonly ConcurrentDictionary<int, (Plant Type, Position Pos)> _idlePlants = new();
     // Active plants need full state tracking
     private readonly ConcurrentDictionary<int, PlantInstance> _activePlants = new();
     
     // Cache of templates to avoid lookups
-    private readonly Dictionary<Plant, PlantRequirements> _templates = new();
-
-    public PlantFSM(Dictionary<Plant, PlantRequirements> templates) 
-    {
-        _templates = templates;
-    }
+    private readonly Dictionary<Plant, PlantRequirements> _templates = templates;
 
     public void OnSeasonChanged(Season newSeason)
     {
         var plantsToWake = new List<(int EntityId, Plant Type, Position Pos)>();
         var plantsToSleep = new List<int>();
+        _logger.LogDebug("Season changed to {Season}", newSeason);
 
         // Check idle plants that should wake up
         foreach (var (entityId, (type, pos)) in _idlePlants)

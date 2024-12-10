@@ -5,42 +5,35 @@ using WebPeli.Network;
 
 namespace WebPeli.GameEngine;
 
-public class DebugDataService
+public class DebugDataService(
+    ILogger<DebugDataService> logger,
+    ViewportManager viewportManager,
+    EntityRegister entityRegister,
+    MovementSystem movementSystem,
+    TimeSystem timeSystem,
+    MetabolismSystem metabolismSystem,
+    VegetationSystem vegetationSystem,
+    AiManager aiManager,
+    HarvestSystem harvestSystem,
+    HealthSystem healthSystem
+        )
 {
     private readonly Dictionary<string, int> _systemUpdateTimes = new();
     private readonly HashSet<WebSocket> _debugSockets = new();
     private readonly object _updateLock = new();
     
     // System references
-    private readonly ILogger<DebugDataService> _logger;
-    private readonly ViewportManager _viewportManager;
-    private readonly EntityRegister _entityRegister;
-    private readonly MovementSystem _movementSystem;
-    private readonly TimeSystem _timeSystem;
-    private readonly MetabolismSystem _metabolismSystem;
-    private readonly VegetationSystem _vegetationSystem;
-    private readonly AiManager _aiManager;
+    private readonly ILogger<DebugDataService> _logger = logger;
+    private readonly ViewportManager _viewportManager = viewportManager;
+    private readonly EntityRegister _entityRegister = entityRegister;
+    private readonly MovementSystem _movementSystem = movementSystem;
+    private readonly TimeSystem _timeSystem = timeSystem;
+    private readonly MetabolismSystem _metabolismSystem = metabolismSystem;
+    private readonly VegetationSystem _vegetationSystem = vegetationSystem;
+    private readonly AiManager _aiManager = aiManager;
+    private readonly HarvestSystem _harvestSystem = harvestSystem;
+    private readonly HealthSystem _healthSystem = healthSystem;
     private bool _isRunning = false;
-
-    public DebugDataService(
-        ILogger<DebugDataService> logger,
-        ViewportManager viewportManager,
-        EntityRegister entityRegister,
-        MovementSystem movementSystem,
-        TimeSystem timeSystem,
-        MetabolismSystem metabolismSystem,
-        VegetationSystem vegetationSystem,
-        AiManager aiManager)
-    {
-        _logger = logger;
-        _viewportManager = viewportManager;
-        _entityRegister = entityRegister;
-        _movementSystem = movementSystem;
-        _timeSystem = timeSystem;
-        _metabolismSystem = metabolismSystem;
-        _vegetationSystem = vegetationSystem;
-        _aiManager = aiManager;
-    }
 
     public void RegisterDebugSocket(WebSocket socket)
     {
@@ -54,27 +47,32 @@ public class DebugDataService
         _logger.LogInformation("Debug socket unregistered. Total sockets: {Count}", _debugSockets.Count);
     }
 
-    public void UpdateSystemTime(string systemName, int milliseconds)
-    {
-        lock (_updateLock)
-        {
-            _systemUpdateTimes[systemName] = milliseconds;
-        }
-    }
+
 
     private DebugState CollectDebugState()
     {
-        Dictionary<string, int> times;
-        lock (_updateLock)
-        {
-            times = new Dictionary<string, int>(_systemUpdateTimes);
-        }
+        Dictionary<string, int> times = new() {
+            // Managers
+            { "ViewportManager", _viewportManager.UpdateTime },
+            { "AiManager", _aiManager.UpdateTime },
+            { "EntityRegister", _entityRegister.UpdateTime },
+            // Systems
+            { "MovementSystem", _movementSystem.UpdateTime },
+            { "TimeSystem", _timeSystem.UpdateTime },
+            { "MetabolismSystem", _metabolismSystem.UpdateTime },
+            { "VegetationSystem", _vegetationSystem.UpdateTime },
+            { "HarvestSystem", _harvestSystem.UpdateTime },
+            { "HealthSystem", _healthSystem.UpdateTime }
+            
+        };
+
+        
 
         return new DebugState
         {
             // Time system data
-            Season = TimeSystem.CurrentSeason,
-            TimeOfDay = TimeSystem.CurrentTimeOfDay,
+            Season = TimeSystem.CurrentSeason.ToString(),
+            TimeOfDay = TimeSystem.CurrentTimeOfDay.ToString(),
             Day = TimeSystem.CurrentDay,
             Year = TimeSystem.CurrentYear,
 

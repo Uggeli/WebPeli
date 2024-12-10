@@ -1,19 +1,16 @@
 using System.Net.WebSockets;
 using Microsoft.AspNetCore.Mvc;
 using WebPeli.GameEngine;
-using WebPeli.GameEngine.Managers;
-using WebPeli.GameEngine.Util;
-using WebPeli.Network;
 
 namespace WebPeli.Network;
 
-public class GameSocketHandler(ILogger<GameSocketHandler> logger, ViewportManager viewportManager) : ControllerBase
+public class DebugSocketHandler(ILogger<DebugSocketHandler> logger, DebugDataService debugDataService) : ControllerBase
 {
-    private readonly ViewportManager _viewportManager = viewportManager;
-    private readonly ILogger<GameSocketHandler> _logger = logger;
+    private readonly DebugDataService _debugDataService = debugDataService;
+    private readonly ILogger<DebugSocketHandler> _logger = logger;
     private const int MaxMessageSize = 640 * 1024; // 64KB
 
-    [Route("/ws")]
+    [Route("/debugws")]
     public async Task Get()
     {
         if (!HttpContext.WebSockets.IsWebSocketRequest)
@@ -21,14 +18,16 @@ public class GameSocketHandler(ILogger<GameSocketHandler> logger, ViewportManage
             HttpContext.Response.StatusCode = 400;
             return;
         }
-
+        System.Console.WriteLine("Debug socket connected");
         using var webSocket = await HttpContext.WebSockets.AcceptWebSocketAsync();
         await HandleWebSocketConnection(webSocket);
     }
     
     private async Task HandleWebSocketConnection(WebSocket webSocket)
     {
-        var connectionId = Guid.NewGuid();
+        _debugDataService.RegisterDebugSocket(webSocket);
+
+
         var buffer = new byte[MaxMessageSize];
         var receiveBuffer = new List<byte>();
         
@@ -54,7 +53,7 @@ public class GameSocketHandler(ILogger<GameSocketHandler> logger, ViewportManage
                 // If we have a complete message
                 if (result.EndOfMessage)
                 {
-                    await HandleMessage(webSocket, receiveBuffer.ToArray(), connectionId);
+                    await HandleMessage(webSocket, receiveBuffer.ToArray());
                     receiveBuffer.Clear();
                 }
             }
@@ -72,11 +71,11 @@ public class GameSocketHandler(ILogger<GameSocketHandler> logger, ViewportManage
         }
         finally
         {
-            _viewportManager.RemoveSubscription(connectionId);
+            _debugDataService.UnregisterDebugSocket(webSocket);
         }
     }
     
-    private async Task HandleMessage(WebSocket webSocket, byte[] messageData, Guid connectionId)
+    private async Task HandleMessage(WebSocket webSocket, byte[] messageData)
     {
         try
         {
@@ -89,13 +88,8 @@ public class GameSocketHandler(ILogger<GameSocketHandler> logger, ViewportManage
 
             switch (type)
             {
-                case MessageType.ViewportRequest:
-                    await HandleViewportRequest(webSocket, payloadBytes, connectionId);
-                    break;
-                    
-                case MessageType.CellInfo:
-                    // Future implementation
-                    await SendError(webSocket, "CellInfo not implemented yet");
+                case MessageType.DebugRequest:
+                    await HandleDebugRequest(webSocket, payloadBytes);
                     break;
                     
                 default:
@@ -108,47 +102,45 @@ public class GameSocketHandler(ILogger<GameSocketHandler> logger, ViewportManage
             _logger.LogError(ex, "Error handling message");
             await SendError(webSocket, "Internal server error");
         }
+
     }
 
-    private static async Task HandleViewportRequest(WebSocket webSocket, byte[] payload, Guid connectionId)
+    private static async Task HandleDebugRequest(WebSocket webSocket, byte[] payload)
     {
-        if (!MessageProtocol.TryDecodeViewportRequest(payload.AsSpan(), out var cameraX, out var cameraY, 
-            out var width, out var height))
+        if (!MessageProtocol.TryDecodeDebugRequest(payload.AsSpan(), out var debugRequest))
         {
-            await SendError(webSocket, "Invalid viewport request format");
+            await SendError(webSocket, "Invalid debug request format");
             return;
         }
 
-        // Create a TaskCompletionSource for the viewport data
-        var tcs = new TaskCompletionSource<ViewportDataBinary>();
-        
-        // Register callback
-        var callbackId = EventManager.RegisterCallback((ViewportDataBinary data) => {
-            tcs.SetResult(data);
-        });
-        
+        switch (debugRequest)
+        {
+            case DebugRequestType.ToggleDebugMode:
+                Config.DebugMode = !Config.DebugMode;
+                await SendDebugResponse(webSocket, "Debug mode toggled");
+                break;
+                
+            case DebugRequestType.TogglePathfinding:
+                Config.DebugPathfinding = !Config.DebugPathfinding;
+                await SendDebugResponse(webSocket, "Pathfinding debug toggled");
+                break;
+                
+            default:
+                await SendError(webSocket, $"Unknown debug request type: {debugRequest}");
+                break;
+        }
+    }
 
-        // Request viewport data
-        EventManager.EmitPriority(new ViewportRequest {
-            CallbackId = callbackId,
-            TopLeft = new Position(cameraX, cameraY),
-            Width = width,
-            Height = height,
-            Socket = webSocket,
-            ConnectionId = connectionId
-        });
-
-        // Wait for response
-        var viewportData = await tcs.Task;
-
-        // Encode and send response
+    private static async Task SendDebugResponse(WebSocket webSocket, string message)
+    {
+        var response = MessageProtocol.EncodeDebugResponse(message);
         await webSocket.SendAsync(
-            new ArraySegment<byte>(viewportData.EncodedData.ToArray()),
+            new ArraySegment<byte>(response),
             WebSocketMessageType.Binary,
             true,
             CancellationToken.None);
     }
-    
+
     private static async Task SendError(WebSocket webSocket, string message)
     {
         var errorMessage = MessageProtocol.EncodeError(message);

@@ -109,6 +109,7 @@ public class TimeSystem(ILogger<TimeSystem> logger) : BaseManager
 
     public override void Update(double deltaTime)
     {
+        var tick = Environment.TickCount;
         base.Update(deltaTime);
         _updateTick++;
         // System.Console.WriteLine($"TimeSystem update tick {_updateTick}/{Config.TicksToUpdateTimeOfDay}");
@@ -154,6 +155,7 @@ public class TimeSystem(ILogger<TimeSystem> logger) : BaseManager
                     _currentYear++;
             }
         }
+        _lastUpdateTime = Environment.TickCount - tick;
     }
 
 

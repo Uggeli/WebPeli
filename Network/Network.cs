@@ -32,8 +32,8 @@ public enum DebugRequestType : byte
 public record DebugState
 {
     // Time data
-    public required Season Season { get; init; }
-    public required TimeOfDay TimeOfDay { get; init; }
+    public required string Season { get; init; }
+    public required string TimeOfDay { get; init; }
     public required int Day { get; init; }
     public required int Year { get; init; }
     

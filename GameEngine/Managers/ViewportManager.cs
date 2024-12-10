@@ -99,6 +99,7 @@ public class ViewportManager : BaseManager
 
     public override void Update(double deltaTime)
     {
+        var tick = Environment.TickCount;
         base.Update(deltaTime);
 
         // Process updates for all active viewports
@@ -136,6 +137,7 @@ public class ViewportManager : BaseManager
                 _activeViewports.TryRemove(kvp.Key, out _);
             }
         }
+        _lastUpdateTime = Environment.TickCount - tick;
     }
 
     private ViewportDataBinary GetViewportDataBinary(Position topLeft, int width, int height)

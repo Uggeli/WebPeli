@@ -48,6 +48,7 @@ public class AiManager : BaseManager
 
     public override void Update(double deltaTime)
     {
+        var tick = Environment.TickCount;
         base.Update(deltaTime);
         foreach (var entity in _entities)
         {
@@ -70,5 +71,6 @@ public class AiManager : BaseManager
 
             EventManager.Emit(MovementEvent);
         }
+        _lastUpdateTime = Environment.TickCount - tick;
     }
 }
