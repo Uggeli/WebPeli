@@ -31,19 +31,28 @@ public enum DebugRequestType : byte
 
 public record DebugState
 {
+    // Time data
     public required Season Season { get; init; }
     public required TimeOfDay TimeOfDay { get; init; }
     public required int Day { get; init; }
     public required int Year { get; init; }
-
+    
+    // Entity data
     public required int TotalEntities { get; init; }
     public required int ActiveEntities { get; init; }
     public required int MovingEntities { get; init; }
-
+    
+    // System status
     public required bool DebugMode { get; init; }
     public required bool PathfindingDebug { get; init; }
     public required int ActiveViewports { get; init; }
-
+    
+    // System-specific counters
+    public required int MetabolismEntities { get; init; }
+    public required int AiEntities { get; init; }
+    public required int VegetationCount { get; init; }
+    
+    // Performance data
     public required Dictionary<string, int> SystemUpdateTimes { get; init; }
 }
 

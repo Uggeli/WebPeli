@@ -5,21 +5,42 @@ using WebPeli.Network;
 
 namespace WebPeli.GameEngine;
 
-public class DebugDataService(
-    ILogger<DebugDataService> logger,
-    ViewportManager viewportManager,
-    EntityRegister entityRegister,
-    MovementSystem movementSystem)
+public class DebugDataService
 {
-    private readonly Dictionary<string, int> _systemUpdateTimes = [];
-    private readonly HashSet<WebSocket> _debugSockets = [];
-    private readonly ILogger<DebugDataService> _logger = logger;
-    private readonly ViewportManager _viewportManager = viewportManager;
-    private readonly EntityRegister _entityRegister = entityRegister;
-    private readonly MovementSystem _movementSystem = movementSystem;
-
-    private bool _isRunning = false;
+    private readonly Dictionary<string, int> _systemUpdateTimes = new();
+    private readonly HashSet<WebSocket> _debugSockets = new();
     private readonly object _updateLock = new();
+    
+    // System references
+    private readonly ILogger<DebugDataService> _logger;
+    private readonly ViewportManager _viewportManager;
+    private readonly EntityRegister _entityRegister;
+    private readonly MovementSystem _movementSystem;
+    private readonly TimeSystem _timeSystem;
+    private readonly MetabolismSystem _metabolismSystem;
+    private readonly VegetationSystem _vegetationSystem;
+    private readonly AiManager _aiManager;
+    private bool _isRunning = false;
+
+    public DebugDataService(
+        ILogger<DebugDataService> logger,
+        ViewportManager viewportManager,
+        EntityRegister entityRegister,
+        MovementSystem movementSystem,
+        TimeSystem timeSystem,
+        MetabolismSystem metabolismSystem,
+        VegetationSystem vegetationSystem,
+        AiManager aiManager)
+    {
+        _logger = logger;
+        _viewportManager = viewportManager;
+        _entityRegister = entityRegister;
+        _movementSystem = movementSystem;
+        _timeSystem = timeSystem;
+        _metabolismSystem = metabolismSystem;
+        _vegetationSystem = vegetationSystem;
+        _aiManager = aiManager;
+    }
 
     public void RegisterDebugSocket(WebSocket socket)
     {
@@ -56,20 +77,24 @@ public class DebugDataService(
             TimeOfDay = TimeSystem.CurrentTimeOfDay,
             Day = TimeSystem.CurrentDay,
             Year = TimeSystem.CurrentYear,
-            
-            // Entity stats 
+
             // TODO: Add these to EntityRegister
-            TotalEntities = 0, // _entityRegister.TotalEntities,
-            ActiveEntities = 0, // _entityRegister.ActiveEntities,
-            MovingEntities = 0, // _movementSystem.MovingEntitiesCount,
-            
+            TotalEntities = 0,
+            ActiveEntities = 0,
+            MovingEntities = 0,
+
             // System status
             DebugMode = Config.DebugMode,
             PathfindingDebug = Config.DebugPathfinding,
             ActiveViewports = _viewportManager._activeViewports.Count,
-            
+
             // Performance data
-            SystemUpdateTimes = times
+            SystemUpdateTimes = times,
+
+            // System-specific debug info
+            MetabolismEntities = 0, // TODO: _metabolismSystem.EntityCount,
+            AiEntities = 0, // TODO: _aiManager.EntityCount,
+            VegetationCount = 0 // TODO: _vegetationSystem.PlantCount
         };
     }
 
