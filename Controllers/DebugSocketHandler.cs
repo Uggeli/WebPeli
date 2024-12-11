@@ -22,7 +22,7 @@ public class DebugSocketHandler(ILogger<DebugSocketHandler> logger, DebugDataSer
         using var webSocket = await HttpContext.WebSockets.AcceptWebSocketAsync();
         await HandleWebSocketConnection(webSocket);
     }
-    
+
     private async Task HandleWebSocketConnection(WebSocket webSocket)
     {
         _debugDataService.RegisterDebugSocket(webSocket);
@@ -30,7 +30,7 @@ public class DebugSocketHandler(ILogger<DebugSocketHandler> logger, DebugDataSer
 
         var buffer = new byte[MaxMessageSize];
         var receiveBuffer = new List<byte>();
-        
+
         try
         {
             while (webSocket.State == WebSocketState.Open)
@@ -40,16 +40,13 @@ public class DebugSocketHandler(ILogger<DebugSocketHandler> logger, DebugDataSer
 
                 if (result.MessageType == WebSocketMessageType.Close)
                 {
-                    await webSocket.CloseAsync(
-                        WebSocketCloseStatus.NormalClosure,
-                        "Closing as requested by the client",
-                        CancellationToken.None);
+                    await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing as requested by the client", CancellationToken.None);
                     break;
                 }
 
                 // Accumulate received data
                 receiveBuffer.AddRange(new ArraySegment<byte>(buffer, 0, result.Count));
-                
+
                 // If we have a complete message
                 if (result.EndOfMessage)
                 {
@@ -74,7 +71,7 @@ public class DebugSocketHandler(ILogger<DebugSocketHandler> logger, DebugDataSer
             _debugDataService.UnregisterDebugSocket(webSocket);
         }
     }
-    
+
     private async Task HandleMessage(WebSocket webSocket, byte[] messageData)
     {
         try
@@ -91,7 +88,7 @@ public class DebugSocketHandler(ILogger<DebugSocketHandler> logger, DebugDataSer
                 case MessageType.DebugRequest:
                     await HandleDebugRequest(webSocket, payloadBytes);
                     break;
-                    
+
                 default:
                     await SendError(webSocket, $"Unknown message type: {type}");
                     break;
@@ -105,28 +102,44 @@ public class DebugSocketHandler(ILogger<DebugSocketHandler> logger, DebugDataSer
 
     }
 
-    private static async Task HandleDebugRequest(WebSocket webSocket, byte[] payload)
+    private async Task HandleDebugRequest(WebSocket webSocket, byte[] payload)
     {
-        if (!MessageProtocol.TryDecodeDebugRequest(payload.AsSpan(), out var debugRequest))
+        if (!MessageProtocol.TryDecodeDebugRequest(payload.AsSpan(), out var debugRequestType))
         {
             await SendError(webSocket, "Invalid debug request format");
             return;
         }
 
-        switch (debugRequest)
+        switch (debugRequestType)
         {
+            case DebugRequestType.RequestFullLog:
+                // Just get messages for the category - we can enhance filtering later
+                var messages = _debugDataService.GetMessagesForCategory("WebPeli");
+                var data = MessageProtocol.EncodeLogMessages(messages);
+                await webSocket.SendAsync(
+                    new ArraySegment<byte>(data),
+                    WebSocketMessageType.Binary,
+                    true,
+                    CancellationToken.None
+                );
+                break;
+
             case DebugRequestType.ToggleDebugMode:
                 Config.DebugMode = !Config.DebugMode;
                 await SendDebugResponse(webSocket, "Debug mode toggled");
                 break;
-                
+
             case DebugRequestType.TogglePathfinding:
                 Config.DebugPathfinding = !Config.DebugPathfinding;
                 await SendDebugResponse(webSocket, "Pathfinding debug toggled");
                 break;
-                
+
+            case DebugRequestType.RequestFullState:
+                await SendDebugResponse(webSocket, "Full state requested, Not implemented");
+                break;
+
             default:
-                await SendError(webSocket, $"Unknown debug request type: {debugRequest}");
+                await SendError(webSocket, $"Unknown debug request type: {debugRequestType}");
                 break;
         }
     }
@@ -134,20 +147,12 @@ public class DebugSocketHandler(ILogger<DebugSocketHandler> logger, DebugDataSer
     private static async Task SendDebugResponse(WebSocket webSocket, string message)
     {
         var response = MessageProtocol.EncodeDebugResponse(message);
-        await webSocket.SendAsync(
-            new ArraySegment<byte>(response),
-            WebSocketMessageType.Binary,
-            true,
-            CancellationToken.None);
+        await webSocket.SendAsync(new ArraySegment<byte>(response), WebSocketMessageType.Binary, true, CancellationToken.None);
     }
 
     private static async Task SendError(WebSocket webSocket, string message)
     {
         var errorMessage = MessageProtocol.EncodeError(message);
-        await webSocket.SendAsync(
-            new ArraySegment<byte>(errorMessage),
-            WebSocketMessageType.Binary,
-            true,
-            CancellationToken.None);
+        await webSocket.SendAsync(new ArraySegment<byte>(errorMessage), WebSocketMessageType.Binary, true, CancellationToken.None);
     }
 }

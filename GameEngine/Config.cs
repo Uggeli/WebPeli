@@ -4,6 +4,9 @@ namespace WebPeli.GameEngine;
 
 static class Config
 {
+    // Game configuration
+
+
     public const int SCREENWIDTH = 800;
     public const int SCREENHEIGHT = 600;
     public const int TILE_SIZE = 32; // pixels
@@ -48,6 +51,7 @@ static class Config
     public const int WinterLength = 5;
 
     // Debugging
+    public static int LOG_MAX_MESSAGES = 1000;
     public static bool DebugMode = false;
     public static bool DebugPathfinding = false;
 }

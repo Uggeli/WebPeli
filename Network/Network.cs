@@ -1,5 +1,8 @@
 using System.Buffers.Binary;
 using WebPeli.GameEngine.Systems;
+using WebPeli.Logging;
+using System.Text;
+using System.Text.Json;
 
 namespace WebPeli.Network;
 
@@ -20,13 +23,23 @@ public enum MessageType : byte
     DebugRequest = 0x40,
     DebugResponse = 0x41,
     DebugData = 0x42,
+    LogMessages = 0x43, // New type for log messages
 }
 
 public enum DebugRequestType : byte
 {
     ToggleDebugMode = 0,
     TogglePathfinding = 1,
-    RequestFullState = 2
+    RequestFullState = 2,
+    RequestFullLog = 3
+}
+
+public record DebugLogRequest
+{
+    public string? Category { get; init; }
+    public DateTime? Since { get; init; }
+    public LogLevel? MinLevel { get; init; }
+    public int? Limit { get; init; }
 }
 
 public record DebugState
@@ -72,9 +85,41 @@ public static class MessageProtocol
         return true;
     }
 
+    public static bool TryDecodeDebugLogRequest(ReadOnlySpan<byte> payload, out DebugLogRequest request)
+    {
+        try 
+        {
+            var json = Encoding.UTF8.GetString(payload);
+            request = JsonSerializer.Deserialize<DebugLogRequest>(json) ?? 
+                     new DebugLogRequest();
+            return true;
+        }
+        catch 
+        {
+            request = new DebugLogRequest();
+            return false;
+        }
+    }
+
+    public static byte[] EncodeLogMessages(IEnumerable<LogMessage> messages)
+    {
+        var logData = messages.Select(m => new
+        {
+            timestamp = m.Timestamp.ToString("O"),
+            level = m.Level.ToString(),
+            category = m.CategoryName,
+            message = m.Message,
+            exception = m.Exception?.Message
+        });
+
+        var json = JsonSerializer.Serialize(logData);
+        var jsonBytes = Encoding.UTF8.GetBytes(json);
+        return EncodeMessage(MessageType.LogMessages, jsonBytes);
+    }
+
     public static byte[] EncodeDebugResponse(string message)
     {
-        var payload = System.Text.Encoding.UTF8.GetBytes(message);
+        var payload = Encoding.UTF8.GetBytes(message);
         return EncodeMessage(MessageType.DebugResponse, payload);
     }
 
@@ -98,8 +143,8 @@ public static class MessageProtocol
             performanceData = state.SystemUpdateTimes
         };
 
-        var json = System.Text.Json.JsonSerializer.Serialize(debugData);
-        var jsonBytes = System.Text.Encoding.UTF8.GetBytes(json);
+        var json = JsonSerializer.Serialize(debugData);
+        var jsonBytes = Encoding.UTF8.GetBytes(json);
         return EncodeMessage(MessageType.DebugData, jsonBytes);
     }
 
@@ -160,7 +205,7 @@ public static class MessageProtocol
     // Helper for error messages
     public static byte[] EncodeError(string message)
     {
-        var payload = System.Text.Encoding.UTF8.GetBytes(message);
+        var payload = Encoding.UTF8.GetBytes(message);
         return EncodeMessage(MessageType.Error, payload);
     }
 }

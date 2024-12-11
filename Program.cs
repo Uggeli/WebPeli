@@ -2,9 +2,19 @@
 using WebPeli.GameEngine;
 using WebPeli.GameEngine.Managers;
 using WebPeli.GameEngine.Systems;
-
+using WebPeli.Logging;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddSingleton<MessageCapturingProvider>();
+builder.Services.AddLogging(builder =>
+{
+    builder.Services.AddSingleton<ILoggerProvider>(sp => sp.GetRequiredService<MessageCapturingProvider>());
+    
+    builder.AddConsole();
+});
+
+
 
 builder.Services.AddSingleton(sp => new Dictionary<Plant, PlantRequirements>
 {

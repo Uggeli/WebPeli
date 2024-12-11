@@ -61,18 +61,11 @@ namespace WebPeli.GameEngine.Systems;
 
 
 
-public class VegetationSystem : BaseManager
+public class VegetationSystem(ILogger<VegetationSystem> logger, PlantFSM plantFSM, Dictionary<Plant, PlantRequirements> plantTemplates) : BaseManager
 {
-    private readonly ILogger<VegetationSystem> _logger;
-    private readonly PlantFSM _plantFSM;
-    private readonly Dictionary<Plant, PlantRequirements> _plantTemplates;
-
-    public VegetationSystem(ILogger<VegetationSystem> logger, PlantFSM plantFSM, Dictionary<Plant, PlantRequirements> plantTemplates)
-    {
-        _logger = logger;
-        _plantTemplates = plantTemplates;
-        _plantFSM = plantFSM;
-    }
+    private readonly ILogger<VegetationSystem> _logger = logger;
+    private readonly PlantFSM _plantFSM = plantFSM;
+    private readonly Dictionary<Plant, PlantRequirements> _plantTemplates = plantTemplates;
 
     public override void Init()
     {
@@ -569,6 +562,7 @@ public class PlantFSM(Dictionary<Plant, PlantRequirements> templates, ILogger<Pl
     {
         // Only process at dawn to minimize updates
         if (timeOfDay != TimeOfDay.Dawn) return;
+        _logger.LogDebug("Updating plants");
 
         foreach (var entityId in _activePlants.Keys)
         {

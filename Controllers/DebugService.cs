@@ -1,6 +1,7 @@
 using System.Net.WebSockets;
 using WebPeli.GameEngine.Managers;
 using WebPeli.GameEngine.Systems;
+using WebPeli.Logging;
 using WebPeli.Network;
 
 namespace WebPeli.GameEngine;
@@ -15,9 +16,10 @@ public class DebugDataService(
     VegetationSystem vegetationSystem,
     AiManager aiManager,
     HarvestSystem harvestSystem,
-    HealthSystem healthSystem
-        )
+    HealthSystem healthSystem,
+    MessageCapturingProvider messageCapturingProvider)
 {
+    private readonly MessageCapturingProvider _messageCapturingProvider = messageCapturingProvider;
     private readonly Dictionary<string, int> _systemUpdateTimes = new();
     private readonly HashSet<WebSocket> _debugSockets = new();
     private readonly object _updateLock = new();
@@ -47,7 +49,21 @@ public class DebugDataService(
         _logger.LogInformation("Debug socket unregistered. Total sockets: {Count}", _debugSockets.Count);
     }
 
+    public void HandleLogMessageRequest(WebSocket socket, string category = "WebPeli")
+    {
+        var messages = _messageCapturingProvider.GetMessagesForCategory(category);
+        var data = MessageProtocol.EncodeLogMessages(messages);
+        socket.SendAsync(
+            new ArraySegment<byte>(data), 
+            WebSocketMessageType.Binary, 
+            true, 
+            CancellationToken.None);
+    }
 
+    public IEnumerable<LogMessage> GetMessagesForCategory(string category = "WebPeli")
+    {
+        return _messageCapturingProvider.GetMessagesForCategory(category);
+    }
 
     private DebugState CollectDebugState()
     {
@@ -123,11 +139,7 @@ public class DebugDataService(
                     {
                         if (socket.State == WebSocketState.Open)
                         {
-                            await socket.SendAsync(
-                                new ArraySegment<byte>(data),
-                                WebSocketMessageType.Binary,
-                                true,
-                                cancellationToken);
+                            await socket.SendAsync(new ArraySegment<byte>(data), WebSocketMessageType.Binary, true, cancellationToken);
                         }
                     }
                     catch (Exception ex)
