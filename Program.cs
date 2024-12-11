@@ -11,7 +11,7 @@ builder.Services.AddLogging(builder =>
 {
     builder.Services.AddSingleton<ILoggerProvider>(sp => sp.GetRequiredService<MessageCapturingProvider>());
     
-    builder.AddConsole();
+    // builder.AddConsole();
 });
 
 
@@ -65,7 +65,7 @@ Aurinport.MapGet("/", async context =>
 });
 Aurinport.MapGet("/debug", async context =>
 {
-    await context.Response.SendFileAsync(Path.Combine(builder.Environment.WebRootPath, "debug.html"));
+    await context.Response.SendFileAsync(Path.Combine(builder.Environment.WebRootPath, "debug/index.html"));
 });
 Aurinport.MapControllers();
 Aurinport.Run();

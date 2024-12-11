@@ -67,6 +67,8 @@ public class DebugDataService(
 
     private DebugState CollectDebugState()
     {
+        var newLogs = _messageCapturingProvider.GetNewMessages();
+
         Dictionary<string, int> times = new() {
             // Managers
             { "ViewportManager", _viewportManager.UpdateTime },
@@ -79,10 +81,8 @@ public class DebugDataService(
             { "VegetationSystem", _vegetationSystem.UpdateTime },
             { "HarvestSystem", _harvestSystem.UpdateTime },
             { "HealthSystem", _healthSystem.UpdateTime }
-            
         };
 
-        
 
         return new DebugState
         {
@@ -108,7 +108,8 @@ public class DebugDataService(
             // System-specific debug info
             MetabolismEntities = 0, // TODO: _metabolismSystem.EntityCount,
             AiEntities = 0, // TODO: _aiManager.EntityCount,
-            VegetationCount = 0 // TODO: _vegetationSystem.PlantCount
+            VegetationCount = 0, // TODO: _vegetationSystem.PlantCount
+            NewLogMessages = newLogs.ToArray()
         };
     }
 

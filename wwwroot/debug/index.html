@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>WebPeli Debug Interface</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="stylesheet" href="debug/styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+</head>
+<body>
+    <div id="errorBanner" class="error-banner"></div>
+
+    <div class="controls">
+        <div>
+            <span id="statusIndicator" class="status-indicator status-disconnected"></span>
+            <span id="statusText">Disconnected</span>
+        </div>
+        <button id="debugModeBtn">Toggle Debug Mode</button>
+        <button id="pathfindingBtn">Toggle Pathfinding Debug</button>
+        <button id="reconnectBtn" disabled>Reconnect</button>
+        <button id="exportBtn">Export Debug Data</button>
+        <button id="clearConsoleBtn">Clear Console</button>
+    </div>
+
+    <div class="debug-grid">
+        <div class="debug-card">
+            <div class="debug-title">Time System</div>
+            <div class="stat-grid">
+                <div class="stat-label">Season:</div>
+                <div class="stat-value" id="season">-</div>
+                <div class="stat-label">Time of Day:</div>
+                <div class="stat-value" id="timeOfDay">-</div>
+                <div class="stat-label">Day:</div>
+                <div class="stat-value" id="day">-</div>
+                <div class="stat-label">Year:</div>
+                <div class="stat-value" id="year">-</div>
+            </div>
+        </div>
+
+        <div class="debug-card">
+            <div class="debug-title">Entity Stats</div>
+            <div class="stat-grid">
+                <div class="stat-label">Total Entities:</div>
+                <div class="stat-value" id="entityTotal">-</div>
+                <div class="stat-label">Active Entities:</div>
+                <div class="stat-value" id="entityActive">-</div>
+                <div class="stat-label">Moving Entities:</div>
+                <div class="stat-value" id="entityMoving">-</div>
+            </div>
+        </div>
+
+        <div class="debug-card">
+            <div class="debug-title">System Status</div>
+            <div class="stat-grid">
+                <div class="stat-label">Debug Mode:</div>
+                <div class="stat-value" id="debugMode">-</div>
+                <div class="stat-label">Pathfinding Debug:</div>
+                <div class="stat-value" id="pathfindingDebug">-</div>
+                <div class="stat-label">Active Viewports:</div>
+                <div class="stat-value" id="activeViewports">-</div>
+            </div>
+        </div>
+
+        <div class="debug-card">
+            <div class="debug-title">
+                System Performance
+                <div class="filters">
+                    <label for="performanceFilter" class="visually-hidden">Performance Filter</label>
+                    <select id="performanceFilter">
+                        <option value="all">All Systems</option>
+                    </select>
+                </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="performance-chart"></canvas>
+            </div>
+        </div>
+
+        <div class="debug-card console-card">
+            <div class="debug-title">Debug Console</div>
+            <div id="console" class="console-output"></div>
+            <div class="console-input">
+                <input type="text" id="commandInput" placeholder="Enter command (type 'help' for available commands)">
+                <button id="runCommandBtn">Run</button>
+            </div>
+        </div>
+
+        <div class="debug-card console-card">
+            <div class="debug-title">
+                Log Console
+                <div class="filters">
+                    <label for="logCategory" class="visually-hidden">Log Category</label>
+                    <select id="logCategory">
+                        <option value="">All Categories</option>
+                    </select>
+                    <label for="logLevel" class="visually-hidden">Log Level</label>
+                    <select id="logLevel">
+                        <option value="">All Levels</option>
+                        <option value="Trace">Trace</option>
+                        <option value="Debug">Debug</option>
+                        <option value="Information">Info</option>
+                        <option value="Warning">Warning</option>
+                        <option value="Error">Error</option>
+                        <option value="Critical">Critical</option>
+                    </select>
+                    <button id="clearLogsBtn">Clear</button>
+                </div>
+            </div>
+            <div id="logConsole" class="console-output"></div>
+        </div>
+    </div>
+
+    <script type="module" src="debug/debugInterface.js"></script>
+</body>
+</html>

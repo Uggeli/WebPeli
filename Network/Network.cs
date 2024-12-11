@@ -44,27 +44,30 @@ public record DebugLogRequest
 
 public record DebugState
 {
+    // Log data
+    public required LogMessage[] NewLogMessages { get; init; }
+
     // Time data
     public required string Season { get; init; }
     public required string TimeOfDay { get; init; }
     public required int Day { get; init; }
     public required int Year { get; init; }
-    
+
     // Entity data
     public required int TotalEntities { get; init; }
     public required int ActiveEntities { get; init; }
     public required int MovingEntities { get; init; }
-    
+
     // System status
     public required bool DebugMode { get; init; }
     public required bool PathfindingDebug { get; init; }
     public required int ActiveViewports { get; init; }
-    
+
     // System-specific counters
     public required int MetabolismEntities { get; init; }
     public required int AiEntities { get; init; }
     public required int VegetationCount { get; init; }
-    
+
     // Performance data
     public required Dictionary<string, int> SystemUpdateTimes { get; init; }
 }
@@ -87,14 +90,14 @@ public static class MessageProtocol
 
     public static bool TryDecodeDebugLogRequest(ReadOnlySpan<byte> payload, out DebugLogRequest request)
     {
-        try 
+        try
         {
             var json = Encoding.UTF8.GetString(payload);
-            request = JsonSerializer.Deserialize<DebugLogRequest>(json) ?? 
+            request = JsonSerializer.Deserialize<DebugLogRequest>(json) ??
                      new DebugLogRequest();
             return true;
         }
-        catch 
+        catch
         {
             request = new DebugLogRequest();
             return false;
@@ -140,7 +143,16 @@ public static class MessageProtocol
             pathfindingDebug = state.PathfindingDebug,
             activeViewports = state.ActiveViewports,
 
-            performanceData = state.SystemUpdateTimes
+            performanceData = state.SystemUpdateTimes,
+
+            newLogMessages = state.NewLogMessages.Select(m => new
+            {
+                timestamp = m.Timestamp.ToString("O"),
+                level = m.Level.ToString(),
+                category = m.CategoryName,
+                message = m.Message,
+                exception = m.Exception?.Message
+            })
         };
 
         var json = JsonSerializer.Serialize(debugData);

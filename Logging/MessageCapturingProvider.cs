@@ -5,6 +5,7 @@ namespace WebPeli.Logging;
 public class MessageCapturingProvider : ILoggerProvider
 {
     private readonly ConcurrentDictionary<string, MessageCapturingLogger> _loggers = new();
+    private DateTime _lastFetchTime = DateTime.UtcNow;
     public IEnumerable<LogMessage> GetFilteredMessages(
         string? categoryName = null,
         DateTime? since = null,
@@ -27,6 +28,25 @@ public class MessageCapturingProvider : ILoggerProvider
             messages = messages.Take(limit.Value);
             
         return messages;
+    }
+    public IEnumerable<LogMessage> GetNewMessages(string? categoryName = null)
+    {
+        var lastFetch = _lastFetchTime;
+        _lastFetchTime = DateTime.UtcNow;
+
+        if (categoryName != null)
+        {
+            if (_loggers.TryGetValue(categoryName, out var logger))
+            {
+                return logger.Messages.Where(m => m.Timestamp > lastFetch);
+            }
+            return [];
+        }
+
+        return _loggers.Values
+            .SelectMany(logger => logger.Messages)
+            .Where(m => m.Timestamp > lastFetch)
+            .OrderBy(m => m.Timestamp);
     }
 
     public IEnumerable<string> GetCategories() => _loggers.Keys;
