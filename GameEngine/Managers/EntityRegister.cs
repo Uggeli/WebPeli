@@ -38,7 +38,7 @@ public class EntityRegister(ILogger<EntityRegister> logger) : BaseManager
     // Handles entity creation and deletion
     ILogger<EntityRegister> _logger = logger;
     private Dictionary<int, EntityRecord> _entities = [];
-
+    public int EntityCount => _entities.Count;
 
     public override void Destroy()
     {

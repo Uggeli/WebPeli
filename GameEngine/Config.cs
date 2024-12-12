@@ -5,10 +5,6 @@ namespace WebPeli.GameEngine;
 static class Config
 {
     // Game configuration
-
-
-    public const int SCREENWIDTH = 800;
-    public const int SCREENHEIGHT = 600;
     public const int TILE_SIZE = 32; // pixels
     public const byte MAX_TILE_VOLUME = 255;
     public const byte CHUNK_SIZE = 128;

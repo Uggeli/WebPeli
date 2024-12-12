@@ -93,7 +93,7 @@ public class DebugDataService(
             Year = TimeSystem.CurrentYear,
 
             // TODO: Add these to EntityRegister
-            TotalEntities = 0,
+            TotalEntities = _entityRegister.EntityCount,
             ActiveEntities = 0,
             MovingEntities = 0,
 
