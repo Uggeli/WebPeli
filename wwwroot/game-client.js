@@ -6,7 +6,9 @@ const MessageType = {
     
     // Server -> Client  
     ViewportData: 0x81,
-    CellData: 0x82,
+    TileData: 0x82,
+    EntityData: 0x83,
+    // CellData: 0x82,
     Error: 0xFF
 };
 
@@ -96,6 +98,14 @@ class GameClient {
         const payload = new Uint8Array(data, 3, length);
         
         switch (type) {
+            case MessageType.EntityData:
+                this.handleEntityData(payload);
+                break;
+
+            case MessageType.TileData:
+                this.handleTileData(payload);
+                break;
+
             case MessageType.ViewportData:
                 this.handleViewportData(payload);
                 break;
@@ -109,7 +119,44 @@ class GameClient {
                 console.error('Unknown message type:', type);
         }
     }
+
+    handleEntityData(payload) {
+        const entities = [];
+        let offset = 0;
+        const view = new DataView(payload.buffer, payload.byteOffset);
+        
+        while(offset < payload.length) {
+            entities.push({
+                x: payload[offset++],
+                y: payload[offset++],
+                id: view.getInt32(offset, true),  // Need DataView for 32-bit int
+                action: payload[offset + 4],
+                type: payload[offset + 5], 
+                direction: payload[offset + 6]
+            });
+            offset += 7;
+        }
+        this.renderer.updateEntities({ entities });
+    }
+
+    handleTileData(payload) {
+        const width = payload[0];
+        const height = payload[1];
+        let offset = 2;
     
+        // Parse tiles
+        const tiles = new Array(width * height);
+        for(let i = 0; i < width * height; i++) {
+            tiles[i] = {
+                material: payload[offset++],
+                surface: payload[offset++]
+                // No properties in tile data anymore
+            };
+        }
+        
+        this.renderer.updateTiles({ width, height, tiles });
+    }
+
     // Handle viewport data from server
     handleViewportData(payload) {
         const view = new DataView(payload.buffer, payload.byteOffset, payload.length);

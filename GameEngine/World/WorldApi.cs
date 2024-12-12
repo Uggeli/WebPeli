@@ -92,6 +92,20 @@ public static class WorldApi
     {
         return World.GetTilesInArea(topLeft, width, height);
     }
+    public static (TileMaterial material, TileSurface surface)[] GetTileRenderData(Position topLeft, int width, int height)
+    {
+        var renderData = new (TileMaterial, TileSurface)[width * height];
+        for (int x = 0; x < width; x++)
+        {
+            for (int y = 0; y < height; y++)
+            {
+                Position pos = topLeft + (x, y);
+                var (material, surface, _) = World.GetTileAt(pos); // We just ignore properties
+                renderData[y * width + x] = (material, surface);
+            }
+        }
+        return renderData;
+    }
 
     public static Dictionary<Position, (int entityId, EntityAction, EntityType, Direction)[]> GetEntitiesInArea(Position topLeft, int width, int height)
     {

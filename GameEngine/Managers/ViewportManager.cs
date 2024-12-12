@@ -20,6 +20,18 @@ public readonly record struct ViewportDataBinary
     }
 }
 
+public readonly record struct ViewportTileDataBinary
+{
+    public required Memory<byte> EncodedData { get; init; }
+    public (byte Width, byte Height) GetDimensions() =>
+        (EncodedData.Span[0], EncodedData.Span[1]);
+}
+
+public readonly record struct ViewportEntityDataBinary
+{
+    public required Memory<byte> EncodedData { get; init; }
+}
+
 // Specialized manager for handling viewport requests
 public class ViewportManager : BaseManager
 {
@@ -33,7 +45,9 @@ public class ViewportManager : BaseManager
         public Position TopLeft { get; set; }
         public int Width { get; set; }
         public int Height { get; set; }
-        public byte[]? LastUpdate { get; set; }  // Store last sent data for change detection
+        public byte[]? LastTileUpdate { get; set; }
+        public byte[]? LastEntityUpdate { get; set; }
+        public byte[]? LastUpdate { get; set; }
     }
 
     public ViewportManager(ILogger<ViewportManager> logger)
@@ -102,12 +116,9 @@ public class ViewportManager : BaseManager
         var tick = Environment.TickCount;
         base.Update(deltaTime);
 
-        // Process updates for all active viewports
         foreach (var kvp in _activeViewports)
         {
             var sub = kvp.Value;
-
-            // Skip if socket is closed
             if (sub.Socket.State != WebSocketState.Open)
             {
                 _activeViewports.TryRemove(kvp.Key, out _);
@@ -116,16 +127,26 @@ public class ViewportManager : BaseManager
 
             try
             {
-                var newData = GetViewportDataBinary(sub.TopLeft, sub.Width, sub.Height);
+                var newTileData = GetViewportTileDataBinary(sub.TopLeft, sub.Width, sub.Height);
+                var newEntityData = GetViewportEntityDataBinary(sub.TopLeft, sub.Width, sub.Height);
 
-                // Only send if data changed
-                if (HasChanged(sub.LastUpdate, newData.EncodedData.Span))
+                // Send tile updates if changed
+                if (HasChanged(sub.LastTileUpdate, newTileData.EncodedData.Span))
                 {
-                    sub.LastUpdate = newData.EncodedData.ToArray();
-
-                    // Send update
+                    sub.LastTileUpdate = newTileData.EncodedData.ToArray();
                     sub.Socket.SendAsync(
-                        new ArraySegment<byte>(sub.LastUpdate),
+                        new ArraySegment<byte>(sub.LastTileUpdate),
+                        WebSocketMessageType.Binary,
+                        true,
+                        CancellationToken.None);
+                }
+
+                // Send entity updates if changed
+                if (HasChanged(sub.LastEntityUpdate, newEntityData.EncodedData.Span))
+                {
+                    sub.LastEntityUpdate = newEntityData.EncodedData.ToArray();
+                    sub.Socket.SendAsync(
+                        new ArraySegment<byte>(sub.LastEntityUpdate),
                         WebSocketMessageType.Binary,
                         true,
                         CancellationToken.None);
@@ -198,6 +219,68 @@ public class ViewportManager : BaseManager
         };
     }
 
+    private ViewportTileDataBinary GetViewportTileDataBinary(Position topLeft, int width, int height)
+    {
+        var tileGrid = WorldApi.GetTileRenderData(topLeft, width, height);
+
+        const int PROTOCOL_HEADER_SIZE = 3;
+        const int PAYLOAD_HEADER_SIZE = 2; // width + height
+        int tileDataSize = width * height * 2; // 2 bytes per tile (material + surface)
+        int totalSize = PROTOCOL_HEADER_SIZE + PAYLOAD_HEADER_SIZE + tileDataSize;
+
+        var buffer = _arrayPool.Rent(totalSize);
+        var span = buffer.AsSpan(0, totalSize);
+
+        span[0] = (byte)MessageType.TileData;
+        BinaryPrimitives.WriteUInt16LittleEndian(span[1..], (ushort)(totalSize - PROTOCOL_HEADER_SIZE));
+
+        int offset = PROTOCOL_HEADER_SIZE;
+        span[offset++] = (byte)width;
+        span[offset++] = (byte)height;
+
+        foreach (var (material, surface) in tileGrid)
+        {
+            span[offset++] = (byte)material;
+            span[offset++] = (byte)surface;
+        }
+
+        return new ViewportTileDataBinary { EncodedData = new Memory<byte>(buffer, 0, totalSize) };
+    }
+
+    private ViewportEntityDataBinary GetViewportEntityDataBinary(Position topLeft, int width, int height)
+    {
+        var entities = WorldApi.GetEntitiesInArea(topLeft, width, height);
+
+        int totalEntities = entities.Sum(kvp => kvp.Value.Length);
+        const int PROTOCOL_HEADER_SIZE = 3;
+        int entityDataSize = totalEntities * 9; // 9 bytes per entity
+        int totalSize = PROTOCOL_HEADER_SIZE + entityDataSize;
+
+        var buffer = _arrayPool.Rent(totalSize);
+        var span = buffer.AsSpan(0, totalSize);
+
+        span[0] = (byte)MessageType.EntityData;
+        BinaryPrimitives.WriteUInt16LittleEndian(span[1..], (ushort)(totalSize - PROTOCOL_HEADER_SIZE));
+
+        int offset = PROTOCOL_HEADER_SIZE;
+        foreach (var (pos, entitiesAtPos) in entities)
+        {
+            foreach (var (entityId, action, type, direction) in entitiesAtPos)
+            {
+                byte relX = (byte)(pos.X - topLeft.X);
+                byte relY = (byte)(pos.Y - topLeft.Y);
+                span[offset++] = relX;
+                span[offset++] = relY;
+                BinaryPrimitives.WriteInt32LittleEndian(span[offset..], entityId);
+                offset += 4;
+                span[offset++] = (byte)action;
+                span[offset++] = (byte)type;
+                span[offset++] = (byte)direction;
+            }
+        }
+
+        return new ViewportEntityDataBinary { EncodedData = new Memory<byte>(buffer, 0, totalSize) };
+    }
     public override void Init()
     {
         // Nothing to initialize yet

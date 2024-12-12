@@ -255,6 +255,24 @@ class GameRenderer {
         window.addEventListener('keydown', (e) => this.handleKeyPress(e));
     }
 
+    updateTiles({ width, height, tiles }) {
+        // Render ground tiles
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const tile = tiles[y * width + x];
+                this.renderTile(x, y, tile.material);
+                this.renderTileSurface(x, y, tile.surface);
+            }
+        }
+    }
+
+    updateEntities({ entities }) {
+        // Render entities
+        entities.forEach(entity => {
+            this.renderEntity(entity.x, entity.y, entity.direction);
+        });
+    }
+
     render(viewportData) {
         const { width, height, tiles, entities } = viewportData;
 

@@ -3,6 +3,9 @@ using WebPeli.GameEngine.Systems;
 using WebPeli.Logging;
 using System.Text;
 using System.Text.Json;
+using WebPeli.GameEngine.World.WorldData;
+using WebPeli.GameEngine.Util;
+using WebPeli.GameEngine;
 
 namespace WebPeli.Network;
 
@@ -16,8 +19,10 @@ public enum MessageType : byte
     CellInfo = 0x02,        // Future use
 
     // Server -> Client messages (0x81-0xFE)
-    ViewportData = 0x81,
-    CellData = 0x82,        // Future use
+    ViewportData = 0x81,    
+    TileData = 0x82,    // Changed from ViewportData
+    EntityData = 0x83,  // New type for entity-only updates
+
     Error = 0xFF,
     // Debug messages (0x40-0x4F)
     DebugRequest = 0x40,
@@ -212,6 +217,54 @@ public static class MessageProtocol
         height = payload[9];
 
         return true;
+    }
+
+       public static byte[] EncodeTileData(byte width, byte height, (TileMaterial material, TileSurface surface)[] tiles)
+    {
+        // Header: type(1) + length(2) + width(1) + height(1)
+        var messageLength = 2 + tiles.Length * 2; // 2 bytes per tile (material + surface)
+        var message = new byte[HEADER_SIZE + messageLength];
+
+        message[0] = (byte)MessageType.TileData;
+        BinaryPrimitives.WriteUInt16LittleEndian(message.AsSpan(1), (ushort)messageLength);
+        message[3] = width;
+        message[4] = height;
+
+        var offset = 5;
+        foreach (var (material, surface) in tiles)
+        {
+            message[offset++] = (byte)material;
+            message[offset++] = (byte)surface;
+        }
+
+        return message;
+    }
+
+    // For entity data
+    public static byte[] EncodeEntityData(Dictionary<Position, (int entityId, EntityAction action, EntityType type, Direction direction)[]> entities)
+    {
+        var entitiesCount = entities.Sum(kvp => kvp.Value.Length);
+        var messageLength = entitiesCount * 9; // Each entity takes 9 bytes
+        var message = new byte[HEADER_SIZE + messageLength];
+
+        message[0] = (byte)MessageType.EntityData;
+        BinaryPrimitives.WriteUInt16LittleEndian(message.AsSpan(1), (ushort)messageLength);
+
+        var offset = HEADER_SIZE;
+        foreach (var (pos, entitiesAtPos) in entities)
+        {
+            foreach (var (entityId, action, type, direction) in entitiesAtPos)
+            {
+                message[offset++] = (byte)pos.X;
+                message[offset++] = (byte)pos.Y;
+                BinaryPrimitives.WriteInt32LittleEndian(message.AsSpan(offset), entityId);
+                offset += 4;
+                message[offset++] = (byte)action;
+                message[offset++] = (byte)type;
+                message[offset++] = (byte)direction;
+            }
+        }
+        return message;
     }
 
     // Helper for error messages
