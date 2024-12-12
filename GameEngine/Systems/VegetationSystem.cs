@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using WebPeli.GameEngine.Managers;
 using WebPeli.GameEngine.Util;
 using WebPeli.GameEngine.World;
@@ -157,7 +156,7 @@ public class VegetationSystem(ILogger<VegetationSystem> logger, PlantFSM plantFS
                 return;
             }
 
-            _plantFSM.AddPlant(entityId, evt.Plant, pos);
+            _plantFSM.AddPlant(entityId, evt.Plant);
             
             // Add health component
             var health = PlantTemplates.CreateHealthComponent(template, PlantMaturityStatus.Seed);
@@ -252,7 +251,8 @@ public enum Plant
     Bush,
     Flower,
     Grass,
-    Weed  // Long grass, nettles, etc
+    Weed,  // Long grass, nettles, etc
+    None,
 }
 
 public enum PlantMaturityStatus
@@ -262,6 +262,7 @@ public enum PlantMaturityStatus
     Sapling,
     Young,
     Mature,  // Reproducing
+    None,
 }
 
 public readonly record struct PlantRequirements
@@ -489,252 +490,5 @@ public static class PlantTemplates
             MaxHealth = (int)(baseHealth * healthMultiplier),
             RegenRate = template.MaxWidth // Bigger plants regenerate faster
         };
-    }
-}
-
-public class PlantFSM(Dictionary<Plant, PlantRequirements> templates, ILogger<PlantFSM> logger)
-{
-    private readonly ILogger<PlantFSM> _logger = logger;
-    // Only store minimal info for idle plants
-    private readonly ConcurrentDictionary<int, (Plant Type, Position Pos)> _idlePlants = new();
-    // Active plants need full state tracking
-    private readonly ConcurrentDictionary<int, PlantInstance> _activePlants = new();
-    
-    // Cache of templates to avoid lookups
-    private readonly Dictionary<Plant, PlantRequirements> _templates = templates;
-
-    public void OnSeasonChanged(Season newSeason)
-    {
-        var plantsToWake = new List<(int EntityId, Plant Type, Position Pos)>();
-        var plantsToSleep = new List<int>();
-        _logger.LogDebug("Season changed to {Season}", newSeason);
-
-        // Check idle plants that should wake up
-        foreach (var (entityId, (type, pos)) in _idlePlants)
-        {
-            if (_templates[type].GrowthStages[PlantMaturityStatus.Mature].ValidSeasons.Contains(newSeason))
-            {
-                plantsToWake.Add((entityId, type, pos));
-            }
-        }
-
-        // Check active plants that should go idle
-        foreach (var (entityId, instance) in _activePlants)
-        {
-            if (!_templates[instance.Type].GrowthStages[instance.Status].ValidSeasons.Contains(newSeason))
-            {
-                plantsToSleep.Add(entityId);
-            }
-        }
-
-        // Wake up plants
-        foreach (var (entityId, type, pos) in plantsToWake)
-        {
-            if (_idlePlants.TryRemove(entityId, out var _))
-            {
-                // When waking up a plant, need to get its last known state
-                // This could come from a persistence system or default to Mature
-                var instance = new PlantInstance
-                {
-                    EntityId = entityId,
-                    Type = type,
-                    Position = pos,
-                    Status = PlantMaturityStatus.Mature, // Default to mature for now
-                    Age = 0, // You might want to persist this
-                    DaysInCurrentStage = 0
-                };
-                _activePlants.TryAdd(entityId, instance);
-            }
-        }
-
-        // Put plants to sleep
-        foreach (var entityId in plantsToSleep)
-        {
-            if (_activePlants.TryRemove(entityId, out var instance))
-            {
-                // Store minimal info for idle plants
-                _idlePlants.TryAdd(entityId, (instance.Type, instance.Position));
-            }
-        }
-    }
-
-    public void Update(TimeOfDay timeOfDay)
-    {
-        // Only process at dawn to minimize updates
-        if (timeOfDay != TimeOfDay.Dawn) return;
-        _logger.LogDebug("Updating plants");
-
-        foreach (var entityId in _activePlants.Keys)
-        {
-            UpdatePlant(entityId);
-        }
-    }
-
-    private void UpdatePlant(int entityId)
-    {
-        if (!_activePlants.TryGetValue(entityId, out var instance)) return;
-        var template = _templates[instance.Type];
-
-        // Skip ground cover during normal updates
-        if (template.IsGroundCover) return;
-
-        var currentReqs = template.GrowthStages[instance.Status];
-        instance = instance with 
-        { 
-            Age = instance.Age + 1,
-            DaysInCurrentStage = instance.DaysInCurrentStage + 1
-        };
-
-        // Handle reproduction for mature plants
-        if (instance.Status == PlantMaturityStatus.Mature)
-        {
-            var currentSeason = TimeSystem.CurrentSeason;
-            if (ShouldSpreadSeeds(instance.Type, currentSeason))
-            {
-                SpreadSeeds(instance);
-            }
-        }
-        // Check if plant can advance to next stage
-        else if (CanAdvanceStage(instance, template))
-        {
-            var nextStatus = GetNextStatus(instance.Status);
-            if (nextStatus != instance.Status)
-            {
-                instance = instance with 
-                { 
-                    Status = nextStatus,
-                    DaysInCurrentStage = 0
-                };
-            }
-        }
-
-        _activePlants[entityId] = instance;
-    }
-
-    private bool ShouldSpreadSeeds(Plant type, Season season) =>
-        (type, season) switch
-        {
-            (Plant.Tree, Season.Autumn) => Tools.Random.Next(100) < 5,  // 5% chance per day in autumn
-            (Plant.Bush, Season.Autumn) => Tools.Random.Next(100) < 3,  // 3% chance per day in autumn
-            (Plant.Flower, Season.Summer) => Tools.Random.Next(100) < 10, // 10% chance per day in summer
-            (Plant.Grass, _) => Tools.Random.Next(100) < 15,  // 15% chance any day (grass spreads easily)
-            (Plant.Weed, _) => Tools.Random.Next(100) < 20,   // 20% chance any day (weeds spread aggressively)
-            _ => false
-        };
-
-    private void SpreadSeeds(PlantInstance parent)
-    {
-        // Get valid positions in a radius around parent
-        var radius = parent.Type switch
-        {
-            Plant.Tree => 3,    // Trees spread further
-            Plant.Bush => 2,    // Bushes spread less
-            _ => 1             // Others spread to adjacent tiles
-        };
-
-        // Try to spread in random direction
-        var angle = Tools.Random.NextDouble() * Math.PI * 2;
-        var distance = Tools.Random.Next(1, radius + 1);
-        var offsetX = (int)(Math.Cos(angle) * distance);
-        var offsetY = (int)(Math.Sin(angle) * distance);
-
-        var newPos = parent.Position + (offsetX, offsetY);
-
-        // Check if position is in world bounds
-        if (!WorldApi.IsInWorldBounds(newPos))
-            return;
-
-        // Emit seed planted event
-        EventManager.Emit(new SeedPlantedEvent
-        {
-            Position = newPos,
-            Plant = parent.Type
-        });
-    }
-
-    private bool CanAdvanceStage(PlantInstance instance, PlantRequirements template)
-    {
-        var currentReqs = template.GrowthStages[instance.Status];
-        
-        // Must be in stage for minimum time
-        if (instance.DaysInCurrentStage < currentReqs.MinDaysInStage)
-            return false;
-
-        // Check environment conditions (these could come from MapManager)
-        var pos = instance.Position;
-        var tile = WorldApi.GetTileInfo(pos);
-        
-        // Add environment checks here...
-
-        return true;
-    }
-
-    private PlantMaturityStatus GetNextStatus(PlantMaturityStatus current) => current switch
-    {
-        PlantMaturityStatus.Seed => PlantMaturityStatus.Seedling,
-        PlantMaturityStatus.Seedling => PlantMaturityStatus.Sapling,
-        PlantMaturityStatus.Sapling => PlantMaturityStatus.Young,
-        PlantMaturityStatus.Young => PlantMaturityStatus.Mature,
-        _ => current
-    };
-
-    public void AddPlant(int entityId, Plant type, Position pos)
-    {
-        var template = _templates[type];
-        var currentSeason = TimeSystem.CurrentSeason;
-
-        // Check if plant should start active
-        if (template.GrowthStages[PlantMaturityStatus.Seed].ValidSeasons.Contains(currentSeason))
-        {
-            var instance = new PlantInstance
-            {
-                EntityId = entityId,
-                Type = type,
-                Position = pos,
-                Status = PlantMaturityStatus.Seed,
-                Age = 0,
-                DaysInCurrentStage = 0
-            };
-            _activePlants.TryAdd(entityId, instance);
-        }
-        else
-        {
-            // Start idle
-            _idlePlants.TryAdd(entityId, (type, pos));
-        }
-    }
-
-    public void RemovePlant(int entityId)
-    {
-        _activePlants.TryRemove(entityId, out _);
-        _idlePlants.TryRemove(entityId, out _);
-    }
-
-    public void WakePlant(int entityId)
-    {
-        // Only wake if it's the right season
-        if (_idlePlants.TryGetValue(entityId, out var info))
-        {
-            var template = _templates[info.Type];
-            var currentSeason = TimeSystem.CurrentSeason;
-            
-            if (template.GrowthStages[PlantMaturityStatus.Mature].ValidSeasons.Contains(currentSeason))
-            {
-                // Worth waking up
-                if (_idlePlants.TryRemove(entityId, out _))
-                {
-                    var instance = new PlantInstance
-                    {
-                        EntityId = entityId,
-                        Type = info.Type,
-                        Position = info.Pos,
-                        Status = PlantMaturityStatus.Mature,
-                        Age = 0,
-                        DaysInCurrentStage = 0
-                    };
-                    _activePlants.TryAdd(entityId, instance);
-                }
-            }
-        }
     }
 }

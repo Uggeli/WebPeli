@@ -104,6 +104,7 @@ class DebugInterface {
                     break;
                 default:
                     this.logToConsole('info', `Unknown message type: ${messageType}`);
+                    this.logToConsole('info', messageData);
             }
         } catch (error) {
             this.showError('Error processing message');
@@ -136,7 +137,6 @@ class DebugInterface {
     }
 
     handleLogMessages(messages) {
-        console.log('Received log messages:', messages);
         const logConsole = document.getElementById('logConsole');
         if (!logConsole) return;
 
@@ -161,7 +161,7 @@ class DebugInterface {
                 <span class="category">[${this.escapeHtml(msg.category)}]</span>
                 <span class="level level-${level}">${msg.level}</span>
                 <span class="message">${this.escapeHtml(msg.message)}</span>
-                ${msg.exception ? `<div class="exception">${this.escapeHtml(msg.exception)}</div>` : ''}
+                ${msg.exception ? `<span class="exception">${this.escapeHtml(msg.exception)}</span>` : ''}
             `;
 
             logConsole.appendChild(entry);

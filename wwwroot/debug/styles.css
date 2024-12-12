@@ -2,7 +2,7 @@
     padding: 2px 4px;
     border-bottom: 1px solid #333;
     font-family: monospace;
-    white-space: pre-wrap;
+    white-space: nowrap;
 }
 
 .level {
@@ -200,7 +200,7 @@ button:disabled {
     margin-bottom: 10px;
     font-family: monospace;
     overflow-y: auto;
-    white-space: pre-wrap;
+    white-space: nowrap;
 }
 
 .console-input {

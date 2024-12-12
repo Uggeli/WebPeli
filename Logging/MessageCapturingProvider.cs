@@ -13,7 +13,7 @@ public class MessageCapturingProvider : ILoggerProvider
         int? limit = null)
     {
         var messages = categoryName != null 
-            ? _loggers.TryGetValue(categoryName, out var logger) ? logger.Messages : Enumerable.Empty<LogMessage>()
+            ? _loggers.TryGetValue(categoryName, out var logger) ? logger.Messages : []
             : _loggers.Values.SelectMany(logger => logger.Messages);
 
         if (since.HasValue)
