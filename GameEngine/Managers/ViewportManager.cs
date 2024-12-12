@@ -23,7 +23,7 @@ public readonly record struct ViewportDataBinary
 // Specialized manager for handling viewport requests
 public class ViewportManager : BaseManager
 {
-    private readonly ConcurrentDictionary<Guid, ViewportSubscription> _activeViewports = [];
+    public readonly ConcurrentDictionary<Guid, ViewportSubscription> _activeViewports = [];
     private readonly ArrayPool<byte> _arrayPool;
     private readonly ILogger<ViewportManager> _logger;
 
@@ -99,6 +99,7 @@ public class ViewportManager : BaseManager
 
     public override void Update(double deltaTime)
     {
+        var tick = Environment.TickCount;
         base.Update(deltaTime);
 
         // Process updates for all active viewports
@@ -136,6 +137,7 @@ public class ViewportManager : BaseManager
                 _activeViewports.TryRemove(kvp.Key, out _);
             }
         }
+        _lastUpdateTime = Environment.TickCount - tick;
     }
 
     private ViewportDataBinary GetViewportDataBinary(Position topLeft, int width, int height)

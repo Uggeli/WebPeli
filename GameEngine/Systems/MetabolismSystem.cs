@@ -128,6 +128,7 @@ public class MetabolismSystem : BaseManager
         // TODO: move update timer stuff to Config
         if (++_tickcounter >= 60)  // Update every 60 ticks
         {
+            var tick = Environment.TickCount;
             _tickcounter = 0;
             foreach ((var id, _) in _entities)
             {
@@ -148,6 +149,8 @@ public class MetabolismSystem : BaseManager
 
                 EvaluateState(id, State);
             }
+            _lastUpdateTime = Environment.TickCount - tick;
+
         }
     }
 

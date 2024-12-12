@@ -85,6 +85,7 @@ public class MovementSystem : BaseManager
     private int _tickCounter = 0;
     public override void Update(double deltaTime)
     {
+        var tick = Environment.TickCount;
         Parallel.ForEach(EventQueue, HandleMessage);
         EventQueue.Clear();
         // Later: add deltaTime to moving entities, now just use crude loop limiter
@@ -93,6 +94,7 @@ public class MovementSystem : BaseManager
             _tickCounter = 0;
             MoveEntities(deltaTime);
         }
+        _lastUpdateTime = Environment.TickCount - tick;
     }
 
     private void HandlePathAndMove(FindPathAndMoveEntity request)

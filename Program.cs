@@ -2,9 +2,29 @@
 using WebPeli.GameEngine;
 using WebPeli.GameEngine.Managers;
 using WebPeli.GameEngine.Systems;
-
+using WebPeli.Logging;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddSingleton<MessageCapturingProvider>();
+builder.Services.AddLogging(builder =>
+{
+    builder.Services.AddSingleton<ILoggerProvider>(sp => sp.GetRequiredService<MessageCapturingProvider>());
+    
+    // builder.AddConsole();
+});
+
+
+
+builder.Services.AddSingleton(sp => new Dictionary<Plant, PlantRequirements>
+{
+    { Plant.Tree, PlantTemplates.OakTree },  // For now just using oak as default tree
+    { Plant.Grass, PlantTemplates.Grass },   // Basic grass template
+    { Plant.Weed, PlantTemplates.Weed },     // Basic weed template
+    { Plant.Flower, PlantTemplates.Flower }  // Basic flower template
+});
+
+builder.Services.AddSingleton<PlantFSM>();
 
 // Init managers
 builder.Services.AddSingleton<ViewportManager>();
@@ -21,6 +41,9 @@ builder.Services.AddSingleton<HarvestSystem>();
 builder.Services.AddSingleton<HealthSystem>();
 
 
+// Debug service
+builder.Services.AddSingleton<DebugDataService>();
+
 // Start the engine
 builder.Services.AddHostedService<GameEngineService>();
 
@@ -28,6 +51,8 @@ builder.Services.AddHostedService<GameEngineService>();
 builder.Services.AddControllers();
 
 var Aurinport = builder.Build();
+var debugDataService = Aurinport.Services.GetRequiredService<DebugDataService>();
+_ = debugDataService.StartDebugLoop(Aurinport.Lifetime.ApplicationStopping);
 
 Aurinport.UseWebSockets(new WebSocketOptions
 {
@@ -37,6 +62,10 @@ Aurinport.UseStaticFiles();
 Aurinport.MapGet("/", async context =>
 {
     await context.Response.SendFileAsync(Path.Combine(builder.Environment.WebRootPath, "index.html"));
+});
+Aurinport.MapGet("/debug", async context =>
+{
+    await context.Response.SendFileAsync(Path.Combine(builder.Environment.WebRootPath, "debug/index.html"));
 });
 Aurinport.MapControllers();
 Aurinport.Run();
