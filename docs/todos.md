@@ -13,6 +13,10 @@
 # Roadmap:
 # Milestone: rendering update
   Goal: WebGl/WebGPU based rendering in 3dspace + texture fetching and stuff
+  - Add webgl rendering
+  - Add billboard trees
+
+
 
 # Milestone: Entities starve and find food, the great famine milestone
   Goal: Entities starve and find food, impliment basic maslow's hierarchy of needs limitied to food and hunger for now
