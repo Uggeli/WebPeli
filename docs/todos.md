@@ -27,6 +27,8 @@
   Goal: Create weather system
 
 ## Done milestones:
+# Milestone: Debugging
+  Goal: Add debugging tools
 # Milestone: Flora and Vegetation
   Goal: Add flora and vegetation to the game world
 # Milestone: World.API

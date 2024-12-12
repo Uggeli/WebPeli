@@ -239,7 +239,6 @@ public class PlantFSM(Dictionary<Plant, PlantRequirements> templates, ILogger<Pl
 
     public void WakePlant(int entityId)
     {
-        _logger.LogInformation("Waking plant with entity ID {EntityId}", entityId);
         if (!_indexMap.TryGetValue(entityId, out int index))
         {
             return;
@@ -250,7 +249,6 @@ public class PlantFSM(Dictionary<Plant, PlantRequirements> templates, ILogger<Pl
             
         if (_templates[plant].GrowthStages[PlantMaturityStatus.Mature].ValidSeasons.Contains(currentSeason))
         {
-            _logger.LogInformation("Activating plant at index {Index}", index);
             _active[index] = true;
             _activeIndices.Add(index);
             _status[index] = PlantMaturityStatus.Mature;
