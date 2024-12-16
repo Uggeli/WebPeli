@@ -67,5 +67,9 @@ Aurinport.MapGet("/debug", async context =>
 {
     await context.Response.SendFileAsync(Path.Combine(builder.Environment.WebRootPath, "debug/index.html"));
 });
+Aurinport.MapGet("/webgl", async context =>
+{
+    await context.Response.SendFileAsync(Path.Combine(builder.Environment.WebRootPath, "webgl/index.html"));
+});
 Aurinport.MapControllers();
 Aurinport.Run();
