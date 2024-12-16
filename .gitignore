@@ -3,3 +3,4 @@ obj
 Properties
 *.sln
 mapdata.txt
+node_modules

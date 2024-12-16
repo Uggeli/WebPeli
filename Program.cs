@@ -1,4 +1,5 @@
 
+using Microsoft.Extensions.FileProviders;
 using WebPeli.GameEngine;
 using WebPeli.GameEngine.Managers;
 using WebPeli.GameEngine.Systems;
@@ -59,6 +60,16 @@ Aurinport.UseWebSockets(new WebSocketOptions
     KeepAliveInterval = TimeSpan.FromSeconds(30)
 });
 Aurinport.UseStaticFiles();
+
+Aurinport.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(
+        Path.Combine(builder.Environment.ContentRootPath, "node_modules")),
+    RequestPath = "/node_modules"
+});
+
+
+
 Aurinport.MapGet("/", async context =>
 {
     await context.Response.SendFileAsync(Path.Combine(builder.Environment.WebRootPath, "index.html"));
@@ -66,10 +77,6 @@ Aurinport.MapGet("/", async context =>
 Aurinport.MapGet("/debug", async context =>
 {
     await context.Response.SendFileAsync(Path.Combine(builder.Environment.WebRootPath, "debug/index.html"));
-});
-Aurinport.MapGet("/webgl", async context =>
-{
-    await context.Response.SendFileAsync(Path.Combine(builder.Environment.WebRootPath, "webgl/index.html"));
 });
 Aurinport.MapControllers();
 Aurinport.Run();

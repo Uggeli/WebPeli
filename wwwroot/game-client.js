@@ -153,6 +153,9 @@ class GameClient {
                 // No properties in tile data anymore
             };
         }
+
+        console.log('Tiledata from handle tile')
+        console.log(tiles)
         
         this.renderer.updateTiles({ width, height, tiles });
     }
@@ -173,6 +176,9 @@ class GameClient {
                 properties: payload[offset++]
             };
         }
+
+        console.log('Tiles:')
+        console.log(tiles)
         
         // Parse entities
         const entities = [];

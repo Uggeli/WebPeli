@@ -1,0 +1,318 @@
+<!doctype html>
+
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>WebGPU ripuli</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+        }
+
+        #gameCanvas {
+            position: absolute;
+            width: 100vw;
+            height: 100vh;
+            display: block;
+            top: 0;
+            left: 0;
+        }
+
+        #debugInfo {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-family: monospace;
+            pointer-events: none;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="gameCanvas" width="1024" height="1024"></canvas>
+    <script type="module">
+        import { vec3, mat4 } from 'https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/esm/index.js';
+        const GRID_SIZE = 32;
+
+        const canvas = document.getElementById('gameCanvas')
+
+        // WebGPU device initialization
+        if (!navigator.gpu) {
+            throw new Error("WebGPU not supported on this browser.");
+        }
+
+        const adapter = await navigator.gpu.requestAdapter();
+        if (!adapter) {
+            throw new Error("No appropriate GPUAdapter found.");
+        }
+
+        const device = await adapter.requestDevice();
+
+        const camera = {
+            // Move camera to view from a different quadrant
+            position: vec3.fromValues(GRID_SIZE / 2, GRID_SIZE / 2 - (GRID_SIZE * 0.866), GRID_SIZE / 2), // Negative Y now
+            target: vec3.fromValues(GRID_SIZE / 2, GRID_SIZE / 2, 0),  // Still looking at center
+            up: vec3.fromValues(0, 0, 1),  // Changed up vector to point along Z
+            viewMatrix: mat4.create(),
+            projMatrix: mat4.create(),
+            fovy: 60 * Math.PI / 180,
+            aspect: canvas.width / canvas.height,
+            near: 0.1,
+            far: 100.0
+        };
+
+        mat4.perspective(camera.projMatrix, camera.fovy, camera.aspect, camera.near, camera.far);
+        mat4.lookAt(camera.viewMatrix, camera.position, camera.target, camera.up);
+
+        const cameraUniformBuffer = device.createBuffer({
+            size: 2 * 4 * 16, // Space for view and projection matrices
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        });
+
+        // Canvas configuration
+        const context = canvas.getContext("webgpu");
+        const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
+        context.configure({
+            device: device,
+            format: canvasFormat,
+        });
+
+        // Update camera uniforms
+        function updateCameraBuffer() {
+            device.queue.writeBuffer(
+                cameraUniformBuffer,
+                0,
+                camera.viewMatrix,
+            );
+            device.queue.writeBuffer(
+                cameraUniformBuffer,
+                64, // Offset for projection matrix
+                camera.projMatrix,
+            );
+        }
+
+        // Create a buffer with the vertices for a single cell.
+        const vertices = new Float32Array([
+            0.0, 0.0, 0.0,  // Bottom left
+            1.0, 0.0, 0.0,  // Bottom right
+            1.0, 1.0, 0.0,  // Top right
+
+            0.0, 0.0, 0.0,  // Bottom left
+            1.0, 1.0, 0.0,  // Top right
+            0.0, 1.0, 0.0   // Top left
+        ]);
+        const vertexBuffer = device.createBuffer({
+            label: "Cell vertices",
+            size: vertices.byteLength,
+            usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+        });
+        device.queue.writeBuffer(vertexBuffer, 0, vertices);
+
+        const vertexBufferLayout = {
+            arrayStride: 12,
+            attributes: [{
+                format: "float32x3",
+                offset: 0,
+                shaderLocation: 0, // Position. Matches @location(0) in the @vertex shader.
+            }],
+        };
+
+        // Add mouse wheel listener for zoom
+        window.addEventListener('wheel', (e) => {
+            const zoomSpeed = 0.1;
+            const direction = vec3.create();
+            vec3.sub(direction, camera.position, camera.target);
+            vec3.normalize(direction, direction);
+
+            // Zoom in or out based on wheel direction
+            if (e.deltaY > 0) {
+                // Zoom out
+                vec3.scaleAndAdd(camera.position, camera.position, direction, zoomSpeed * 10);
+            } else {
+                // Zoom in
+                vec3.scaleAndAdd(camera.position, camera.position, direction, -zoomSpeed * 10);
+            }
+
+            mat4.lookAt(camera.viewMatrix, camera.position, camera.target, camera.up);
+            updateCameraBuffer();
+        });
+
+        // Modify keyboard controls for proper isometric panning
+        window.addEventListener('keydown', (e) => {
+            const moveSpeed = 1.0;
+            const direction = vec3.create();
+            const right = vec3.create();
+
+            // Calculate forward and right vectors for isometric movement
+            vec3.sub(direction, camera.target, camera.position);
+            direction[2] = 0; // Zero out Z component to keep movement on XY plane
+            vec3.normalize(direction, direction);
+            vec3.cross(right, direction, camera.up);
+            vec3.normalize(right, right);
+
+            switch (e.key) {
+                case 'w': // Forward
+                    vec3.scaleAndAdd(camera.position, camera.position, direction, moveSpeed);
+                    vec3.scaleAndAdd(camera.target, camera.target, direction, moveSpeed);
+                    break;
+                case 's': // Backward
+                    vec3.scaleAndAdd(camera.position, camera.position, direction, -moveSpeed);
+                    vec3.scaleAndAdd(camera.target, camera.target, direction, -moveSpeed);
+                    break;
+                case 'a': // Left
+                    vec3.scaleAndAdd(camera.position, camera.position, right, -moveSpeed);
+                    vec3.scaleAndAdd(camera.target, camera.target, right, -moveSpeed);
+                    break;
+                case 'd': // Right
+                    vec3.scaleAndAdd(camera.position, camera.position, right, moveSpeed);
+                    vec3.scaleAndAdd(camera.target, camera.target, right, moveSpeed);
+                    break;
+            }
+
+            mat4.lookAt(camera.viewMatrix, camera.position, camera.target, camera.up);
+            updateCameraBuffer();
+        });
+
+        const uniformArray = new Float32Array([GRID_SIZE, GRID_SIZE]);
+        const uniformBuffer = device.createBuffer({
+            label: "Grid Uniforms",
+            size: uniformArray.byteLength,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+        });
+        device.queue.writeBuffer(uniformBuffer, 0, uniformArray);
+
+        // First create the bind group layout
+        const bindGroupLayout = device.createBindGroupLayout({
+            entries: [
+                {
+                    binding: 0,
+                    visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, // Allow both stages
+                    buffer: { type: "uniform" }
+                },
+                {
+                    binding: 1,
+                    visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, // Allow both stages
+                    buffer: { type: "uniform" }
+                }
+            ]
+        });
+
+        // Create pipeline layout using our bind group layout
+        const pipelineLayout = device.createPipelineLayout({
+            bindGroupLayouts: [bindGroupLayout]
+        });
+
+        // Create the shader
+        const cellShaderModule = device.createShaderModule({
+            label: "Cell shader",
+            code: `
+        struct VertexOutput {
+            @builtin(position) position: vec4f,
+            @location(0) cell: vec2f,
+        };
+
+        struct CameraUniform {
+            view: mat4x4<f32>,
+            proj: mat4x4<f32>
+        };
+
+        @group(0) @binding(0) var<uniform> grid: vec2f;
+        @group(0) @binding(1) var<uniform> camera: CameraUniform;
+
+        @vertex
+        fn vertexMain(@location(0) position: vec3f,
+                    @builtin(instance_index) instance: u32) -> VertexOutput {
+            let i = f32(instance);
+            let x = i % grid.x;
+            let y = floor(i / grid.x);
+            
+            let worldPos = vec3f(
+                position.x + x,
+                position.y + y,
+                0.0
+            );
+            
+            var output: VertexOutput;
+            output.position = camera.proj * camera.view * vec4f(worldPos, 1.0);
+            output.cell = vec2f(x, y);
+            return output;
+        }
+
+        @fragment
+        fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
+            // Checkerboard pattern for clear grid visualization
+            let checkered = (floor(input.cell.x) + floor(input.cell.y)) % 2.0;
+            return vec4f(1.0, checkered, 0.0, 1.0); // Yellow and red checkerboard
+        }`
+        });
+
+        // Create the pipeline using our layout
+        const cellPipeline = device.createRenderPipeline({
+            label: "Cell pipeline",
+            layout: pipelineLayout,  // Use our custom layout
+            vertex: {
+                module: cellShaderModule,
+                entryPoint: "vertexMain",
+                buffers: [vertexBufferLayout]
+            },
+            fragment: {
+                module: cellShaderModule,
+                entryPoint: "fragmentMain",
+                targets: [{
+                    format: canvasFormat
+                }]
+            }
+        });
+
+        // Create bind group with our uniforms
+        const bindGroup = device.createBindGroup({
+            layout: bindGroupLayout,
+            entries: [
+                {
+                    binding: 0,
+                    resource: { buffer: uniformBuffer }
+                },
+                {
+                    binding: 1,
+                    resource: { buffer: cameraUniformBuffer }
+                }
+            ]
+        });
+
+        function render() {
+            console.log("Rendering frame...");
+            console.log("Camera position:", camera.position);
+
+            // Create a new command encoder for each frame
+            const encoder = device.createCommandEncoder();
+            const pass = encoder.beginRenderPass({
+                colorAttachments: [{
+                    view: context.getCurrentTexture().createView(),
+                    loadOp: "clear",
+                    clearValue: { r: 0, g: 0, b: 0, a: 1.0 },
+                    storeOp: "store",
+                }]
+            });
+
+            pass.setPipeline(cellPipeline);
+            pass.setBindGroup(0, bindGroup);
+            pass.setVertexBuffer(0, vertexBuffer);
+            console.log("Drawing instances:", GRID_SIZE * GRID_SIZE);
+            pass.draw(6, GRID_SIZE * GRID_SIZE);
+            pass.end();
+
+            device.queue.submit([encoder.finish()]);
+            requestAnimationFrame(render);
+        }
+
+        // Make sure we have updated camera uniforms
+        updateCameraBuffer();
+        requestAnimationFrame(render);
+    </script>
+</body>
+
+</html>
