@@ -1,6 +1,7 @@
 import { AssetManager } from './asset-manager.js';
 import { WebGPURenderer } from './renderer/WebGPU-renderer.js';
 import { WebGL2Renderer } from './renderer/WebGL2-renderer.js';
+import { Canvas2DRenderer } from './renderer/Canvas2D-renderer.js';
 
 
 export class Game {
@@ -15,6 +16,7 @@ export class Game {
         }
         this.renderer.setup(this.assetManager.createTextureAtlas());
     }
+
     selectRenderer() {
         if (WebGPURenderer.isSupported()) {
             return new WebGPURenderer(this.canvas, this.tileSize);
@@ -22,9 +24,11 @@ export class Game {
         if (WebGL2Renderer.isSupported()) {
             return new WebGL2Renderer(this.canvas, this.tileSize);
         }
+        if (Canvas2DRenderer.isSupported()) {
+            return new Canvas2DRenderer(this.canvas, this.tileSize);
+        }
         return null;
     }
-
     start() {
         console.log('Game started');
         const tileData = this.createDummyTileData();

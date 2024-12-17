@@ -34,9 +34,11 @@ export class WebGL2Renderer {
     isSupported() {
         const dummyCanvas = document.createElement('canvas');
         if (!dummyCanvas.getContext('webgl2')) {
+            document.body.removeChild(dummyCanvas);
             return false;
         }
-        document.removeChild(dummyCanvas);
+        document.body.removeChild(dummyCanvas);
+        return true;
     }
 
     setup(tileAtlasTexture) {
