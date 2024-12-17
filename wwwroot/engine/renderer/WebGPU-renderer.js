@@ -1,4 +1,6 @@
-class WebGPURenderer {
+import { mat4 } from "../lib/gl-matrix.js";
+
+export class WebGPURenderer {
     constructor(canvas, grid_size) {
         this.canvas = canvas;
         this.grid_size = grid_size;
@@ -25,6 +27,17 @@ class WebGPURenderer {
             [0, 0, 1]                                    // Up vector along Z axis
         );
     }
+    
+    isSupported() {
+        if (!navigator.gpu) {
+            return false;
+        }
+        if (!navigator.gpu.requestAdapter) {
+            return false;
+        }
+        return true;
+    }
+
 
     async init() {
         if (!navigator.gpu) {
