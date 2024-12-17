@@ -1,5 +1,6 @@
 import { AssetManager } from './asset-manager.js';
-import { WebGPURenderer } from './renderer/webgl2-renderer.js';
+import { WebGPURenderer } from './renderer/WebGPU-renderer.js';
+import { WebGL2Renderer } from './renderer/WebGL2-renderer.js';
 
 
 export class Game {
@@ -16,12 +17,13 @@ export class Game {
     }
     selectRenderer() {
         if (WebGPURenderer.isSupported()) {
-            return new WebGPURenderer(this.canvas);
+            return new WebGPURenderer(this.canvas, this.tileSize);
+        }
+        if (WebGL2Renderer.isSupported()) {
+            return new WebGL2Renderer(this.canvas, this.tileSize);
         }
         return null;
-
     }
-
 
     start() {
         console.log('Game started');

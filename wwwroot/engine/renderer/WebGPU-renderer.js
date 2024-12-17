@@ -1,4 +1,4 @@
-import { mat4 } from "../lib/gl-matrix.js";
+import { mat4 } from 'gl-matrix';
 
 export class WebGPURenderer {
     constructor(canvas, grid_size) {
@@ -27,7 +27,7 @@ export class WebGPURenderer {
             [0, 0, 1]                                    // Up vector along Z axis
         );
     }
-    
+
     isSupported() {
         if (!navigator.gpu) {
             return false;
@@ -60,6 +60,7 @@ export class WebGPURenderer {
     }
 
     async setup(atlasTexture) {
+        await this.init();
         await this.createBuffers();
         await this.createTextureAtlas(atlasTexture);
         await this.createPipeline();
