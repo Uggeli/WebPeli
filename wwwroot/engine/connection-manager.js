@@ -14,7 +14,7 @@ const MessageType = {
 
 
 
-class GameClient {
+export class ConnectionManager {
     constructor(url) {
         this.url = url;
         this.ws = null;
@@ -23,7 +23,6 @@ class GameClient {
         this.maxReconnectAttempts = 5;
         this.viewportCallback = null;
         this.errorCallback = null;
-        this.renderer = new GameRenderer(document.getElementById('gameCanvas'));
     }
 
     // Connect to server
@@ -193,8 +192,6 @@ class GameClient {
             });
             offset += 7;
         }
-
-        this.renderer.render({ width, height, tiles, entities });
     }
     
     // Handle error messages
