@@ -31,8 +31,9 @@ export class WebGL2Renderer {
         this.handleResize();
     }
 
-    isSupported() {
+    static isSupported() {
         const dummyCanvas = document.createElement('canvas');
+        document.body.appendChild(dummyCanvas);
         if (!dummyCanvas.getContext('webgl2')) {
             document.body.removeChild(dummyCanvas);
             return false;
@@ -41,7 +42,7 @@ export class WebGL2Renderer {
         return true;
     }
 
-    setup(tileAtlasTexture) {
+    async setup(tileAtlasTexture) {
         this.createBuffers();
         this.setupTexture(tileAtlasTexture);
         this.createShaders();

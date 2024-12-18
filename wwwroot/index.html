@@ -1,36 +1,25 @@
-<!DOCTYPE html>
 <html>
-<head>
-    <meta charset="utf-8">
-    <title>WebPeli Client</title>
-    <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            background: #000;
-        }
-        #gameCanvas {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-        }
-        #debugInfo {
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            color: white;
-            font-family: monospace;
-            pointer-events: none;
-        }
-    </style>
-</head>
-<body>
-    <canvas id="gameCanvas"></canvas>
-    <div id="debugInfo"></div>
-
-    <script src="/game-client.js"></script>
-    <script src="/renderer.js"></script>
-    <script src="/main.js"></script>
-</body>
+    <head>
+        <title>Aurinport</title>
+        <link rel="stylesheet" type="text/css" href="styles.css">
+    </head>
+    <body>
+        <canvas class="gameCanvas" id="gameCanvas"></canvas>
+        <div id="debugInfo"></div>
+    
+        <script type="importmap">
+            {
+              "imports": {
+                "gl-matrix": "/node_modules/gl-matrix/esm/index.js"
+              }
+            }
+        </script>
+        <script type="module" src="./engine/game.js"></script>
+        <script type="module">
+            import { Game } from './engine/game.js';
+            const game = new Game();
+            await game.init();
+            game.start();
+        </script>
+    </body>
 </html>

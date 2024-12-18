@@ -15,7 +15,13 @@ export class Game {
         }
         this.assetManager = new AssetManager(this.tileSize);
         this.ConnectionManager = new ConnectionManager('ws://' + window.location.host + '/ws');
-        this.renderer.setup(this.assetManager.createTextureAtlas());
+    }
+
+    async init() {
+        await this.renderer.setup(this.assetManager.createTextureAtlas());
+        // this.bindConnectionManager();
+        // await this.ConnectionManager.connect();
+        // this.start();
     }
 
     bindConnectionManager() {
@@ -40,12 +46,15 @@ export class Game {
 
     selectRenderer() {
         if (WebGPURenderer.isSupported()) {
+            console.log('WebGPU is supported');
             return new WebGPURenderer(this.canvas, this.tileSize);
         }
         if (WebGL2Renderer.isSupported()) {
+            console.log('WebGL2 is supported');
             return new WebGL2Renderer(this.canvas, this.tileSize);
         }
         if (Canvas2DRenderer.isSupported()) {
+            console.log('Canvas2D is supported');
             return new Canvas2DRenderer(this.canvas, this.tileSize);
         }
         return null;

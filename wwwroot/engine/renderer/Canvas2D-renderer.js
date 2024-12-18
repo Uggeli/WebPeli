@@ -28,7 +28,7 @@ export class Canvas2DRenderer {
         return supported;
     }
 
-    setup(tileAtlasTexture) {
+    async setup(tileAtlasTexture) {
         // Store the atlas texture for rendering
         this.atlasTexture = tileAtlasTexture;
         
