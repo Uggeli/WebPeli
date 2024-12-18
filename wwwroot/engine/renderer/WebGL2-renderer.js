@@ -227,9 +227,45 @@ export class WebGL2Renderer {
     }
 
     dispose() {
-        this.gl.deleteBuffer(this.vertexBuffer);
-        this.gl.deleteBuffer(this.tiledataBuffer);
-        this.gl.deleteTexture(this.atlasTexture);
-        this.gl.deleteProgram(this.program);
+        if (!this.gl) return;
+        
+        // Delete buffers
+        if (this.vertexBuffer) this.gl.deleteBuffer(this.vertexBuffer);
+        if (this.tiledataBuffer) this.gl.deleteBuffer(this.tiledataBuffer);
+        
+        // Delete textures
+        if (this.atlasTexture) this.gl.deleteTexture(this.atlasTexture);
+        
+        // Delete shaders and program
+        if (this.program) {
+            // Get attached shaders
+            const shaders = this.gl.getAttachedShaders(this.program);
+            if (shaders) {
+                shaders.forEach(shader => {
+                    this.gl.deleteShader(shader);
+                });
+            }
+            this.gl.deleteProgram(this.program);
+        }
+        
+        // Clear references
+        this.vertexBuffer = null;
+        this.tiledataBuffer = null;
+        this.atlasTexture = null;
+        this.program = null;
+        this.locations = null;
+        this.tileGrid = null;
+        
+        // Clear and lose WebGL context
+        if (this.gl) {
+            this.gl.clearColor(0, 0, 0, 1);
+            this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+            
+            // Lose context
+            if (this.gl.getExtension('WEBGL_lose_context')) {
+                this.gl.getExtension('WEBGL_lose_context').loseContext();
+            }
+        }
+        this.gl = null;
     }
 }

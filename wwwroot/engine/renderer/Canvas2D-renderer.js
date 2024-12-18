@@ -43,59 +43,67 @@ export class Canvas2DRenderer {
         let isDragging = false;
         let lastX = 0;
         let lastY = 0;
-
-        // Mouse drag for panning
-        this.canvas.addEventListener('mousedown', (e) => {
-            isDragging = true;
-            lastX = e.clientX;
-            lastY = e.clientY;
-        });
-
-        this.canvas.addEventListener('mousemove', (e) => {
-            if (!isDragging) return;
+    
+        // Create bound handlers and store them for cleanup
+        this.boundHandlers = {
+            handleMouseDown: (e) => {
+                isDragging = true;
+                lastX = e.clientX;
+                lastY = e.clientY;
+            },
             
-            const deltaX = e.clientX - lastX;
-            const deltaY = e.clientY - lastY;
-            
-            this.panOffset.x += deltaX;
-            this.panOffset.y += deltaY;
-            
-            lastX = e.clientX;
-            lastY = e.clientY;
-            
-            this.draw();
-        });
-
-        this.canvas.addEventListener('mouseup', () => {
-            isDragging = false;
-        });
-
-        this.canvas.addEventListener('mouseleave', () => {
-            isDragging = false;
-        });
-
-        // Wheel for zooming
-        this.canvas.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            
-            // Calculate zoom center
-            const rect = this.canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            
-            // Adjust scale
-            const delta = e.deltaY > 0 ? 0.9 : 1.1;
-            const newScale = Math.max(0.1, Math.min(5.0, this.scale * delta));
-            
-            // Adjust pan offset to zoom toward mouse position
-            if (this.scale !== newScale) {
-                const scaleRatio = newScale / this.scale;
-                this.panOffset.x = x - (x - this.panOffset.x) * scaleRatio;
-                this.panOffset.y = y - (y - this.panOffset.y) * scaleRatio;
-                this.scale = newScale;
+            handleMouseMove: (e) => {
+                if (!isDragging) return;
+                
+                const deltaX = e.clientX - lastX;
+                const deltaY = e.clientY - lastY;
+                
+                this.panOffset.x += deltaX;
+                this.panOffset.y += deltaY;
+                
+                lastX = e.clientX;
+                lastY = e.clientY;
+                
                 this.draw();
+            },
+            
+            handleMouseUp: () => {
+                isDragging = false;
+            },
+            
+            handleMouseLeave: () => {
+                isDragging = false;
+            },
+            
+            handleWheel: (e) => {
+                e.preventDefault();
+                
+                // Calculate zoom center
+                const rect = this.canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                // Adjust scale
+                const delta = e.deltaY > 0 ? 0.9 : 1.1;
+                const newScale = Math.max(0.1, Math.min(5.0, this.scale * delta));
+                
+                // Adjust pan offset to zoom toward mouse position
+                if (this.scale !== newScale) {
+                    const scaleRatio = newScale / this.scale;
+                    this.panOffset.x = x - (x - this.panOffset.x) * scaleRatio;
+                    this.panOffset.y = y - (y - this.panOffset.y) * scaleRatio;
+                    this.scale = newScale;
+                    this.draw();
+                }
             }
-        });
+        };
+    
+        // Add event listeners using the bound handlers
+        this.canvas.addEventListener('mousedown', this.boundHandlers.handleMouseDown);
+        this.canvas.addEventListener('mousemove', this.boundHandlers.handleMouseMove);
+        this.canvas.addEventListener('mouseup', this.boundHandlers.handleMouseUp);
+        this.canvas.addEventListener('mouseleave', this.boundHandlers.handleMouseLeave);
+        this.canvas.addEventListener('wheel', this.boundHandlers.handleWheel);
     }
 
     updateGridData(data) {
@@ -200,20 +208,32 @@ export class Canvas2DRenderer {
     }
 
     dispose() {
-        // Remove event listeners
-        this.canvas.removeEventListener('mousedown', this.handleMouseDown);
-        this.canvas.removeEventListener('mousemove', this.handleMouseMove);
-        this.canvas.removeEventListener('mouseup', this.handleMouseUp);
-        this.canvas.removeEventListener('mouseleave', this.handleMouseLeave);
-        this.canvas.removeEventListener('wheel', this.handleWheel);
+        // Store bound event handlers during setupInteraction
+        if (this.boundHandlers) {
+            const { handleMouseDown, handleMouseMove, handleMouseUp, 
+                    handleMouseLeave, handleWheel } = this.boundHandlers;
+                    
+            this.canvas.removeEventListener('mousedown', handleMouseDown);
+            this.canvas.removeEventListener('mousemove', handleMouseMove);
+            this.canvas.removeEventListener('mouseup', handleMouseUp);
+            this.canvas.removeEventListener('mouseleave', handleMouseLeave);
+            this.canvas.removeEventListener('wheel', handleWheel);
+        }
         
         // Clear the canvas
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        if (this.ctx && this.canvas) {
+            // Clear with black background
+            this.ctx.fillStyle = '#000000';
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        }
         
         // Remove references
+        this.boundHandlers = null;
         this.canvas = null;
         this.ctx = null;
         this.atlasTexture = null;
         this.tileData = null;
+        this.panOffset = null;
     }
 }

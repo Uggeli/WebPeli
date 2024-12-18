@@ -23,7 +23,28 @@ export class ConnectionManager {
         this.maxReconnectAttempts = 5;
         this.viewportCallback = null;
         this.errorCallback = null;
+        this.callbacks = {
+            'viewport': [],
+            'tileData': [],
+            'entityData': [],
+            'error': [],
+        };
     }
+
+    on(event, callback) {
+        console.log('on', event, callback);
+        if (this.callbacks[event]) {
+            this.callbacks[event].push(callback);
+        }
+    }
+
+    emit(event, data) {
+        console.log('emit', event, data);
+        if (this.callbacks[event]) {
+            this.callbacks[event].forEach(callback => callback(data));
+        }
+    }
+
 
     // Connect to server
     async connect() {
@@ -135,7 +156,7 @@ export class ConnectionManager {
             });
             offset += 7;
         }
-        this.renderer.updateEntities({ entities });
+        this.emit('entityData', entities);
     }
 
     handleTileData(payload) {
@@ -144,19 +165,13 @@ export class ConnectionManager {
         let offset = 2;
     
         // Parse tiles
-        const tiles = new Array(width * height);
+        const tileMaterial = new Array(width * height);
+        const tileSurface = new Array(width * height);
         for(let i = 0; i < width * height; i++) {
-            tiles[i] = {
-                material: payload[offset++],
-                surface: payload[offset++]
-                // No properties in tile data anymore
-            };
+            tileMaterial[i] = payload[offset++];
+            tileSurface[i] = payload[offset++];
         }
-
-        console.log('Tiledata from handle tile')
-        console.log(tiles)
-        
-        this.renderer.updateTiles({ width, height, tiles });
+        this.emit('tileData', { tileMaterial, tileSurface });
     }
 
     // Handle viewport data from server
@@ -167,17 +182,16 @@ export class ConnectionManager {
         let offset = 2;
 
         // Parse tiles
-        const tiles = new Array(width * height);
+        const tileMaterial = new Array(width * height);
+        const tileSurface = new Array(width * height);
+        const tileProperties = new Array(width * height);
         for(let i = 0; i < width * height; i++) {
-            tiles[i] = {
-                material: payload[offset++],
-                surface: payload[offset++],
-                properties: payload[offset++]
-            };
+            tileMaterial[i] = payload[offset++];
+            tileSurface[i] = payload[offset++];
+            tileProperties[i] = payload[offset++];
         }
 
-        console.log('Tiles:')
-        console.log(tiles)
+        this.emit('tileData', { tileMaterial, tileSurface, tileProperties });
         
         // Parse entities
         const entities = [];
@@ -192,6 +206,8 @@ export class ConnectionManager {
             });
             offset += 7;
         }
+
+        this.emit('entityData', entities);
     }
     
     // Handle error messages

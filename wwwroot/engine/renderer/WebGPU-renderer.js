@@ -10,15 +10,32 @@ export class WebGPURenderer {
         this.viewMatrix = mat4.create();
         this.projMatrix = mat4.create();
         
-        // Initialize canvas size properly
+        // Initialize canvas size
         this.handleResize();
         
-        // Set up static view matrix for isometric view
+        // Adjust these values to move camera closer/further:
+        const cameraDistance = grid_size * 0.1;  // Reduced from 1.5 to 0.8 to move closer
+        const cameraHeight = grid_size * 0.2;    // Adjusted height for better viewing angle
+        
+        // Position camera for isometric view
         mat4.lookAt(
             this.viewMatrix,
-            [grid_size / 2, -grid_size, grid_size / 2],  // Camera position
-            [grid_size / 2, grid_size / 2, 0],           // Look at center
-            [0, 0, 1]                                    // Up vector
+            [
+                grid_size / 2,      // Center X
+                -cameraDistance,    // Distance back (smaller value = closer)
+                cameraHeight        // Height above grid
+            ],
+            [grid_size / 2, grid_size / 2, 0],  // Look at center of grid
+            [0, 0, 1]                           // Up vector
+        );
+        
+        // Adjust field of view for perspective
+        mat4.perspective(
+            this.projMatrix,
+            45 * Math.PI / 180,     // Field of view (smaller = more zoomed in)
+            canvas.width / canvas.height,
+            0.1,
+            cameraDistance * 3
         );
     }
 
@@ -163,7 +180,7 @@ export class WebGPURenderer {
         this.device.queue.writeBuffer(this.uniformBuffer, 0, uniformArray);
 
         // Initialize tile data buffer
-        this.tileGrid = new Uint32Array(this.total_tiles); // Changed to Uint32Array to match shader
+        this.tileGrid = new Uint32Array(this.total_tiles);
         this.tileDataBuffer = this.device.createBuffer({
             label: "Tile Data",
             size: this.tileGrid.byteLength,
@@ -190,7 +207,7 @@ export class WebGPURenderer {
                     visibility: GPUShaderStage.VERTEX,
                     buffer: { 
                         type: "read-only-storage",
-                        minBindingSize: this.total_tiles * 4
+                        minBindingSize: this.total_tiles
                     }
                 },
                 {
@@ -381,7 +398,7 @@ export class WebGPURenderer {
 
     updateGridData(data) {
         if (!this.device || !this.tileDataBuffer) return;
-        
+        console.log('Updating grid data:', data);
         // Ensure data is Uint32Array
         const uint32Data = data instanceof Uint32Array ? data : new Uint32Array(data);
         if (uint32Data.length !== this.total_tiles) {
@@ -393,84 +410,99 @@ export class WebGPURenderer {
     }
 
     draw() {
-    if (!this.device || !this.context || !this.cellPipeline || !this.bindGroup) {
-        console.warn('Missing required resources for draw');
-        return;
+        if (!this.device || !this.context || !this.cellPipeline || !this.bindGroup) return;
+
+        // Handle canvas resize before drawing
+        this.handleResize();
+
+        // Create command encoder
+        const encoder = this.device.createCommandEncoder({
+            label: "Cell renderer"
+        });
+
+        const pass = encoder.beginRenderPass({
+            label: "Cell render pass",
+            colorAttachments: [{
+                view: this.context.getCurrentTexture().createView(),
+                loadOp: "clear",
+                clearValue: { r: 0, g: 0, b: 0, a: 1.0 },
+                storeOp: "store",
+            }]
+        });
+
+        pass.setPipeline(this.cellPipeline);
+        pass.setBindGroup(0, this.bindGroup);
+        pass.setVertexBuffer(0, this.vertexBuffer);
+        pass.draw(6, this.total_tiles, 0, 0);
+        pass.end();
+
+        this.device.queue.submit([encoder.finish()]);
     }
 
-    // Log view matrix and position for debugging
-    console.log('View Matrix:', Array.from(this.viewMatrix));
-    console.log('Camera Position:', [
-        this.grid_size / 2, 
-        -this.grid_size, 
-        this.grid_size / 2
-    ]);
-
-    // Log canvas dimensions
-    console.log('Canvas dimensions:', {
-        width: this.canvas.width,
-        height: this.canvas.height,
-        clientWidth: this.canvas.clientWidth,
-        clientHeight: this.canvas.clientHeight
-    });
-
-    const encoder = this.device.createCommandEncoder({
-        label: "Cell renderer"
-    });
-
-    const pass = encoder.beginRenderPass({
-        label: "Cell render pass",
-        colorAttachments: [{
-            view: this.context.getCurrentTexture().createView(),
-            loadOp: "clear",
-            clearValue: { r: 0.1, g: 0.1, b: 0.1, a: 1.0 }, // Changed to grey for visibility
-            storeOp: "store",
-        }]
-    });
-
-    pass.setPipeline(this.cellPipeline);
-    pass.setBindGroup(0, this.bindGroup);
-    pass.setVertexBuffer(0, this.vertexBuffer);
-    
-    // Log draw call parameters
-    console.log('Drawing with:', {
-        verticesPerInstance: 6,
-        instanceCount: this.total_tiles,
-        firstVertex: 0,
-        firstInstance: 0
-    });
-    
-    pass.draw(6, this.total_tiles, 0, 0);
-    pass.end();
-
-    this.device.queue.submit([encoder.finish()]);
-}
-
     dispose() {
-        // Remove resize observer
-        this.resizeObserver?.disconnect();
-        
-        // Clean up WebGPU resources
         try {
-            this.vertexBuffer?.destroy();
-            this.uniformBuffer?.destroy();
-            this.cameraUniformBuffer?.destroy();
-            this.tileDataBuffer?.destroy();
-            this.texture?.destroy();
+            // Remove resize observer
+            if (this.resizeObserver) {
+                this.resizeObserver.disconnect();
+                this.resizeObserver = null;
+            }
             
-            // Clear references
-            this.vertexBuffer = null;
-            this.uniformBuffer = null;
-            this.cameraUniformBuffer = null;
-            this.tileDataBuffer = null;
-            this.texture = null;
-            this.sampler = null;
+            // Destroy buffers
+            const buffers = [
+                'vertexBuffer',
+                'uniformBuffer',
+                'cameraUniformBuffer',
+                'tileDataBuffer'
+            ];
+            
+            buffers.forEach(buffer => {
+                if (this[buffer]) {
+                    this[buffer].destroy();
+                    this[buffer] = null;
+                }
+            });
+            
+            // Destroy texture resources
+            if (this.texture) {
+                this.texture.destroy();
+                this.texture = null;
+            }
+            
+            // Clear pipeline and bind group
+            // Note: These don't need explicit destruction in WebGPU
             this.bindGroup = null;
+            this.bindGroupLayout = null;
             this.cellPipeline = null;
+            
+            // Clear the GPUCanvas context if it exists
+            if (this.context && this.device) {
+                const commandEncoder = this.device.createCommandEncoder();
+                const textureView = this.context.getCurrentTexture().createView();
+                
+                const renderPass = commandEncoder.beginRenderPass({
+                    colorAttachments: [{
+                        view: textureView,
+                        clearValue: { r: 0, g: 0, b: 0, a: 1 },
+                        loadOp: 'clear',
+                        storeOp: 'store',
+                    }]
+                });
+                renderPass.end();
+                this.device.queue.submit([commandEncoder.finish()]);
+            }
+            
+            // Clear other references
+            this.sampler = null;
             this.context = null;
             this.device = null;
+            this.tileGrid = null;
+            
+            // Clear matrix references
+            this.viewMatrix = null;
+            this.projMatrix = null;
+            
         } catch (e) {
-            console.error('Error during cleanup:', e);
+            console.error('Error during WebGPU cleanup:', e);
         }
     }
 }

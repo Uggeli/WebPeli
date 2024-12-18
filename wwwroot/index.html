@@ -4,8 +4,13 @@
         <link rel="stylesheet" type="text/css" href="styles.css">
     </head>
     <body>
+        <div class="renderer-controls">
+            <button id="webgpu-btn" class="renderer-btn">WebGPU</button>
+            <button id="webgl2-btn" class="renderer-btn">WebGL2</button>
+            <button id="canvas2d-btn" class="renderer-btn">Canvas2D</button>
+        </div>
         <canvas class="gameCanvas" id="gameCanvas"></canvas>
-        <div id="debugInfo"></div>
+        <div class="debugInfo" id="debugInfo"></div>
     
         <script type="importmap">
             {
@@ -17,9 +22,9 @@
         <script type="module" src="./engine/game.js"></script>
         <script type="module">
             import { Game } from './engine/game.js';
-            const game = new Game();
-            await game.init();
-            game.start();
+            window.game = new Game();
+            await window.game.init();
+            window.game.start();
         </script>
     </body>
 </html>
