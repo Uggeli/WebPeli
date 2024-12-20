@@ -22,6 +22,9 @@ public enum MessageType : byte
     ViewportData = 0x81,    
     TileData = 0x82,    // Changed from ViewportData
     EntityData = 0x83,  // New type for entity-only updates
+    TimeOfDay = 0x84,   // New type for time updates
+    HeightmapData = 0x85, // New type for heightmap data
+    EntityDetails = 0x86, // New type for entity details
 
     Error = 0xFF,
     // Debug messages (0x40-0x4F)
@@ -29,6 +32,7 @@ public enum MessageType : byte
     DebugResponse = 0x41,
     DebugData = 0x42,
     LogMessages = 0x43, // New type for log messages
+
 }
 
 public enum DebugRequestType : byte

@@ -5,6 +5,7 @@ export class WebGPURenderer {
         this.canvas = canvas;
         this.grid_size = grid_size;
         this.total_tiles = grid_size * grid_size;
+        // this.grid_size = grid_size;
         
         // Static camera setup for isometric view
         this.viewMatrix = mat4.create();
@@ -14,8 +15,8 @@ export class WebGPURenderer {
         this.handleResize();
         
         // Adjust these values to move camera closer/further:
-        const cameraDistance = grid_size * 0.1;  // Reduced from 1.5 to 0.8 to move closer
-        const cameraHeight = grid_size * 0.2;    // Adjusted height for better viewing angle
+        const cameraDistance = 1;  // Reduced from 1.5 to 0.8 to move closer
+        const cameraHeight = 5;    // Adjusted height for better viewing angle
         
         // Position camera for isometric view
         mat4.lookAt(
@@ -35,7 +36,7 @@ export class WebGPURenderer {
             45 * Math.PI / 180,     // Field of view (smaller = more zoomed in)
             canvas.width / canvas.height,
             0.1,
-            cameraDistance * 3
+            cameraDistance
         );
     }
 
