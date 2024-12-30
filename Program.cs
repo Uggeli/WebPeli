@@ -51,6 +51,8 @@ builder.Services.AddHostedService<GameEngineService>();
 // Transport services
 builder.Services.AddControllers();
 
+builder.WebHost.UseUrls("http://localhost:5000");
+
 var Aurinport = builder.Build();
 var debugDataService = Aurinport.Services.GetRequiredService<DebugDataService>();
 _ = debugDataService.StartDebugLoop(Aurinport.Lifetime.ApplicationStopping);
@@ -67,8 +69,6 @@ Aurinport.UseStaticFiles(new StaticFileOptions
         Path.Combine(builder.Environment.ContentRootPath, "node_modules")),
     RequestPath = "/node_modules"
 });
-
-
 
 Aurinport.MapGet("/", async context =>
 {
