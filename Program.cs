@@ -78,5 +78,13 @@ Aurinport.MapGet("/debug", async context =>
 {
     await context.Response.SendFileAsync(Path.Combine(builder.Environment.WebRootPath, "debug/debug_index.html"));
 });
+Aurinport.MapGet("/tileEditor", async context =>
+{
+    await context.Response.SendFileAsync(Path.Combine(builder.Environment.WebRootPath, "tileEditor/tileEditor.html"));
+});
+
+
+
+
 Aurinport.MapControllers();
 Aurinport.Run();

@@ -41,7 +41,8 @@ class DebugInterface {
             'exportBtn': () => this.exportData(),
             'clearConsoleBtn': () => this.clearConsole(),
             'runCommandBtn': () => this.executeCommand(),
-            'clearLogsBtn': () => this.clearLogs()
+            'clearLogsBtn': () => this.clearLogs(),
+            'openTileEditorBtn': () => this.openTileEditor(),
         };
 
         Object.entries(buttons).forEach(([id, handler]) => {
@@ -59,6 +60,10 @@ class DebugInterface {
         ['logCategory', 'logLevel'].forEach(id => {
             document.getElementById(id)?.addEventListener('change', () => this.updateLogFilter());
         });
+    }
+
+    openTileEditor() {
+        window.open('/tileeditor', '_blank');
     }
 
     connect() {
