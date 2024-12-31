@@ -1,7 +1,6 @@
 export class Sheet {
     constructor(options = {}) {
         this._initProperties(options);
-        this.createFromSelection = options.createFromSelection;
         this.setup(options);
     }
 
@@ -13,6 +12,10 @@ export class Sheet {
         this.isDragging = false;
         this.dragStart = null;
         this.dragEnd = null;
+
+        // Callbacks
+        this.createFromSelection = options.createFromSelection;
+        this.saveSheet = options.saveSheet;
 
         // Configuration
         this.debug = options.debug || false;
@@ -165,6 +168,23 @@ export class Sheet {
             }},
             { text: 'Add Area', onClick: () => {
                 this._addArea();
+            }},
+            { text: 'Remove Area', onClick: () => {
+                const areaId = this._removeArea();
+                if (areaId) {
+                    this._removeMetaDataArea(areaId);
+                }
+            }},
+            { text: 'Clear Selection', onClick: () => {
+                this.selectedTiles.clear();
+                this._updateSheetCanvas();
+            }},
+            {text: 'Save', onClick: () => {
+                if (!this.saveSheet) {
+                    console.error('No saveSheet callback provided');
+                    return;
+                }
+                this.saveSheet();
             }},
             { text: 'Create From Selection', onClick: async () => {
                 if (!this.createFromSelection) {
@@ -754,6 +774,13 @@ export class Sheet {
                 return false;
             }
         }
+    }
+
+    getSheetData() {
+        return {
+            textureAtlas: this.textureAtlas,
+            metadata: this.metadata
+        };
     }
 
     _1DTo2D(index) {

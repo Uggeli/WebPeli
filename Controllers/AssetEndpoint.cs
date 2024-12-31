@@ -91,10 +91,13 @@ public class AssetEndpoint(AssetManager assetManager, ILogger<AssetEndpoint> log
         return Ok();
     }
 
+    // Save routes
     [HttpPost("api/asset/{type}/{name}")]
-    public async Task<IActionResult> SaveAsset(AssetType type, string name, [FromBody] byte[] data, [FromBody] string? metadata)
+    public async Task<IActionResult> SaveAsset(AssetType type, string name, [FromBody] SaveAssetRequest request)
     {
-        if (data.Length > MAX_ASSET_SIZE)
+        byte[] dataBytes = Convert.FromBase64String(request.Data);
+
+        if (dataBytes.Length > MAX_ASSET_SIZE)
             return BadRequest($"Asset size exceeds maximum of {MAX_ASSET_SIZE / 1024 / 1024}MB");
             
         if (!StringValidator.Validate().IsMatch(name))
@@ -102,7 +105,7 @@ public class AssetEndpoint(AssetManager assetManager, ILogger<AssetEndpoint> log
 
         try 
         {
-            if (await _assetManager.SaveAssetAsync(type, name, metadata, data))
+            if (await _assetManager.SaveAssetAsync(type, name, request.Metadata, dataBytes))
                 return Ok();
             return Conflict("Asset already exists");
         }
@@ -138,6 +141,13 @@ public class AssetEndpoint(AssetManager assetManager, ILogger<AssetEndpoint> log
         return Ok(results);
     }
 }
+
+public class SaveAssetRequest
+{
+    public required string Data { get; set; }
+    public string? Metadata { get; set; }
+}
+
 
 public record AssetUploadDto(AssetType Type, string Name, string? Metadata, byte[] Data);
 public record AssetUploadResult(string Name, bool Success);

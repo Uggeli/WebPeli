@@ -4,6 +4,7 @@ export class Editor {
     constructor(options = {}) {
         this.container = null;
         this.sheets = new Map();
+        this.sheetNames = {}; // sheetId -> name
         this.activeSheetId = null;
         this.tabContainer = null;
         this.workspaceContainer = null;
@@ -61,11 +62,13 @@ export class Editor {
             const sheetId = `sheet_${name}`;
             const sheet = new Sheet({
                 createFromSelection: this._createNewSheetFromSelection,
+                saveSheet: this.saveSheet,
                 debug: this.debug,
                 textureAtlas: img,
                 width: img.width,
                 height: img.height,
-                gridSize: metadata.gridSize
+                gridSize: metadata.gridSize,
+                metadata: metadata
             });
 
             this.sheets.set(sheetId, sheet);
@@ -95,8 +98,8 @@ export class Editor {
     }
 
     async _saveTileSetToServer(name, img, metadata) {
-        const dataUrl = img.toDataURL('image/png');
-        const base64 = dataUrl.split(',')[1];
+        // const dataUrl = img.src.split(',')[1];
+        const base64 = img.src.split(',')[1];
         const metadataStr = JSON.stringify(metadata);
 
         const response = await fetch(`/api/asset/Image/${name}`, {
@@ -163,6 +166,7 @@ export class Editor {
         const sheet = new Sheet({
             debug: this.debug,
             createFromSelection: this._createNewSheetFromSelection,
+            saveSheet: this.saveSheet,
             textureAtlas: img,
             width: textureAtlas.width,
             height: textureAtlas.height,
@@ -174,12 +178,14 @@ export class Editor {
         this.setActiveSheet(sheetId);
     }
 
-    _saveSheet(sheetId) {
-        const sheet = this.sheets.get(sheetId);
+    saveSheet = () => {
+        console.log(this.sheets);
+        const sheet = this.sheets.get(this.activeSheetId);
         if (!sheet) return;
-
-        const { name, img, metadata } = sheet.getSheetData();
-        this._saveTileSetToServer(name, img, metadata);
+        
+        const name = this.sheetNames[this.activeSheetId];
+        const { textureAtlas, metadata } = sheet.getSheetData();
+        this._saveTileSetToServer(name, textureAtlas, metadata);
     }
 
     async _handleNewSheet() {
@@ -187,6 +193,7 @@ export class Editor {
         const sheet = new Sheet({
             debug: this.debug,
             createFromSelection: this._createNewSheetFromSelection,
+            saveSheet: this.saveSheet,
             width: 800,
             height: 600,
             gridSize: { width: 32, height: 32 }
@@ -212,6 +219,7 @@ export class Editor {
             const sheet = new Sheet({
                 debug: this.debug,
                 createFromSelection: this._createNewSheetFromSelection,
+                saveSheet: this.saveSheet,
                 textureAtlas: img,
                 width: img.width, 
                 height: img.height, 
@@ -226,6 +234,7 @@ export class Editor {
     }
 
     _addTab(sheetId, label) {
+        this.sheetNames[sheetId] = label;
         const tab = document.createElement('div');
         tab.id = `tab_${sheetId}`;
         tab.classList.add('sprite-editor-tab');
@@ -236,6 +245,7 @@ export class Editor {
             input.value = tabLabel.textContent;
             input.onblur = () => {
                 tabLabel.textContent = input.value;
+                this.sheetNames[sheetId] = input.value;
                 input.remove();
             };
             tabLabel.textContent = '';
@@ -250,7 +260,6 @@ export class Editor {
             }
             );
         });
-
 
         tabLabel.textContent = label;
         tab.appendChild(tabLabel);
