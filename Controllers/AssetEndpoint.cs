@@ -295,7 +295,7 @@ public class AssetManager
         {
             return [];
         }
-        return Directory.GetFiles(path).Select(f => Path.GetFileName(f));
+        return Directory.GetFiles(path).Select(f => Path.GetFileName(f)).Where(f => !f.EndsWith(".meta"));
     }
 
     public IEnumerable<string> ListAssets()

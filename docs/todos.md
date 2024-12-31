@@ -2,6 +2,7 @@
 
 # General TODOs
 ## High priority
+- Fix tileeditor metadata loading
 
 ## Low priority
 - add shutdown thingies for server that terminates all websocket connections and shutdowns all systems and managers in orderly manner

@@ -1,16 +1,11 @@
 using System.Collections.Concurrent;
 using WebPeli.GameEngine;
 
-public class MessageCapturingLogger : ILogger
+public class MessageCapturingLogger(string categoryName) : ILogger
 {
     private readonly int MAX_MESSAGES = Config.LOG_MAX_MESSAGES; // Configurable max size
-    private readonly string _categoryName;
+    private readonly string _categoryName = categoryName;
     private readonly ConcurrentQueue<LogMessage> _messages = new();
-    
-    public MessageCapturingLogger(string categoryName)
-    {
-        _categoryName = categoryName;
-    }
 
     public IEnumerable<LogMessage> Messages => _messages;
 
