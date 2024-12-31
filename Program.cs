@@ -1,5 +1,6 @@
 
 using Microsoft.Extensions.FileProviders;
+using WebPeli.Controllers;
 using WebPeli.GameEngine;
 using WebPeli.GameEngine.Managers;
 using WebPeli.GameEngine.Systems;
@@ -11,11 +12,7 @@ builder.Services.AddSingleton<MessageCapturingProvider>();
 builder.Services.AddLogging(builder =>
 {
     builder.Services.AddSingleton<ILoggerProvider>(sp => sp.GetRequiredService<MessageCapturingProvider>());
-    
-    // builder.AddConsole();
 });
-
-
 
 builder.Services.AddSingleton(sp => new Dictionary<Plant, PlantRequirements>
 {
@@ -32,6 +29,7 @@ builder.Services.AddSingleton<ViewportManager>();
 builder.Services.AddSingleton<EntityRegister>();
 builder.Services.AddSingleton<MapManager>();
 builder.Services.AddSingleton<AiManager>();
+builder.Services.AddSingleton<AssetManager>();
 
 // Init systems
 builder.Services.AddSingleton<TimeSystem>();

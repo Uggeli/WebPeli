@@ -20,6 +20,93 @@ export class Editor {
         }
 
         this._createLayout();
+        this._populateSheets();
+    }
+
+    async _loadTileSetsFromServer() {
+        try {
+            const response = await fetch('/api/asset/list/Image');
+            const tileSetNames = await response.json();
+
+            const tileSets = await Promise.all(
+                tileSetNames.map(async (name) => {
+                    const response = await fetch(`/api/asset/Image/${name}`);
+                    const result = await response.json();
+                    
+                    const img = await new Promise((resolve, reject) => {
+                        const img = new Image();
+                        img.onload = () => resolve(img);
+                        img.onerror = reject;
+                        // Create data URL directly from base64
+                        img.src = `data:image/png;base64,${result.data}`;
+                    });
+                    
+                    const metadata = result.metadata ? JSON.parse(result.metadata) : {};
+                    return { name, img, metadata };
+                })
+            );
+
+            return tileSets;
+        }
+        catch (err) {
+            console.error('Error loading tile sets', err);
+        }
+    }
+
+    async _populateSheets() {
+        const tileSets = await this._loadTileSetsFromServer();
+        if (!tileSets) return;
+
+        tileSets.forEach(({ name, img, metadata }) => {
+            const sheetId = `sheet_${name}`;
+            const sheet = new Sheet({
+                createFromSelection: this._createNewSheetFromSelection,
+                debug: this.debug,
+                textureAtlas: img,
+                width: img.width,
+                height: img.height,
+                gridSize: metadata.gridSize
+            });
+
+            this.sheets.set(sheetId, sheet);
+            this._addTab(sheetId, name);
+            this.setActiveSheet(sheetId);
+        });
+    }
+
+    async _loadTileSetFromServer(name) {
+        try {
+            const response = await fetch(`/api/asset/Image/${name}`);
+            const result = await response.json();
+
+            const img = await new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = reject;
+                // Create data URL directly from base64
+                img.src = `data:image/png;base64,${result.data}`;
+            });
+            const metadata = result.metadata ? JSON.parse(result.metadata) : {};
+            return { name, img, metadata };
+        }
+        catch (err) {
+            console.error('Error loading tile set', err);
+        }
+    }
+
+    async _saveTileSetToServer(name, img, metadata) {
+        const dataUrl = img.toDataURL('image/png');
+        const base64 = dataUrl.split(',')[1];
+        const metadataStr = JSON.stringify(metadata);
+
+        const response = await fetch(`/api/asset/Image/${name}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ data: base64, metadata: metadataStr })
+        });
+        return response.ok;
     }
 
     _createLayout() {
@@ -87,6 +174,14 @@ export class Editor {
         this.setActiveSheet(sheetId);
     }
 
+    _saveSheet(sheetId) {
+        const sheet = this.sheets.get(sheetId);
+        if (!sheet) return;
+
+        const { name, img, metadata } = sheet.getSheetData();
+        this._saveTileSetToServer(name, img, metadata);
+    }
+
     async _handleNewSheet() {
         const sheetId = `sheet_${Date.now()}`;
         const sheet = new Sheet({
@@ -127,7 +222,6 @@ export class Editor {
             this._addTab(sheetId, file.name);
             this.setActiveSheet(sheetId);
         };
-
         input.click();
     }
 

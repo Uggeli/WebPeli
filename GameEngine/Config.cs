@@ -11,6 +11,7 @@ static class Config
     public const byte CHUNK_SIZE_BYTE = CHUNK_SIZE - 1;  // This was terrible idea
     public const byte WORLD_SIZE = 8; // world size = 2^WORLD_SIZE chunks
     public const int WORLD_TILES = WORLD_SIZE * CHUNK_SIZE;
+    public const string assetPath = "Assets/";
 
     // Entity configuration
     public const byte MAX_ENTITIES_PER_TILE = 16;  // Or whatever makes sense
