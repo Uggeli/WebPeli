@@ -78,3 +78,94 @@ export class AssetManager {
         return this.assets[name];
     }
 }
+
+
+class TileAtlas {
+    constructor(atlasTexture, metadata) {
+        this.atlasTexture = atlasTexture;
+        this.metadata = metadata;
+        this.bitMasks = {
+            'top_left': 1 << 0,
+            'top_center': 1 << 1,
+            'top_right': 1 << 2,
+            'left_center': 1 << 3,
+            'left_bottom': 1 << 4,
+            'bottom_center': 1 << 5,
+            'bottom_right': 1 << 6,
+            'right_center': 1 << 7,
+        };
+        this.tiles = this._processTiles();
+    }
+
+    _processTiles() {
+        // Create a canvas large enough for the entire atlas
+        const atlasCache = document.createElement('canvas');
+        atlasCache.width = this.metadata.textureWidth;
+        atlasCache.height = this.metadata.textureHeight;
+        const atlasCacheCtx = atlasCache.getContext('2d', { willReadFrequently: true });
+        
+        // Draw the full atlas
+        atlasCacheCtx.drawImage(this.atlasTexture, 0, 0);
+        
+        // Get the full atlas image data
+        const fullImageData = atlasCacheCtx.getImageData(
+            0, 0, 
+            this.metadata.textureWidth, 
+            this.metadata.textureHeight
+        );
+
+        const tiles = [];
+        const tilesX = this.metadata.textureWidth / this.metadata.tileWidth;
+        const tilesY = this.metadata.textureHeight / this.metadata.tileHeight;
+
+        // Process each tile
+        for (let y = 0; y < tilesY; y++) {
+            for (let x = 0; x < tilesX; x++) {
+                const bitmask = this._createBitMasks(fullImageData, x, y);
+                tiles.push({
+                    x: x,
+                    y: y,
+                    bitmask: bitmask,
+                });
+            }
+        }
+        return tiles;
+    }
+
+    _createBitMasks(imageData, tileX, tileY) {
+        const startX = tileX * this.metadata.tileWidth;
+        const startY = tileY * this.metadata.tileHeight;
+        
+        const samplePoints = {
+            'top_left': { x: startX, y: startY },
+            'top_center': { x: startX + Math.floor(this.metadata.tileWidth / 2), y: startY },
+            'top_right': { x: startX + this.metadata.tileWidth - 1, y: startY },
+            'left_center': { x: startX, y: startY + Math.floor(this.metadata.tileHeight / 2) },
+            'left_bottom': { x: startX, y: startY + this.metadata.tileHeight - 1 },
+            'bottom_center': { x: startX + Math.floor(this.metadata.tileWidth / 2), y: startY + this.metadata.tileHeight - 1 },
+            'bottom_right': { x: startX + this.metadata.tileWidth - 1, y: startY + this.metadata.tileHeight - 1 },
+            'right_center': { x: startX + this.metadata.tileWidth - 1, y: startY + Math.floor(this.metadata.tileHeight / 2) },
+        };
+
+        let flags = 0;
+        
+        for (const direction in samplePoints) {
+            const point = samplePoints[direction];
+            const index = (point.y * imageData.width + point.x) * 4;
+            
+            // Check alpha channel
+            if (imageData.data[index + 3] > 0) {
+                flags |= this.bitMasks[direction];
+            }
+        }
+
+        return flags;
+    }
+
+    // Helper method to get a tile by bitmask
+    getTileByBitMask(bitmask) {
+        return this.tiles.find(tile => tile.bitmask === bitmask);
+    }
+}
+
+
