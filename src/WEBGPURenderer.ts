@@ -163,7 +163,7 @@ export class WebGPURenderer implements IRenderer {
     }
 
     loadAtlas(name: string, image: ImageBitmap, metadata: AtlasMetadata): Promise<void> {
-        throw new Error("Method not implemented.");
+        return this.terrainPass.loadTerrainAtlas(name, image, metadata);
     }
 
     unloadAtlas(name: string): void {
@@ -183,11 +183,52 @@ export class WebGPURenderer implements IRenderer {
     }
 
     draw(): void {
-        this.terrainPass.draw();
+        const commandEncoder = this.device.createCommandEncoder();
+        const passEncoder = commandEncoder.beginRenderPass({
+            colorAttachments: [{
+                view: this.context.getCurrentTexture().createView(),
+                loadOp: 'clear',
+                clearValue: { r: 0, g: 0, b: 0, a: 1.0 },
+                storeOp: 'store',
+            }]
+        });
+
+        this.terrainPass.safeRender(passEncoder);
+
+        passEncoder.end();
+        this.device.queue.submit([commandEncoder.finish()]);
     }
 
     handleResize(): void {
-        throw new Error("Method not implemented.");
+        const displayWidth = this.canvas.clientWidth;
+        const displayHeight = this.canvas.clientHeight;
+        
+        if (this.canvas.width !== displayWidth || this.canvas.height !== displayHeight) {
+            this.canvas.width = displayWidth;
+            this.canvas.height = displayHeight;
+            
+            mat4.perspective(
+                this.projectionMatrix,
+                60 * Math.PI / 180,
+                displayWidth / displayHeight,
+                0.1,
+                100.0
+            );
+            
+            if (this.device && this.cameraUniformBuffer) {
+                this.device.queue.writeBuffer(
+                    this.cameraUniformBuffer,
+                    64,
+                    this.projectionMatrix
+                );
+                
+                this.context?.configure({
+                    device: this.device,
+                    format: this.context.getPreferredFormat(this.device.adapter),
+                    alphaMode: 'premultiplied',
+                });
+            }
+        }
     }
 
     status: RendererStatus;
