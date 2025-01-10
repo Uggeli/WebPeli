@@ -102,7 +102,7 @@ export class WebGPURenderer implements IRenderer {
 
             // Initialize passes
             this.terrainPass = new TerrainPass(this.device, canvasFormat, this.gridSize,
-                {this.}
+                { cameraUniformBuffer: this.cameraUniformBuffer, vertexBuffer: this.vertexBuffer, gridUniformBuffer: this.gridUniformBuffer }
             );
             this.surfacePass = new SurfacePass(this.device, canvasFormat, this.gridSize);
             this.entityPass = new EntityPass(this.device, canvasFormat, this.gridSize);
@@ -183,7 +183,7 @@ export class WebGPURenderer implements IRenderer {
     }
 
     draw(): void {
-        throw new Error("Method not implemented.");
+        this.terrainPass.draw();
     }
 
     handleResize(): void {
@@ -209,7 +209,3 @@ export interface TileLookupData {
     x: number;          // 8 bits
     y: number;          // 8 bits
 }
-
-
-
-
