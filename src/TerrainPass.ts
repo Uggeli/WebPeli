@@ -22,7 +22,7 @@ export class TerrainPass extends EventTarget {
 
     private computeGroupLayout!: GPUBindGroupLayout;
     private computeBindGroup!: GPUBindGroup;
-    private computePipelineLayout!: GPUPipelineLayout; 
+    private computePipelineLayout!: GPUPipelineLayout;
     private computePipeline!: GPUComputePipeline;
 
     // Common buffers
@@ -37,7 +37,7 @@ export class TerrainPass extends EventTarget {
     private waterBuffer!: GPUBuffer;
 
     constructor(device: GPUDevice, format: GPUTextureFormat, gridSize: number,
-                commonBuffers: { cameraUniformBuffer: GPUBuffer, vertexBuffer: GPUBuffer, gridUniformBuffer: GPUBuffer }) {
+        commonBuffers: { cameraUniformBuffer: GPUBuffer, vertexBuffer: GPUBuffer, gridUniformBuffer: GPUBuffer }) {
         super();
         this.device = device;
         this.format = format;
@@ -56,7 +56,7 @@ export class TerrainPass extends EventTarget {
         this.initializeTerrainBuffers();
         this.setupRenderPipeline();
         this.setupComputePipeline();
-        
+
     }
 
     private initializeTerrainBuffers(): void {
@@ -189,7 +189,7 @@ export class TerrainPass extends EventTarget {
             flattenedData
         );
     }
-    
+
     // Tile processing methods
     private createTileLookupEntry(tile: TileLookupData): Uint8Array {
         const data = new Uint8Array(4);
@@ -271,13 +271,13 @@ export class TerrainPass extends EventTarget {
         this.computeGroupLayout = this.device.createBindGroupLayout({
             entries: [
                 {
-                    // Input terrain data
+                    // Grid uniform buffer (contains terrain data)
                     binding: 0,
                     visibility: GPUShaderStage.COMPUTE,
-                    buffer: { type: 'read-only-storage' }
+                    buffer: { type: 'uniform' }
                 },
                 {
-                    // Layer buffers
+                    // Layer output buffers
                     binding: 1,
                     visibility: GPUShaderStage.COMPUTE,
                     buffer: { type: 'storage' }  // stone
@@ -298,10 +298,14 @@ export class TerrainPass extends EventTarget {
                     buffer: { type: 'storage' }  // water
                 },
                 {
-                    // Output resolved tiles buffer
                     binding: 5,
                     visibility: GPUShaderStage.COMPUTE,
-                    buffer: { type: 'storage' }
+                    buffer: { type: 'storage' }  // output buffer for results
+                },
+                {
+                    binding: 6,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: {}
                 }
             ]
         });
@@ -311,12 +315,12 @@ export class TerrainPass extends EventTarget {
         this.computeBindGroup = this.device.createBindGroup({
             layout: this.computeGroupLayout,
             entries: [
-                {binding: 0, resource: {buffer: this.lookupBuffer}},
-                {binding: 1, resource: {buffer: this.stoneBuffer}},
-                {binding: 2, resource: {buffer: this.dirtBuffer}},
-                {binding: 3, resource: {buffer: this.sandBuffer}},
-                {binding: 4, resource: {buffer: this.waterBuffer}},
-                {binding: 5, resource: {buffer: this.stagingBuffer}}
+                { binding: 0, resource: { buffer: this.lookupBuffer } },
+                { binding: 1, resource: { buffer: this.stoneBuffer } },
+                { binding: 2, resource: { buffer: this.dirtBuffer } },
+                { binding: 3, resource: { buffer: this.sandBuffer } },
+                { binding: 4, resource: { buffer: this.waterBuffer } },
+                { binding: 5, resource: { buffer: this.stagingBuffer } }
             ]
         });
     }
@@ -329,32 +333,190 @@ export class TerrainPass extends EventTarget {
 
     private createComputePipeline(): void {
         const computeShaderCode = `
-            @group(0) @binding(0) var<storage, read> inputBuffer: array<u32>;
+            // Define our structures and bindings
+            struct TerrainConstants {
+                gridSize: u32,
+                maxIterations: u32,
+            }
+
+            @group(0) @binding(0) var<uniform> grid: GridUniforms;
             @group(0) @binding(1) var<storage, read_write> stoneBuffer: array<u32>;
             @group(0) @binding(2) var<storage, read_write> dirtBuffer: array<u32>;
             @group(0) @binding(3) var<storage, read_write> sandBuffer: array<u32>;
             @group(0) @binding(4) var<storage, read_write> waterBuffer: array<u32>;
             @group(0) @binding(5) var<storage, read_write> outputBuffer: array<u32>;
 
+            // Bitmask constants for edge detection
+            const EDGE_TOP_LEFT: u32     = 0x01u;  // 0b00000001
+            const EDGE_TOP: u32         = 0x02u;  // 0b00000010
+            const EDGE_TOP_RIGHT: u32   = 0x04u;  // 0b00000100
+            const EDGE_RIGHT: u32       = 0x08u;  // 0b00001000
+            const EDGE_BOTTOM_RIGHT: u32 = 0x10u;  // 0b00010000
+            const EDGE_BOTTOM: u32      = 0x20u;  // 0b00100000
+            const EDGE_BOTTOM_LEFT: u32 = 0x40u;  // 0b01000000
+            const EDGE_LEFT: u32        = 0x80u;  // 0b10000000
+
+            // Terrain type constants
+            const TERRAIN_EMPTY: u32 = 0u;
+            const TERRAIN_STONE: u32 = 1u;
+            const TERRAIN_DIRT: u32  = 2u;
+            const TERRAIN_SAND: u32  = 3u;
+            const TERRAIN_WATER: u32 = 4u;
+
+            // Helper function to get grid index
+            fn getIndex(x: u32, y: u32) -> u32 {
+                return y * constants.gridSize + x;
+            }
+
+            // Check if coordinates are within grid bounds
+            fn isInBounds(x: i32, y: i32) -> bool {
+                return x >= 0 && x < i32(constants.gridSize) && 
+                    y >= 0 && y < i32(constants.gridSize);
+            }
+
+            // Get terrain type at specific coordinates
+            fn getTerrainAt(x: i32, y: i32) -> u32 {
+                if (!isInBounds(x, y)) {
+                    return TERRAIN_EMPTY;
+                }
+                return inputBuffer[getIndex(u32(x), u32(y))];
+            }
+
+            // Calculate bitmask for a cell based on surrounding terrain
+            fn calculateBitmask(x: u32, y: u32, terrainType: u32) -> u32 {
+                var bitmask: u32 = 0u;
+                let pos_x = i32(x);
+                let pos_y = i32(y);
+                
+                // Check each neighboring cell
+                // Top-left
+                if (getTerrainAt(pos_x - 1, pos_y - 1) == terrainType) {
+                    bitmask |= EDGE_TOP_LEFT;
+                }
+                // Top
+                if (getTerrainAt(pos_x, pos_y - 1) == terrainType) {
+                    bitmask |= EDGE_TOP;
+                }
+                // Top-right
+                if (getTerrainAt(pos_x + 1, pos_y - 1) == terrainType) {
+                    bitmask |= EDGE_TOP_RIGHT;
+                }
+                // Right
+                if (getTerrainAt(pos_x + 1, pos_y) == terrainType) {
+                    bitmask |= EDGE_RIGHT;
+                }
+                // Bottom-right
+                if (getTerrainAt(pos_x + 1, pos_y + 1) == terrainType) {
+                    bitmask |= EDGE_BOTTOM_RIGHT;
+                }
+                // Bottom
+                if (getTerrainAt(pos_x, pos_y + 1) == terrainType) {
+                    bitmask |= EDGE_BOTTOM;
+                }
+                // Bottom-left
+                if (getTerrainAt(pos_x - 1, pos_y + 1) == terrainType) {
+                    bitmask |= EDGE_BOTTOM_LEFT;
+                }
+                // Left
+                if (getTerrainAt(pos_x - 1, pos_y) == terrainType) {
+                    bitmask |= EDGE_LEFT;
+                }
+                
+                return bitmask;
+            }
+
+            // Handle transitions between different terrain types
+            fn calculateTransitionBitmask(x: u32, y: u32, currentType: u32, targetType: u32) -> u32 {
+                var bitmask: u32 = 0u;
+                let pos_x = i32(x);
+                let pos_y = i32(y);
+                
+                // Check each direction for the target terrain type
+                // This creates smooth transitions between different terrain types
+                for (var dx = -1; dx <= 1; dx++) {
+                    for (var dy = -1; dy <= 1; dy++) {
+                        if (dx == 0 && dy == 0) { continue; }
+                        
+                        let checkX = pos_x + dx;
+                        let checkY = pos_y + dy;
+                        
+                        if (!isInBounds(checkX, checkY)) { continue; }
+                        
+                        let neighborTerrain = getTerrainAt(checkX, checkY);
+                        if (neighborTerrain == targetType) {
+                            // Calculate bit position based on direction
+                            let bit = getBitForDirection(dx, dy);
+                            bitmask |= bit;
+                        }
+                    }
+                }
+                
+                return bitmask;
+            }
+
+            fn getBitForDirection(dx: i32, dy: i32) -> u32 {
+                if (dx == -1 && dy == -1) { return EDGE_TOP_LEFT; }
+                if (dx == 0  && dy == -1) { return EDGE_TOP; }
+                if (dx == 1  && dy == -1) { return EDGE_TOP_RIGHT; }
+                if (dx == 1  && dy == 0)  { return EDGE_RIGHT; }
+                if (dx == 1  && dy == 1)  { return EDGE_BOTTOM_RIGHT; }
+                if (dx == 0  && dy == 1)  { return EDGE_BOTTOM; }
+                if (dx == -1 && dy == 1)  { return EDGE_BOTTOM_LEFT; }
+                if (dx == -1 && dy == 0)  { return EDGE_LEFT; }
+                return 0u;
+            }
+
+            // Main compute shader
             @compute @workgroup_size(8, 8)
             fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
-                let index = global_id.x + global_id.y * ${this.gridSize}u;
-                let tile = inputBuffer[index];
-
-                // Split input into layers
-                if (tile == 1u) {
-                    stoneBuffer[index] = tile;
-                } else if (tile == 2u) {
-                    dirtBuffer[index] = tile;
-                } else if (tile == 3u) {
-                    sandBuffer[index] = tile;
-                } else if (tile == 4u) {
-                    waterBuffer[index] = tile;
+                let x = global_id.x;
+                let y = global_id.y;
+                
+                // Check bounds
+                if (x >= constants.gridSize || y >= constants.gridSize) {
+                    return;
                 }
-
-                // Process tile matching logic here
-                // For simplicity, just copy input to output
-                outputBuffer[index] = tile;
+                
+                let index = getIndex(x, y);
+                let currentTerrain = inputBuffer[index];
+                
+                // First pass: Separate into layers
+                switch(currentTerrain) {
+                    case TERRAIN_STONE: {
+                        stoneBuffer[index] = 1u;
+                    }
+                    case TERRAIN_DIRT: {
+                        dirtBuffer[index] = 1u;
+                    }
+                    case TERRAIN_SAND: {
+                        sandBuffer[index] = 1u;
+                    }
+                    case TERRAIN_WATER: {
+                        waterBuffer[index] = 1u;
+                    }
+                    default: {}
+                }
+                
+                // Second pass: Calculate bitmasks for each layer
+                var finalBitmask: u32 = 0u;
+                
+                // Base terrain bitmask
+                finalBitmask = calculateBitmask(x, y, currentTerrain);
+                
+                // Calculate transition bitmasks for adjacent terrain types
+                if (currentTerrain == TERRAIN_STONE) {
+                    finalBitmask |= calculateTransitionBitmask(x, y, TERRAIN_STONE, TERRAIN_DIRT);
+                } else if (currentTerrain == TERRAIN_DIRT) {
+                    finalBitmask |= calculateTransitionBitmask(x, y, TERRAIN_DIRT, TERRAIN_SAND);
+                } else if (currentTerrain == TERRAIN_SAND) {
+                    finalBitmask |= calculateTransitionBitmask(x, y, TERRAIN_SAND, TERRAIN_WATER);
+                }
+                
+                // Store final result
+                // Pack terrain type and bitmask into a single u32
+                // Lower 8 bits: terrain type
+                // Upper 24 bits: bitmask
+                outputBuffer[index] = (finalBitmask << 8u) | currentTerrain;
             }
         `;
 
@@ -447,13 +609,13 @@ export class TerrainPass extends EventTarget {
             label: 'TerrainPass BindGroup',
             layout: this.renderGroupLayout,
             entries: [
-                {binding: 0, resource: this.atlasArrayTexture.createView()},
-                {binding: 1, resource: sampler},
-                {binding: 2, resource: {buffer: this.lookupBuffer}},
-                {binding: 3, resource: {buffer: this.constantsBuffer}},
-                {binding: 4, resource: {buffer: this.missingTilesBuffer}},
-                {binding: 5, resource: {buffer: this.cameraUniformBuffer}},
-                {binding: 6, resource: {buffer: this.gridUniformBuffer}}
+                { binding: 0, resource: this.atlasArrayTexture.createView() },
+                { binding: 1, resource: sampler },
+                { binding: 2, resource: { buffer: this.lookupBuffer } },
+                { binding: 3, resource: { buffer: this.constantsBuffer } },
+                { binding: 4, resource: { buffer: this.missingTilesBuffer } },
+                { binding: 5, resource: { buffer: this.cameraUniformBuffer } },
+                { binding: 6, resource: { buffer: this.gridUniformBuffer } }
             ]
         });
     }
@@ -568,5 +730,82 @@ export class TerrainPass extends EventTarget {
                 cullMode: 'none',
             },
         });
+    }
+
+    public async render(passEncoder: GPURenderPassEncoder): Promise<void> {
+        // Step 1: Run compute pass for layer separation and tile processing
+        const computeEncoder = this.device.createCommandEncoder();
+        const computePass = computeEncoder.beginComputePass();
+
+        computePass.setPipeline(this.computePipeline);
+        computePass.setBindGroup(0, this.computeBindGroup);
+
+        this.processLayers(computePass);
+
+        computePass.end();
+        this.device.queue.submit([computeEncoder.finish()]);
+
+        // Step 2: Run render pass for terrain visualization
+        passEncoder.setPipeline(this.renderPipeline);
+        passEncoder.setBindGroup(0, this.renderBindGroup);
+        passEncoder.setVertexBuffer(0, this.vertexBuffer);
+
+        // Draw instanced quads - 6 vertices per quad (2 triangles), one quad per tile
+        passEncoder.draw(6, this.gridSize * this.gridSize, 0, 0);
+
+        // Step 3: Check for missing tiles after rendering
+        await this.detectMissingTiles();
+    }
+
+    // Helper method to handle layers in order
+    private processLayers(computePass: GPUComputePassEncoder): void {
+        // Process each terrain layer in order: stone -> dirt -> sand -> water
+        // This ordering matters for proper blending and transitions
+        computePass.setBindGroup(1, this.createLayerBindGroup('stone'));
+        computePass.dispatchWorkgroups(Math.ceil(this.gridSize / 8), Math.ceil(this.gridSize / 8));
+
+        computePass.setBindGroup(1, this.createLayerBindGroup('dirt'));
+        computePass.dispatchWorkgroups(Math.ceil(this.gridSize / 8), Math.ceil(this.gridSize / 8));
+
+        computePass.setBindGroup(1, this.createLayerBindGroup('sand'));
+        computePass.dispatchWorkgroups(Math.ceil(this.gridSize / 8), Math.ceil(this.gridSize / 8));
+
+        computePass.setBindGroup(1, this.createLayerBindGroup('water'));
+        computePass.dispatchWorkgroups(Math.ceil(this.gridSize / 8), Math.ceil(this.gridSize / 8));
+    }
+
+    // Helper to create layer-specific bind groups
+    private createLayerBindGroup(layerType: 'stone' | 'dirt' | 'sand' | 'water'): GPUBindGroup {
+        const buffer = {
+            'stone': this.stoneBuffer,
+            'dirt': this.dirtBuffer,
+            'sand': this.sandBuffer,
+            'water': this.waterBuffer
+        }[layerType];
+
+        return this.device.createBindGroup({
+            layout: this.computeGroupLayout,
+            entries: [
+                { binding: 0, resource: { buffer } }
+                // Add other bindings as needed for layer-specific processing
+            ]
+        });
+    }
+
+    // Error handling wrapper for render method
+    public async safeRender(passEncoder: GPURenderPassEncoder): Promise<void> {
+        try {
+            await this.render(passEncoder);
+        } catch (error) {
+            console.error('Error during terrain pass render:', error);
+            // Emit error event for higher-level handling
+            this.dispatchEvent(new CustomEvent('error', {
+                detail: {
+                    message: 'Terrain pass render failed',
+                    error
+                }
+            }));
+            throw error; // Re-throw for pipeline error handling
+        }
     }
 }
