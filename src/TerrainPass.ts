@@ -318,9 +318,53 @@ export class TerrainPass extends EventTarget {
     }
 
     private createComputePipelineLayout(): void {
+        this.computeGroupLayout = this.device.createPipelineLayout({
+            bindGroupLayouts: [this.computeGroupLayout]
+        });
     }
 
     private createComputePipeline(): void {
+        const computeShaderCode = `
+            @group(0) @binding(0) var<storage, read> inputBuffer: array<u32>;
+            @group(0) @binding(1) var<storage, read_write> stoneBuffer: array<u32>;
+            @group(0) @binding(2) var<storage, read_write> dirtBuffer: array<u32>;
+            @group(0) @binding(3) var<storage, read_write> sandBuffer: array<u32>;
+            @group(0) @binding(4) var<storage, read_write> waterBuffer: array<u32>;
+            @group(0) @binding(5) var<storage, read_write> outputBuffer: array<u32>;
+
+            @compute @workgroup_size(8, 8)
+            fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
+                let index = global_id.x + global_id.y * ${this.gridSize}u;
+                let tile = inputBuffer[index];
+
+                // Split input into layers
+                if (tile == 1u) {
+                    stoneBuffer[index] = tile;
+                } else if (tile == 2u) {
+                    dirtBuffer[index] = tile;
+                } else if (tile == 3u) {
+                    sandBuffer[index] = tile;
+                } else if (tile == 4u) {
+                    waterBuffer[index] = tile;
+                }
+
+                // Process tile matching logic here
+                // For simplicity, just copy input to output
+                outputBuffer[index] = tile;
+            }
+        `;
+
+        const computeShaderModule = this.device.createShaderModule({
+            code: computeShaderCode
+        });
+
+        this.computePipeline = this.device.createComputePipeline({
+            layout: this.computeGroupLayout,
+            compute: {
+                module: computeShaderModule,
+                entryPoint: 'main'
+            }
+        });
     }
 
     private createRenderBindGroupLayout(): void {
@@ -411,11 +455,116 @@ export class TerrainPass extends EventTarget {
     }
 
     private createRenderPipelineLayout(): void {
+        this.renderGroupLayout = this.device.createPipelineLayout({
+            bindGroupLayouts: [this.renderGroupLayout]
+        });
     }
 
     private createRenderPipeline(): void {
-    }
+        const vertexShaderCode = `
+            struct VertexOutput {
+                @builtin(position) position: vec4f,
+                @location(0) texCoord: vec2f,
+                @location(1) @interpolate(flat) tileId: u32,
+            };
 
+            struct CameraUniform {
+                view: mat4x4<f32>,
+                proj: mat4x4<f32>
+            };
+
+            @group(0) @binding(0) var<uniform> grid: vec2f;
+            @group(0) @binding(1) var<uniform> camera: CameraUniform;
+            @group(0) @binding(2) var<storage, read> tileData: array<u32>;
+            @group(0) @binding(3) var atlas: texture_2d<f32>;
+            @group(0) @binding(4) var atlasSampler: sampler;
+
+            @vertex
+            fn vertexMain(
+                @location(0) position: vec3f,
+                @builtin(instance_index) instance: u32
+            ) -> VertexOutput {
+                var output: VertexOutput;
+                
+                let x = f32(instance % u32(grid.x));
+                let y = f32(instance / u32(grid.x));
+                
+                let worldPos = vec3f(
+                    position.x + x,
+                    position.y + y,
+                    0.0
+                );
+                
+                output.position = camera.proj * camera.view * vec4f(worldPos, 1.0);
+                output.tileId = tileData[instance];
+                
+                let atlasSize = 4.0;
+                let tileX = f32(output.tileId % 4u);
+                let tileY = f32(output.tileId / 4u);
+                
+                output.texCoord = vec2f(
+                    (tileX + position.x) / atlasSize,
+                    (tileY + position.y) / atlasSize
+                );
+                
+                return output;
+            }
+        `;
+
+        const fragmentShaderCode = `
+            @fragment
+            fn fragmentMain(input: VertexOutput) -> @location(0) vec4f {
+                return textureSample(atlas, atlasSampler, input.texCoord);
+            }
+        `;
+
+        const vertexShaderModule = this.device.createShaderModule({
+            code: vertexShaderCode
+        });
+
+        const fragmentShaderModule = this.device.createShaderModule({
+            code: fragmentShaderCode
+        });
+
+        this.renderPipeline = this.device.createRenderPipeline({
+            layout: this.renderGroupLayout,
+            vertex: {
+                module: vertexShaderModule,
+                entryPoint: 'vertexMain',
+                buffers: [{
+                    arrayStride: 12,
+                    attributes: [{
+                        format: "float32x3",
+                        offset: 0,
+                        shaderLocation: 0,
+                    }]
+                }]
+            },
+            fragment: {
+                module: fragmentShaderModule,
+                entryPoint: 'fragmentMain',
+                targets: [{
+                    format: this.format,
+                    blend: {
+                        color: {
+                            srcFactor: 'src-alpha',
+                            dstFactor: 'one-minus-src-alpha',
+                            operation: 'add',
+                        },
+                        alpha: {
+                            srcFactor: 'one',
+                            dstFactor: 'one-minus-src-alpha',
+                            operation: 'add',
+                        },
+                    },
+                }]
+            },
+            primitive: {
+                topology: 'triangle-list',
+                cullMode: 'none',
+            },
+        });
+    }
 
     private createPipeline(): void {
         const computeShader = /* wgsl */`
