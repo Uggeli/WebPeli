@@ -17,9 +17,13 @@ export class TerrainPass extends EventTarget {
 
     private renderGroupLayout!: GPUBindGroupLayout;
     private renderBindGroup!: GPUBindGroup;
+    private renderPipelineLayout!: GPUPipelineLayout;
+    private renderPipeline!: GPURenderPipeline;
 
     private computeGroupLayout!: GPUBindGroupLayout;
-    private computeBindGroup!: GPUBindGroup; 
+    private computeBindGroup!: GPUBindGroup;
+    private computePipelineLayout!: GPUPipelineLayout; 
+    private computePipeline!: GPUComputePipeline;
 
     // Common buffers
     private cameraUniformBuffer: GPUBuffer;
@@ -318,7 +322,7 @@ export class TerrainPass extends EventTarget {
     }
 
     private createComputePipelineLayout(): void {
-        this.computeGroupLayout = this.device.createPipelineLayout({
+        this.computePipelineLayout = this.device.createPipelineLayout({
             bindGroupLayouts: [this.computeGroupLayout]
         });
     }
@@ -359,7 +363,7 @@ export class TerrainPass extends EventTarget {
         });
 
         this.computePipeline = this.device.createComputePipeline({
-            layout: this.computeGroupLayout,
+            layout: this.computePipelineLayout,
             compute: {
                 module: computeShaderModule,
                 entryPoint: 'main'
@@ -455,7 +459,7 @@ export class TerrainPass extends EventTarget {
     }
 
     private createRenderPipelineLayout(): void {
-        this.renderGroupLayout = this.device.createPipelineLayout({
+        this.renderPipelineLayout = this.device.createPipelineLayout({
             bindGroupLayouts: [this.renderGroupLayout]
         });
     }
@@ -527,7 +531,7 @@ export class TerrainPass extends EventTarget {
         });
 
         this.renderPipeline = this.device.createRenderPipeline({
-            layout: this.renderGroupLayout,
+            layout: this.renderPipelineLayout,
             vertex: {
                 module: vertexShaderModule,
                 entryPoint: 'vertexMain',
@@ -564,54 +568,5 @@ export class TerrainPass extends EventTarget {
                 cullMode: 'none',
             },
         });
-    }
-
-    private createPipeline(): void {
-        const computeShader = /* wgsl */`
-                // Here goes your compute shader that:
-                // - Processes tile layers
-                // - Handles autotiling
-                // - Outputs resolved tile data
-
-                @group(0) @binding(6) var gridUniforms: GridUniforms;
-                @group(0) @binding(2) var lookupBuffer: [[u8]];
-
-
-                @compute
-                fn SplitLayers()
-
-            `;
-
-        const computeModule = this.device.createShaderModule({
-            label: 'Tile Resolution Compute',
-            code: computeShader
-        });
-
-        const renderShader = `
-                // Vertex shader (simple quad positioning)
-                // Fragment shader (reads compute results and samples textures)
-
-                struct VertexOutput {
-                    @builtin(position) position: vec4f,
-                    @location(0) texCoord: vec2f,
-                    @location(1) @interpolate(flat) tileId: u32,
-                };
-    
-                struct CameraUniform {
-                    view: mat4x4<f32>,
-                    proj: mat4x4<f32>
-                };
-
-
-
-
-
-            `;
-
-        const renderModule = this.device.createShaderModule({
-            label: 'Tile Rendering',
-            code: renderShader
-        });
-
     }
 }
