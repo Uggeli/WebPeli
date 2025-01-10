@@ -24,7 +24,7 @@ export class Game {
         this.tileProperties = new Uint8Array(this.renderer.total_tiles);
 
         this.camera = { x: 0, y: 0 };
-        this.debugElement = document.getElementById('debug');
+        this.debugElement = document.getElementById('debugInfo');
         window.addEventListener('keydown', (e) => this.handleKeyPress(e));
     }
 
@@ -60,9 +60,6 @@ export class Game {
             this.updateEntityData(entityData);
         });
     }
-
-    
-
 
     handleKeyPress(e) {
         if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {

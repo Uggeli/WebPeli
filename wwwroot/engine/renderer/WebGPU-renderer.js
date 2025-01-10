@@ -33,7 +33,7 @@ export class WebGPURenderer {
         // Adjust field of view for perspective
         mat4.perspective(
             this.projMatrix,
-            45 * Math.PI / 180,     // Field of view (smaller = more zoomed in)
+            45 * Math.PI / 175,     // Field of view (smaller = more zoomed in)
             canvas.width / canvas.height,
             0.1,
             cameraDistance

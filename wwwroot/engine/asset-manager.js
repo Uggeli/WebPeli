@@ -95,6 +95,16 @@ class TileAtlas {
             'right_center': 1 << 7,
         };
         this.tiles = this._processTiles();
+        this.metadata.tiles = this.tiles;
+        this.bitMaskLookup = this._createBitMaskLookup();
+    }
+
+    _createBitMaskLookup() {
+        const lookup = {};
+        this.tiles.forEach(tile => {
+            lookup[tile.bitmask] = tile;
+        });
+        return lookup;
     }
 
     _processTiles() {
@@ -132,6 +142,11 @@ class TileAtlas {
         return tiles;
     }
 
+    _packBitMask(bitmask) {
+        return (x << 5) | y;
+    }
+
+
     _createBitMasks(imageData, tileX, tileY) {
         const startX = tileX * this.metadata.tileWidth;
         const startY = tileY * this.metadata.tileHeight;
@@ -165,6 +180,13 @@ class TileAtlas {
     // Helper method to get a tile by bitmask
     getTileByBitMask(bitmask) {
         return this.tiles.find(tile => tile.bitmask === bitmask);
+    }
+
+    getAtlas() {
+        return {
+            atlasTexture: this.atlasTexture,
+            metadata: this.metadata,
+        }
     }
 }
 
