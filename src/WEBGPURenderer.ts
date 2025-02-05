@@ -144,6 +144,9 @@ export class WebGPURenderer implements IRenderer {
                 usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
             });
             this.device.queue.writeBuffer(this.gridUniformBuffer, 0, uniformArray);
+
+            // Initialize the new compute pipeline in TerrainPass
+            this.terrainPass.setupComputePipeline();
         } catch (error) {
             this.status = RendererStatus.Failed;
             this.lastError = {
@@ -197,6 +200,18 @@ export class WebGPURenderer implements IRenderer {
 
         passEncoder.end();
         this.device.queue.submit([commandEncoder.finish()]);
+
+        // Run compute pass for terrain transitions
+        const computeEncoder = this.device.createCommandEncoder();
+        const computePass = computeEncoder.beginComputePass();
+
+        computePass.setPipeline(this.terrainPass.computePipeline);
+        computePass.setBindGroup(0, this.terrainPass.computeBindGroup);
+
+        computePass.dispatchWorkgroups(Math.ceil(this.gridSize / 8), Math.ceil(this.gridSize / 8));
+
+        computePass.end();
+        this.device.queue.submit([computeEncoder.finish()]);
     }
 
     handleResize(): void {
