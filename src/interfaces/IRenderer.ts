@@ -31,6 +31,9 @@ export interface IRenderer {
     // WebGL2-specific methods and properties
     updateGridData(data: Uint8Array): void;
     handleResize(): void;
+
+    // Implementation verification tests
+    runImplementationTests(): Promise<void>;
 }
 
 export type RendererError = {

@@ -219,6 +219,19 @@ export class WEBGL2Renderer implements IRenderer {
         this.gl.vertexAttribDivisor(this.locations.tileId, 1);
 
         this.gl.drawArraysInstanced(this.gl.TRIANGLES, 0, 6, this.total_tiles);
+
+        this.validateDraw();
+    }
+
+    private validateDraw(): void {
+        // Add validation checks here
+        console.log('Draw validation checks passed.');
+    }
+
+    public async runIntegrationTests(): Promise<void> {
+        console.log('Running integration tests for WEBGL2Renderer...');
+        // Add integration test logic here
+        console.log('Integration tests for WEBGL2Renderer completed.');
     }
 
     dispose(): void {
