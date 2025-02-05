@@ -138,6 +138,12 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         case TERRAIN_WATER: {
             waterBuffer[index] = 1u;
         }
+        case TERRAIN_GRASS: {
+            grassBuffer[index] = 1u;
+        }
+        case TERRAIN_SNOW: {
+            snowBuffer[index] = 1u;
+        }
         default: {}
     }
     
