@@ -144,6 +144,9 @@ export class WebGPURenderer implements IRenderer {
                 usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
             });
             this.device.queue.writeBuffer(this.gridUniformBuffer, 0, uniformArray);
+
+            // Initialize the new compute pipeline in TerrainPass
+            this.terrainPass.setupComputePipeline();
         } catch (error) {
             this.status = RendererStatus.Failed;
             this.lastError = {
