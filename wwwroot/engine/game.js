@@ -3,6 +3,7 @@ import { WebGPURenderer } from './renderer/WebGPU-renderer.js';
 import { WebGL2Renderer } from './renderer/WebGL2-renderer.js';
 import { Canvas2DRenderer } from './renderer/Canvas2D-renderer.js';
 import { ConnectionManager } from './connection-manager.js';
+import { WEBGL2Renderer } from './WEBGL2Renderer.js';
 
 export class Game {
     constructor() {
@@ -146,6 +147,10 @@ export class Game {
             console.log('WebGL2 is supported');
             return new WebGL2Renderer(this.canvas, this.viewportSize);
         }
+        if (WEBGL2Renderer.isSupported()) {
+            console.log('WEBGL2 is supported');
+            return new WEBGL2Renderer(this.canvas, this.viewportSize);
+        }
         if (Canvas2DRenderer.isSupported()) {
             console.log('Canvas2D is supported');
             return new Canvas2DRenderer(this.canvas, this.viewportSize);
@@ -194,6 +199,13 @@ export class Game {
                         throw new Error('WebGL2 not supported');
                     }
                     this.renderer = new WebGL2Renderer(this.canvas, this.viewportSize);
+                    break;
+
+                case 'WEBGL2':
+                    if (!WEBGL2Renderer.isSupported()) {
+                        throw new Error('WEBGL2 not supported');
+                    }
+                    this.renderer = new WEBGL2Renderer(this.canvas, this.viewportSize);
                     break;
     
                 case 'Canvas2D':
