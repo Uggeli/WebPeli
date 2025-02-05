@@ -27,6 +27,10 @@ export interface IRenderer {
     // Add event handling
     on(event: 'error' | 'ready' | 'disposed', callback: (data?: any) => void): void;
     off(event: string, callback: (data?: any) => void): void;
+
+    // WebGL2-specific methods and properties
+    updateGridData(data: Uint8Array): void;
+    handleResize(): void;
 }
 
 export type RendererError = {
@@ -143,4 +147,3 @@ export abstract class RendererLayer {
 
     protected abstract validate(data: Uint8Array): boolean;
 }
-
