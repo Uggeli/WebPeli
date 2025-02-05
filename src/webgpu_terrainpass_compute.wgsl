@@ -24,6 +24,8 @@ const TERRAIN_STONE: u32 = 1u;
 const TERRAIN_DIRT: u32  = 2u;
 const TERRAIN_SAND: u32  = 3u;
 const TERRAIN_WATER: u32 = 4u;
+const TERRAIN_GRASS: u32 = 5u;
+const TERRAIN_SNOW: u32 = 6u;
 
 fn getIndex(x: u32, y: u32) -> u32 {
     return y * grid.gridSize + x;
@@ -149,6 +151,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         finalBitmask |= calculateTransitionBitmask(x, y, TERRAIN_DIRT, TERRAIN_SAND);
     } else if (currentTerrain == TERRAIN_SAND) {
         finalBitmask |= calculateTransitionBitmask(x, y, TERRAIN_SAND, TERRAIN_WATER);
+    } else if (currentTerrain == TERRAIN_GRASS) {
+        finalBitmask |= calculateTransitionBitmask(x, y, TERRAIN_GRASS, TERRAIN_SNOW);
     }
     
     outputBuffer[index] = (finalBitmask << 8u) | currentTerrain;

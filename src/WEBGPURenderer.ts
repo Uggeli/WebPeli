@@ -200,6 +200,18 @@ export class WebGPURenderer implements IRenderer {
 
         passEncoder.end();
         this.device.queue.submit([commandEncoder.finish()]);
+
+        // Run compute pass for terrain transitions
+        const computeEncoder = this.device.createCommandEncoder();
+        const computePass = computeEncoder.beginComputePass();
+
+        computePass.setPipeline(this.terrainPass.computePipeline);
+        computePass.setBindGroup(0, this.terrainPass.computeBindGroup);
+
+        computePass.dispatchWorkgroups(Math.ceil(this.gridSize / 8), Math.ceil(this.gridSize / 8));
+
+        computePass.end();
+        this.device.queue.submit([computeEncoder.finish()]);
     }
 
     handleResize(): void {
