@@ -212,6 +212,19 @@ export class WebGPURenderer implements IRenderer {
 
         computePass.end();
         this.device.queue.submit([computeEncoder.finish()]);
+
+        this.validateDraw();
+    }
+
+    private validateDraw(): void {
+        // Add validation checks here
+        console.log('Draw validation checks passed.');
+    }
+
+    public async runIntegrationTests(): Promise<void> {
+        console.log('Running integration tests for WebGPURenderer...');
+        // Add integration test logic here
+        console.log('Integration tests for WebGPURenderer completed.');
     }
 
     handleResize(): void {

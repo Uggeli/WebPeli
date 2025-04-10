@@ -138,6 +138,8 @@ export class Canvas2DRenderer {
     }
 
     draw() {
+        const startTime = performance.now(); // P0805
+
         // Clear the canvas
         this.ctx.fillStyle = '#000000';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -205,6 +207,10 @@ export class Canvas2DRenderer {
         
         // Restore the transform state
         this.ctx.restore();
+
+        const endTime = performance.now(); // P0805
+        const renderTime = endTime - startTime; // P0805
+        console.log(`Render time: ${renderTime.toFixed(2)} ms`); // P0805
     }
 
     dispose() {
@@ -236,4 +242,37 @@ export class Canvas2DRenderer {
         this.tileData = null;
         this.panOffset = null;
     }
+}
+
+// Performance tests to validate 2D rendering (Pbab0)
+export function runPerformanceTests() {
+    const canvas = document.createElement('canvas');
+    const renderer = new Canvas2DRenderer(canvas, 64);
+    const tileAtlasTexture = new Image();
+    tileAtlasTexture.src = 'path/to/your/tileAtlas.png'; // Replace with actual path
+
+    tileAtlasTexture.onload = async () => {
+        await renderer.setup(tileAtlasTexture);
+
+        const testData = new Uint8Array(64 * 64);
+        for (let i = 0; i < testData.length; i++) {
+            testData[i] = Math.floor(Math.random() * 16); // Random tile IDs
+        }
+
+        renderer.updateGridData(testData);
+
+        // Measure performance
+        const iterations = 100;
+        let totalRenderTime = 0;
+
+        for (let i = 0; i < iterations; i++) {
+            const startTime = performance.now();
+            renderer.draw();
+            const endTime = performance.now();
+            totalRenderTime += endTime - startTime;
+        }
+
+        const averageRenderTime = totalRenderTime / iterations;
+        console.log(`Average render time over ${iterations} iterations: ${averageRenderTime.toFixed(2)} ms`);
+    };
 }
