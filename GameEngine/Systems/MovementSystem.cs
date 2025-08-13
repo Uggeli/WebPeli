@@ -131,7 +131,6 @@ public class MovementSystem : BaseManager
     {
         if (Config.DebugPathfinding)
         {
-            // Console.WriteLine("Moving entities");
             Console.WriteLine($"Moving {_movingEntities.Count} entities");
         }
 
@@ -146,8 +145,8 @@ public class MovementSystem : BaseManager
 
             if (Config.DebugPathfinding)
             {
-            Console.WriteLine($"Entity {entityId} moving to {nextMove} from {currentPos}");
-            Console.WriteLine($"Entity {entityId} path : {movementData.CurrentMoveIndex}/{movementData.Path.Length}");
+                Console.WriteLine($"Entity {entityId} moving to {nextMove} from {currentPos}");
+                Console.WriteLine($"Entity {entityId} path : {movementData.CurrentMoveIndex}/{movementData.Path.Length}");
             }
 
             if (nextMove == currentPos)
