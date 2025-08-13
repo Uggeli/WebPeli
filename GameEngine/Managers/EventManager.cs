@@ -5,43 +5,54 @@ namespace WebPeli.GameEngine.Managers;
 
 public static class EventManager
 {
-    private static readonly ConcurrentDictionary<Type, List<IListener>> Listeners = [];
+    private static readonly ConcurrentDictionary<Type, ConcurrentBag<IListener>> Listeners = [];
     private static readonly ConcurrentDictionary<Guid, Delegate> TempListeners = [];  // Used for callbacks
+    
     public static void RegisterListener<T>(IListener listener)
     {
-        if (!Listeners.ContainsKey(typeof(T)))
-        {
-            Listeners[typeof(T)] = [];
-        }
-        Listeners[typeof(T)].Add(listener);
+        Listeners.AddOrUpdate(typeof(T), 
+            new ConcurrentBag<IListener> { listener }, 
+            (key, existing) => { existing.Add(listener); return existing; });
     }
 
     public static void UnregisterListener<T>(IListener listener)
     {
-        if (Listeners.ContainsKey(typeof(T)))
+        if (Listeners.TryGetValue(typeof(T), out var listenerBag))
         {
-            Listeners[typeof(T)].Remove(listener);
+            // ConcurrentBag doesn't support Remove, so we recreate without the listener
+            // This is acceptable since unregistration is rare compared to emission
+            var newBag = new ConcurrentBag<IListener>();
+            foreach (var l in listenerBag)
+            {
+                if (l != listener)
+                    newBag.Add(l);
+            }
+            Listeners.TryUpdate(typeof(T), newBag, listenerBag);
         }
     }
 
     public static void Emit<T>(T evt) where T : IEvent
     {
-        if (Listeners.ContainsKey(typeof(T)))
+        if (Listeners.TryGetValue(typeof(T), out var listenerBag))
         {
-            foreach (var listener in Listeners[typeof(T)])
+            // Convert to array once for thread safety
+            var listeners = listenerBag.ToArray();
+            for (int i = 0; i < listeners.Length; i++)
             {
-                listener.OnMessage(evt);
+                listeners[i].OnMessage(evt);
             }
         }
     }
 
     public static void EmitPriority<T>(T evt) where T : IEvent
     {
-        if (Listeners.ContainsKey(typeof(T)))
+        if (Listeners.TryGetValue(typeof(T), out var listenerBag))
         {
-            foreach (var listener in Listeners[typeof(T)])
+            // Convert to array once for thread safety
+            var listeners = listenerBag.ToArray();
+            for (int i = 0; i < listeners.Length; i++)
             {
-                listener.OnPriorityMessage(evt);
+                listeners[i].OnPriorityMessage(evt);
             }
         }
     }

@@ -46,9 +46,6 @@ public class GameEngineService : BackgroundService
 
         InitManagers();
 
-        systems.Add(new MetabolismSystem());
-        systems.Add(new MovementSystem());
-
         InitSystems();
 
         // Initialize vegetation

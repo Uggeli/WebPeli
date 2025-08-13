@@ -130,27 +130,38 @@ public class MetabolismSystem : BaseManager
         {
             var tick = Environment.TickCount;
             _tickcounter = 0;
-            foreach ((var id, _) in _entities)
+            
+            // Process entities more efficiently using KeyValuePair enumeration
+            var entityIds = new int[_entities.Count];
+            var entityStates = new int[_entities.Count];
+            var index = 0;
+            
+            // Single enumeration to get all data
+            foreach (var kvp in _entities)
             {
-                int State = _entities[id];
-                int hungerBits = State & HUNGER_MASK;
-                int thirstBits = State & THIRST_MASK;
-                int fatigueBits = State & FATIGUE_MASK;
+                entityIds[index] = kvp.Key;
+                entityStates[index] = kvp.Value;
+                index++;
+            }
+            
+            // Process all entities without repeated dictionary lookups
+            for (int i = 0; i < index; i++)
+            {
+                int id = entityIds[i];
+                int state = entityStates[i];
+                
+                // Extract and process bits more efficiently
+                int hungerBits = (state & HUNGER_MASK) << 1 & HUNGER_MASK;
+                int thirstBits = (state & THIRST_MASK) << 1 & THIRST_MASK;
+                int fatigueBits = (state & FATIGUE_MASK) >> 1 & FATIGUE_MASK;
 
-                // Shift up for hunger/thirst (getting worse)
-                hungerBits = (hungerBits << 1) & HUNGER_MASK;
-                thirstBits = (thirstBits << 1) & THIRST_MASK;
-                // Shift down for fatigue (recovering)
-                fatigueBits = (fatigueBits >> 1) & FATIGUE_MASK;
+                // Combine and update
+                int newState = hungerBits | thirstBits | fatigueBits;
+                _entities[id] = newState;
 
-                // Combine back
-                State = hungerBits | thirstBits | fatigueBits;
-                _entities[id] = State;
-
-                EvaluateState(id, State);
+                EvaluateState(id, newState);
             }
             _lastUpdateTime = Environment.TickCount - tick;
-
         }
     }
 
