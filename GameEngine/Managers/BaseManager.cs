@@ -18,11 +18,17 @@ public abstract class BaseManager : IListener
     public virtual void Update(double deltaTime)
     {
         var tick = Environment.TickCount;
-        foreach (var evt in EventQueue)
-        {
-            HandleMessage(evt);
-        }
+        
+        // Convert to array to avoid concurrent modification issues
+        var events = EventQueue.ToArray();
         EventQueue.Clear();
+        
+        // Process all events
+        for (int i = 0; i < events.Length; i++)
+        {
+            HandleMessage(events[i]);
+        }
+        
         _lastUpdateTime = Environment.TickCount - tick;
     }
     
