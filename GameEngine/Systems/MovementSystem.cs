@@ -86,8 +86,10 @@ public class MovementSystem : BaseManager
     public override void Update(double deltaTime)
     {
         var tick = Environment.TickCount;
-        Parallel.ForEach(EventQueue, HandleMessage);
-        EventQueue.Clear();
+        
+        // Process events using the base class method (more efficient)
+        base.Update(deltaTime);
+        
         // Later: add deltaTime to moving entities, now just use crude loop limiter
         if (_tickCounter++ >= 1)
         {
@@ -129,7 +131,6 @@ public class MovementSystem : BaseManager
     {
         if (Config.DebugPathfinding)
         {
-            // Console.WriteLine("Moving entities");
             Console.WriteLine($"Moving {_movingEntities.Count} entities");
         }
 
@@ -144,8 +145,8 @@ public class MovementSystem : BaseManager
 
             if (Config.DebugPathfinding)
             {
-            Console.WriteLine($"Entity {entityId} moving to {nextMove} from {currentPos}");
-            Console.WriteLine($"Entity {entityId} path : {movementData.CurrentMoveIndex}/{movementData.Path.Length}");
+                Console.WriteLine($"Entity {entityId} moving to {nextMove} from {currentPos}");
+                Console.WriteLine($"Entity {entityId} path : {movementData.CurrentMoveIndex}/{movementData.Path.Length}");
             }
 
             if (nextMove == currentPos)

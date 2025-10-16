@@ -76,16 +76,26 @@ public class GameSocketHandler(ILogger<GameSocketHandler> logger, ViewportManage
         }
     }
     
+    private static (bool success, MessageType type, byte[] payload) DecodeMessage(byte[] messageData)
+    {
+        ReadOnlySpan<byte> dataSpan = messageData;
+        if (!MessageProtocol.TryDecodeMessage(dataSpan, out var type, out var payload))
+        {
+            return (false, default, Array.Empty<byte>());
+        }
+        return (true, type, payload.ToArray());
+    }
+    
     private async Task HandleMessage(WebSocket webSocket, byte[] messageData, Guid connectionId)
     {
         try
         {
-            if (!MessageProtocol.TryDecodeMessage(messageData, out var type, out var payload))
+            var (success, type, payloadBytes) = DecodeMessage(messageData);
+            if (!success)
             {
                 await SendError(webSocket, "Invalid message format");
                 return;
             }
-            var payloadBytes = payload.ToArray();
 
             switch (type)
             {
